@@ -172,6 +172,6 @@ Este projeto é **proprietário** e seu código fonte não pode ser copiado, mod
 
 # 👨‍💻 Autor
 
-Desenvolvido por **Gabriel Rezende**
+Desenvolvido por **Gabriel Rezende**, **Carlos Alberto** e **Arthur Hoffmann**
 
 Projeto voltado para aplicação de tecnologia e inteligência artificial na área de nutrição.
