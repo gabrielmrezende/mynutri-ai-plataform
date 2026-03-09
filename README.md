@@ -71,6 +71,7 @@ A plataforma não substitui a orientação de um nutricionista profissional.
 
 # 📂 Estrutura do Projeto
 
+```
 MyNutri-AI
 │
 ├── frontend
@@ -89,6 +90,7 @@ MyNutri-AI
 ├── docs
 │
 └── README.md
+```
 
 ---
 
