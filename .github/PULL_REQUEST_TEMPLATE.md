@@ -9,7 +9,11 @@ Explique brevemente o que foi feito neste Pull Request.
 * [ ] feat (nova funcionalidade)
 * [ ] fix (correção de bug)
 * [ ] docs (documentação)
-* [ ] refactor (melhoria de código)
+* [ ] refactor (melhoria/refatoração de código sem mudar funcionalidade)
+* [ ] style (formatação de código, sem alterar lógica)
+* [ ] test (adição ou alteração de testes)
+* [ ] chore (tarefas gerais, configuração, dependências)
+
 
 ---
 
