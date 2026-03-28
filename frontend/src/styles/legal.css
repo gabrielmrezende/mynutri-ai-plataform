@@ -1,0 +1,131 @@
+/* ===========================
+   MyNutri AI — Legal Pages (Termos + Privacidade)
+   =========================== */
+
+.legal-page {
+  min-height: 100vh;
+  background: var(--white);
+  padding-top: calc(var(--header-h) + 60px);
+  padding-bottom: 60px;
+}
+
+.legal-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.legal-header {
+  text-align: center;
+  margin-bottom: 48px;
+  animation: fadeInUp .6s var(--ease-out) both;
+}
+
+.legal-header .section-title {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  margin-bottom: 12px;
+}
+
+.legal-date {
+  font-size: .875rem;
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+/* ---------- Content ---------- */
+.legal-content {
+  animation: fadeInUp .6s .1s var(--ease-out) both;
+}
+
+.legal-section {
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.legal-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.legal-section h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 16px;
+  padding-left: 16px;
+  border-left: 3px solid var(--green-500);
+}
+
+.legal-section h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+.legal-section p {
+  font-size: .9375rem;
+  color: var(--gray-600);
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+
+.legal-section ul {
+  margin-bottom: 16px;
+  padding-left: 0;
+}
+
+.legal-section li {
+  font-size: .9375rem;
+  color: var(--gray-600);
+  line-height: 1.8;
+  padding: 4px 0 4px 24px;
+  position: relative;
+  list-style: none;
+}
+
+.legal-section li::before {
+  content: '•';
+  position: absolute;
+  left: 8px;
+  color: var(--green-500);
+  font-weight: 700;
+}
+
+.legal-section a {
+  color: var(--green-600);
+  font-weight: 600;
+  transition: color .2s ease;
+}
+
+.legal-section a:hover {
+  color: var(--green-800);
+}
+
+/* Warning box */
+.legal-warning {
+  background: rgba(245,158,11,.08);
+  border: 1px solid rgba(245,158,11,.2);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin: 16px 0;
+}
+
+.legal-warning p {
+  color: #92400e;
+  margin-bottom: 0;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .legal-page {
+    padding-top: calc(var(--header-h) + 32px);
+  }
+  .legal-section h2 {
+    font-size: 1.125rem;
+  }
+}

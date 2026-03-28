@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Questionário — MyNutri AI</title>
+  <meta name="description" content="Preencha o questionário nutricional e receba sua dieta personalizada gerada por inteligência artificial." />
+  <link rel="stylesheet" href="../src/styles/index.css" />
+  <link rel="stylesheet" href="../src/styles/questionario.css" />
+</head>
+<body>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="header" id="header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo" id="logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/>
+            <circle cx="12" cy="9" r="2.5"/>
+          </svg>
+        </div>
+        MyNutri <span>AI</span>
+      </a>
+
+      <a href="index.html" class="btn btn-secondary" id="back-home-btn" style="padding: 8px 20px; font-size: .8125rem;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Voltar ao início
+      </a>
+    </div>
+  </header>
+
+  <!-- ===================== QUESTIONNAIRE ===================== -->
+  <main class="questionnaire-page">
+    <div class="questionnaire-container">
+
+      <!-- Page Header -->
+      <div class="questionnaire-header">
+        <span class="section-tag">📝 Questionário Nutricional</span>
+        <h1 class="section-title">Monte sua dieta ideal</h1>
+        <p class="section-subtitle">Responda as perguntas abaixo para que nossa IA crie um plano alimentar 100% personalizado para você.</p>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-wrapper">
+        <div class="progress-steps">
+          <div class="progress-step active" data-step="1">
+            <div class="progress-step-circle">1</div>
+            <span class="progress-step-label">Dados</span>
+          </div>
+          <div class="progress-connector" data-connector="1">
+            <div class="progress-connector-fill"></div>
+          </div>
+          <div class="progress-step" data-step="2">
+            <div class="progress-step-circle">2</div>
+            <span class="progress-step-label">Objetivo</span>
+          </div>
+          <div class="progress-connector" data-connector="2">
+            <div class="progress-connector-fill"></div>
+          </div>
+          <div class="progress-step" data-step="3">
+            <div class="progress-step-circle">3</div>
+            <span class="progress-step-label">Atividade</span>
+          </div>
+          <div class="progress-connector" data-connector="3">
+            <div class="progress-connector-fill"></div>
+          </div>
+          <div class="progress-step" data-step="4">
+            <div class="progress-step-circle">4</div>
+            <span class="progress-step-label">Restrições</span>
+          </div>
+          <div class="progress-connector" data-connector="4">
+            <div class="progress-connector-fill"></div>
+          </div>
+          <div class="progress-step" data-step="5">
+            <div class="progress-step-circle">5</div>
+            <span class="progress-step-label">Preferências</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Card -->
+      <div class="form-card">
+        <form id="questionnaire-form" novalidate>
+
+          <!-- ===== STEP 1: Dados Pessoais ===== -->
+          <div class="form-step active" data-step="1">
+            <h2 class="form-step-title">
+              <span class="step-emoji">👤</span> Dados Pessoais
+            </h2>
+            <p class="form-step-description">Precisamos de algumas informações básicas para calcular suas necessidades nutricionais.</p>
+
+            <div class="form-group">
+              <label class="form-label" for="nome">Nome <span class="required">*</span></label>
+              <input type="text" class="form-input" id="nome" name="nome" placeholder="Seu nome completo" required />
+              <span class="form-error" id="nome-error">Por favor, informe seu nome.</span>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="idade">Idade <span class="required">*</span></label>
+                <input type="number" class="form-input" id="idade" name="idade" placeholder="Ex: 28" min="10" max="120" required />
+                <span class="form-error" id="idade-error">Informe uma idade válida (10-120).</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="sexo">Sexo<span class="required">*</span></label>
+                <select class="form-select" id="sexo" name="sexo" required>
+                  <option value="" disabled selected>Selecione</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="feminino">Feminino</option>
+                </select>
+                <span class="form-error" id="sexo-error">Selecione uma opção.</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="peso">Peso (kg) <span class="required">*</span></label>
+                <input type="number" class="form-input" id="peso" name="peso" placeholder="Ex: 72.5" step="0.1" min="20" max="400" required />
+                <span class="form-error" id="peso-error">Informe um peso válido.</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="altura">Altura (cm) <span class="required">*</span></label>
+                <input type="number" class="form-input" id="altura" name="altura" placeholder="Ex: 175" min="100" max="250" required />
+                <span class="form-error" id="altura-error">Informe uma altura válida.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== STEP 2: Objetivo ===== -->
+          <div class="form-step" data-step="2">
+            <h2 class="form-step-title">
+              <span class="step-emoji">🎯</span> Qual é seu objetivo?
+            </h2>
+            <p class="form-step-description">Escolha o objetivo principal que você deseja alcançar com sua dieta personalizada.</p>
+
+            <div class="selection-grid" id="objetivo-grid">
+              <label class="selection-card">
+                <input type="radio" name="objetivo" value="perda_peso" required />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">🏋️</span>
+                  <span class="selection-card-label">Perder peso</span>
+                  <span class="selection-card-desc">Déficit calórico saudável</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="objetivo" value="ganho_massa" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">💪</span>
+                  <span class="selection-card-label">Ganhar massa</span>
+                  <span class="selection-card-desc">Superávit calórico controlado</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="objetivo" value="manutencao" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">⚖️</span>
+                  <span class="selection-card-label">Manter peso</span>
+                  <span class="selection-card-desc">Equilíbrio calórico</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="objetivo" value="saude" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">❤️</span>
+                  <span class="selection-card-label">Melhorar saúde</span>
+                  <span class="selection-card-desc">Alimentação equilibrada</span>
+                </div>
+              </label>
+            </div>
+            <span class="form-error" id="objetivo-error">Selecione um objetivo.</span>
+          </div>
+
+          <!-- ===== STEP 3: Nível de Atividade ===== -->
+          <div class="form-step" data-step="3">
+            <h2 class="form-step-title">
+              <span class="step-emoji">🏃</span> Nível de Atividade Física
+            </h2>
+            <p class="form-step-description">Com que frequência você pratica exercícios físicos durante a semana?</p>
+
+            <div class="selection-grid" id="atividade-grid">
+              <label class="selection-card">
+                <input type="radio" name="atividade" value="sedentario" required />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">🛋️</span>
+                  <span class="selection-card-label">Sedentário</span>
+                  <span class="selection-card-desc">Pouca ou nenhuma atividade</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="atividade" value="leve" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">🚶</span>
+                  <span class="selection-card-label">Leve</span>
+                  <span class="selection-card-desc">1-2 vezes por semana</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="atividade" value="moderado" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">🏃</span>
+                  <span class="selection-card-label">Moderado</span>
+                  <span class="selection-card-desc">3-5 vezes por semana</span>
+                </div>
+              </label>
+              <label class="selection-card">
+                <input type="radio" name="atividade" value="intenso" />
+                <div class="selection-card-content">
+                  <span class="selection-card-icon">🔥</span>
+                  <span class="selection-card-label">Intenso</span>
+                  <span class="selection-card-desc">6-7 vezes por semana</span>
+                </div>
+              </label>
+            </div>
+            <span class="form-error" id="atividade-error">Selecione seu nível de atividade.</span>
+          </div>
+
+          <!-- ===== STEP 4: Restrições Alimentares ===== -->
+          <div class="form-step" data-step="4">
+            <h2 class="form-step-title">
+              <span class="step-emoji">🚫</span> Restrições Alimentares
+            </h2>
+            <p class="form-step-description">Selecione todas as restrições que se aplicam a você. Caso não tenha nenhuma, basta avançar.</p>
+
+            <div class="form-group">
+              <label class="form-label">Tipo de dieta</label>
+              <div class="selection-grid cols-3" id="dieta-grid">
+                <label class="selection-card">
+                  <input type="radio" name="tipo_dieta" value="onivoro" checked />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon">🍖</span>
+                    <span class="selection-card-label">Onívoro</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="tipo_dieta" value="vegetariano" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon">🥬</span>
+                    <span class="selection-card-label">Vegetariano</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="tipo_dieta" value="vegano" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon">🌱</span>
+                    <span class="selection-card-label">Vegano</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Alergias e intolerâncias</label>
+              <div class="tags-grid">
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="gluten" />
+                  <span class="tag-option-content">🌾 Glúten</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="lactose" />
+                  <span class="tag-option-content">🥛 Lactose</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="ovo" />
+                  <span class="tag-option-content">🥚 Ovo</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="soja" />
+                  <span class="tag-option-content">🫘 Soja</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="amendoim" />
+                  <span class="tag-option-content">🥜 Amendoim</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="frutos_do_mar" />
+                  <span class="tag-option-content">🦐 Frutos do mar</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="nozes" />
+                  <span class="tag-option-content">🌰 Nozes</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="restricoes" value="peixe" />
+                  <span class="tag-option-content">🐟 Peixes</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="outras-restricoes">Outras restrições</label>
+              <input type="text" class="form-input" id="outras-restricoes" name="outras_restricoes" placeholder="Ex: Não como carne de porco, alérgico a camarão..." />
+            </div>
+          </div>
+
+          <!-- ===== STEP 5: Preferências ===== -->
+          <div class="form-step" data-step="5">
+            <h2 class="form-step-title">
+              <span class="step-emoji">⭐</span> Preferências Alimentares
+            </h2>
+            <p class="form-step-description">Últimas perguntas para deixar sua dieta ainda mais personalizada e fácil de seguir.</p>
+
+            <div class="form-group">
+              <label class="form-label" for="refeicoes">Quantidade de refeições por dia <span class="required">*</span></label>
+              <select class="form-select" id="refeicoes" name="refeicoes" required>
+                <option value="" disabled selected>Selecione</option>
+                <option value="3">3 refeições</option>
+                <option value="4">4 refeições</option>
+                <option value="5">5 refeições</option>
+                <option value="6">6 refeições</option>
+              </select>
+              <span class="form-error" id="refeicoes-error">Selecione a quantidade de refeições.</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="alimentos-favoritos">Alimentos que você gosta</label>
+              <textarea class="form-textarea" id="alimentos-favoritos" name="alimentos_favoritos" placeholder="Ex: Frango, arroz, batata doce, banana, aveia..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="alimentos-evitar">Alimentos que deseja evitar</label>
+              <textarea class="form-textarea" id="alimentos-evitar" name="alimentos_evitar" placeholder="Ex: Beterraba, fígado, jiló..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="observacoes">Observações adicionais</label>
+              <textarea class="form-textarea" id="observacoes" name="observacoes" placeholder="Algo que devemos considerar na sua dieta? Ex: Trabalho noturno, treino pela manhã..."></textarea>
+            </div>
+          </div>
+
+          <!-- ===== Form Actions ===== -->
+          <div class="form-actions">
+            <button type="button" class="btn-back hidden" id="btn-back">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+              </svg>
+              Voltar
+            </button>
+
+            <button type="button" class="btn-next" id="btn-next">
+              Próximo
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+
+            <button type="submit" class="btn-submit" id="btn-submit" style="display: none;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              Gerar minha dieta
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+      <p class="step-info" id="step-info">Etapa <strong>1</strong> de <strong>5</strong></p>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="questionnaire-footer">
+      <p>Suas informações são seguras e usadas apenas para gerar sua dieta. <a href="index.html">Voltar ao início</a></p>
+    </div>
+  </main>
+
+  <!-- ===================== JAVASCRIPT ===================== -->
+  <script>
+    (() => {
+      const totalSteps = 5;
+      let currentStep = 1;
+
+      const form = document.getElementById('questionnaire-form');
+      const btnNext = document.getElementById('btn-next');
+      const btnBack = document.getElementById('btn-back');
+      const btnSubmit = document.getElementById('btn-submit');
+      const stepInfo = document.getElementById('step-info');
+
+      // --- Validation per step ---
+      function validateStep(step) {
+        let valid = true;
+        clearErrors(step);
+
+        if (step === 1) {
+          valid = validateRequired('nome') && valid;
+          valid = validateNumber('idade', 10, 120) && valid;
+          valid = validateRequired('sexo') && valid;
+          valid = validateNumber('peso', 20, 400) && valid;
+          valid = validateNumber('altura', 100, 250) && valid;
+        }
+
+        if (step === 2) {
+          const selected = form.querySelector('input[name="objetivo"]:checked');
+          if (!selected) {
+            showError('objetivo');
+            valid = false;
+          }
+        }
+
+        if (step === 3) {
+          const selected = form.querySelector('input[name="atividade"]:checked');
+          if (!selected) {
+            showError('atividade');
+            valid = false;
+          }
+        }
+
+        // Step 4: no required fields
+        
+        if (step === 5) {
+          valid = validateRequired('refeicoes') && valid;
+        }
+
+        return valid;
+      }
+
+      function validateRequired(id) {
+        const el = document.getElementById(id);
+        if (!el.value.trim()) {
+          el.classList.add('error');
+          showError(id);
+          return false;
+        }
+        return true;
+      }
+
+      function validateNumber(id, min, max) {
+        const el = document.getElementById(id);
+        const val = parseFloat(el.value);
+        if (!el.value.trim() || isNaN(val) || val < min || val > max) {
+          el.classList.add('error');
+          showError(id);
+          return false;
+        }
+        return true;
+      }
+
+      function showError(id) {
+        const err = document.getElementById(id + '-error');
+        if (err) err.classList.add('visible');
+      }
+
+      function clearErrors(step) {
+        const stepEl = form.querySelector(`.form-step[data-step="${step}"]`);
+        if (!stepEl) return;
+        stepEl.querySelectorAll('.form-input, .form-select, .form-textarea').forEach(el => el.classList.remove('error'));
+        stepEl.querySelectorAll('.form-error').forEach(el => el.classList.remove('visible'));
+      }
+
+      // Also clear individual errors on input
+      form.querySelectorAll('.form-input, .form-select, .form-textarea').forEach(el => {
+        el.addEventListener('input', () => {
+          el.classList.remove('error');
+          const err = document.getElementById(el.id + '-error');
+          if (err) err.classList.remove('visible');
+        });
+      });
+
+      // Clear radio selection errors on change
+      form.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          const err = document.getElementById(radio.name + '-error');
+          if (err) err.classList.remove('visible');
+        });
+      });
+
+      // --- Navigation ---
+      function goToStep(step) {
+        // Hide current
+        const currentEl = form.querySelector(`.form-step[data-step="${currentStep}"]`);
+        if (currentEl) currentEl.classList.remove('active');
+
+        currentStep = step;
+
+        // Show new
+        const nextEl = form.querySelector(`.form-step[data-step="${step}"]`);
+        if (nextEl) nextEl.classList.add('active');
+
+        // Update progress
+        updateProgress();
+
+        // Update buttons
+        btnBack.classList.toggle('hidden', currentStep === 1);
+
+        if (currentStep === totalSteps) {
+          btnNext.style.display = 'none';
+          btnSubmit.style.display = 'inline-flex';
+        } else {
+          btnNext.style.display = 'inline-flex';
+          btnSubmit.style.display = 'none';
+        }
+
+        // Update step info
+        stepInfo.innerHTML = `Etapa <strong>${currentStep}</strong> de <strong>${totalSteps}</strong>`;
+
+        // Scroll to top of form
+        document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function updateProgress() {
+        for (let i = 1; i <= totalSteps; i++) {
+          const stepEl = document.querySelector(`.progress-step[data-step="${i}"]`);
+          stepEl.classList.remove('active', 'completed');
+
+          if (i < currentStep) stepEl.classList.add('completed');
+          else if (i === currentStep) stepEl.classList.add('active');
+        }
+
+        // Connectors
+        for (let i = 1; i < totalSteps; i++) {
+          const connector = document.querySelector(`.progress-connector[data-connector="${i}"]`);
+          if (i < currentStep) {
+            connector.classList.add('completed');
+          } else {
+            connector.classList.remove('completed');
+          }
+        }
+      }
+
+      btnNext.addEventListener('click', () => {
+        if (validateStep(currentStep)) {
+          goToStep(currentStep + 1);
+        }
+      });
+
+      btnBack.addEventListener('click', () => {
+        if (currentStep > 1) {
+          goToStep(currentStep - 1);
+        }
+      });
+
+      // --- Form Submit ---
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        if (!validateStep(currentStep)) return;
+
+        // Collect all form data
+        const formData = new FormData(form);
+        const data = {};
+
+        for (const [key, value] of formData.entries()) {
+          if (data[key]) {
+            // Handle multiple values (checkboxes)
+            if (Array.isArray(data[key])) {
+              data[key].push(value);
+            } else {
+              data[key] = [data[key], value];
+            }
+          } else {
+            data[key] = value;
+          }
+        }
+
+        console.log('📋 Dados do questionário:', data);
+
+        // TODO: Enviar para a API e redirecionar para resultado.html
+        alert('Questionário preenchido com sucesso! 🎉\nEm breve sua dieta será gerada.');
+      });
+
+      // --- Keyboard navigation ---
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          if (currentStep < totalSteps) {
+            btnNext.click();
+          } else {
+            btnSubmit.click();
+          }
+        }
+      });
+
+    })();
+  </script>
+
+</body>
+</html>
