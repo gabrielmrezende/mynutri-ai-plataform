@@ -4,6 +4,55 @@
 
 O banco de dados é responsável por armazenar todas as informações da aplicação, incluindo dados dos usuários, respostas da anamnese e planos alimentares gerados.
 
+### Diagrama de Entidade-Relacionamento (ERD)
+
+```mermaid
+erDiagram
+    users ||--o{ anamnese : "responde"
+    users ||--o{ diet_plans : "possui"
+    anamnese ||--o| diet_plans : "gera"
+    diet_plans ||--o{ meals : "contém"
+
+    users {
+        int id PK
+        string nome
+        string email
+        string senha_hash
+        datetime data_criacao
+    }
+    
+    anamnese {
+        int id PK
+        int user_id FK
+        int idade
+        string sexo
+        float peso
+        float altura
+        string nivel_atividade
+        string objetivo
+        string restricoes_alimentares
+        string preferencias_alimentares
+        datetime data_resposta
+    }
+    
+    diet_plans {
+        int id PK
+        int user_id FK
+        int anamnese_id FK
+        json dieta_gerada
+        int calorias_totais
+        datetime data_criacao
+    }
+    
+    meals {
+        int id PK
+        int diet_plan_id FK
+        string nome_refeicao
+        string descricao_refeicao
+        int calorias
+    }
+```
+
 ---
 
 ## Tabela: users

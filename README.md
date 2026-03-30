@@ -74,6 +74,55 @@ A plataforma **não substitui a orientação de um nutricionista profissional**.
 
 ---
 
+# 🚀 Como Rodar o Projeto (Setup Local)
+
+### Pré-requisitos
+* Python 3.10+
+* Git
+* Node.js (opcional, para testes de interface front-end)
+
+### Passo a passo
+
+1. **Clone o repositório:**
+   ```bash
+   git clone https://github.com/SEU_USUARIO/mynutri-ai-plataform.git
+   cd mynutri-ai-plataform
+   ```
+
+2. **Crie e ative o ambiente virtual (Backend Python):**
+   ```bash
+   python -m venv venv
+   # No Windows:
+   venv\Scripts\activate
+   # No Linux/Mac:
+   source venv/bin/activate
+   ```
+
+3. **Instale as dependências:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configuração de Variáveis de Ambiente:**
+   Copie o arquivo de exemplo e crie o seu `.env` oficial.
+   ```bash
+   cp .env.example .env
+   ```
+   **Importante:** Abra o `.env` gerado e preencha as chaves necessárias (ex: `SECRET_KEY`, url do banco de dados e a sua chave da **OpenAI** ou **Gemini**). O sistema não funcionará corretamente com a IA sem as chaves válidas configuradas aqui.
+
+5. **Execute as migrações do banco de dados:**
+   ```bash
+   python manage.py migrate
+   ```
+
+6. **Inicie o servidor de desenvolvimento:**
+   ```bash
+   python manage.py runserver
+   ```
+   A aplicação estará rodando em `http://127.0.0.1:8000/`.
+
+---
+
 # 📂 Estrutura do Projeto
 
 ```
