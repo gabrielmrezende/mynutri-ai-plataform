@@ -18,6 +18,15 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
+    # Painel de administração do Django
     path('admin/', admin.site.urls),
+
+    # Rotas legadas do app user (views HTML — login/register via template)
     path('user/', include('user.urls')),
+
+    # ===========================================================================
+    # API REST — todos os endpoints sob /api/
+    # ===========================================================================
+    path('api/', include('user.urls_api')),
+    path('api/', include('nutrition.urls_api')),
 ]
