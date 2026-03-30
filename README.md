@@ -1,6 +1,6 @@
 # 🥗 MyNutri AI
 
-Plataforma inteligente para geração de planos alimentares personalizados utilizando Inteligência Artificial.
+Plataforma inteligente para geração de **planos alimentares personalizados** utilizando **Inteligência Artificial**.
 
 O **MyNutri AI** permite que usuários respondam um questionário nutricional e, com base nas respostas fornecidas, a plataforma gera automaticamente uma sugestão de plano alimentar personalizado.
 
@@ -10,13 +10,13 @@ O objetivo do projeto é facilitar o acesso a orientações alimentares iniciais
 
 # 🚀 Funcionalidades
 
-- 📋 Questionário nutricional inteligente
-- 🤖 Geração automática de dieta com Inteligência Artificial
-- 🎯 Planos alimentares personalizados
-- 📊 Estrutura de refeições diárias
-- 🧠 Análise de objetivos do usuário (emagrecimento, hipertrofia, manutenção)
-- 📱 Interface moderna e responsiva
-- 🎨 Design clean com cores claras (branco e verde)
+* 📋 Questionário nutricional inteligente
+* 🤖 Geração automática de dieta com Inteligência Artificial
+* 🎯 Planos alimentares personalizados
+* 📊 Estrutura de refeições diárias
+* 🧠 Análise de objetivos do usuário (emagrecimento, hipertrofia, manutenção)
+* 📱 Interface moderna e responsiva
+* 🎨 Design clean com cores claras (branco e verde)
 
 ---
 
@@ -26,46 +26,51 @@ O **MyNutri AI** foi criado para ajudar usuários a organizarem sua alimentaçã
 
 A plataforma coleta informações importantes como:
 
-- idade
-- peso
-- altura
-- nível de atividade física
-- objetivo corporal
-- restrições alimentares
-- preferências alimentares
-- frequência de exercícios
+* idade
+* peso
+* altura
+* nível de atividade física
+* objetivo corporal
+* restrições alimentares
+* preferências alimentares
+* frequência de exercícios
 
 Com base nesses dados, o sistema gera um plano alimentar estruturado.
 
-⚠️ **Aviso:**  
-A plataforma não substitui a orientação de um nutricionista profissional.
+⚠️ **Aviso:**
+A plataforma **não substitui a orientação de um nutricionista profissional**.
 
 ---
 
 # 🛠️ Tecnologias Utilizadas
 
 ## Frontend
-- HTML
-- CSS
-- JavaScript
-- React (planejado)
+
+* HTML
+* CSS
+* JavaScript
+* React *(planejado)*
 
 ## Backend
-- Python
-- Flask / Django
+
+* Python
+* Flask / Django
 
 ## Banco de Dados
-- PostgreSQL
-- Supabase
+
+* PostgreSQL
+* Supabase
 
 ## Inteligência Artificial
-- API de IA para geração de dietas personalizadas
+
+* API de IA para geração de dietas personalizadas
 
 ## Ferramentas
-- Git
-- GitHub
-- Trello (organização do projeto)
-- Replit / Cursor / Claude Code (assistência de desenvolvimento)
+
+* Git
+* GitHub
+* Trello (organização do projeto)
+* Replit / Cursor / Claude Code (assistência de desenvolvimento)
 
 ---
 
@@ -75,19 +80,26 @@ A plataforma não substitui a orientação de um nutricionista profissional.
 MyNutri-AI
 │
 ├── frontend
-│ ├── public
-│ ├── src
-│ └── styles
+│   ├── public
+│   ├── src
+│   └── styles
 │
 ├── backend
-│ ├── app
-│ ├── routes
-│ ├── services
-│ └── models
+│   ├── app
+│   ├── routes
+│   ├── services
+│   └── models
 │
 ├── database
 │
 ├── docs
+│   ├── architecture.md
+│   ├── database.md
+│   ├── roadmap.md
+│   ├── api.md
+│   ├── prompts.md
+│   ├── ideas.md
+│   └── git_conventions.md
 │
 └── README.md
 ```
@@ -100,15 +112,15 @@ A plataforma utiliza um questionário para entender o perfil do usuário.
 
 Exemplos de perguntas:
 
-- Qual sua idade?
-- Qual seu peso atual?
-- Qual sua altura?
-- Qual seu objetivo principal?
-- Quantas vezes por semana você treina?
-- Você possui restrições alimentares?
-- Possui alergias alimentares?
-- Quais alimentos você prefere?
-- Quantas refeições faz por dia?
+* Qual sua idade?
+* Qual seu peso atual?
+* Qual sua altura?
+* Qual seu objetivo principal?
+* Quantas vezes por semana você treina?
+* Você possui restrições alimentares?
+* Possui alergias alimentares?
+* Quais alimentos você prefere?
+* Quantas refeições faz por dia?
 
 Essas informações são utilizadas para gerar um plano alimentar personalizado.
 
@@ -116,19 +128,34 @@ Essas informações são utilizadas para gerar um plano alimentar personalizado.
 
 # 🧠 Como funciona a geração da dieta
 
-1. O usuário responde o questionário nutricional  
-2. O sistema analisa os dados fornecidos  
-3. A IA processa as informações  
-4. O sistema gera um plano alimentar estruturado  
+1️⃣ O usuário responde o questionário nutricional
+2️⃣ O sistema analisa os dados fornecidos
+3️⃣ A IA processa as informações
+4️⃣ O sistema gera um plano alimentar estruturado
 
 Exemplo de divisão do plano alimentar:
 
-- Café da manhã
-- Lanche da manhã
-- Almoço
-- Lanche da tarde
-- Jantar
-- Ceia (opcional)
+* Café da manhã
+* Lanche da manhã
+* Almoço
+* Lanche da tarde
+* Jantar
+* Ceia (opcional)
+
+---
+
+# 📚 Documentação
+
+A documentação detalhada do projeto está disponível na pasta **docs/**.
+
+Ela inclui:
+
+* Arquitetura do sistema
+* Modelagem do banco de dados
+* Estrutura da API
+* Roadmap do projeto
+* Prompts utilizados pela IA
+* Convenções de Git
 
 ---
 
@@ -136,29 +163,29 @@ Exemplo de divisão do plano alimentar:
 
 Este projeto segue algumas boas práticas de desenvolvimento:
 
-- Proteção da branch `main`
-- Uso de **feature branches**
-- **Pull Requests** para revisão de código
-- Versionamento com Git
-- Variáveis sensíveis armazenadas em `.env`
+* Proteção da branch `main`
+* Uso de **feature branches**
+* **Pull Requests** para revisão de código
+* Versionamento com Git
+* Variáveis sensíveis armazenadas em `.env`
 
 ---
 
 # 📈 Futuras Melhorias
 
-- 📊 Cálculo automático de calorias e macronutrientes
-- 🥗 Banco de dados com mais de 200 alimentos
-- 📄 Exportação do plano alimentar em PDF
-- 📱 Aplicativo mobile
-- 👩‍⚕️ Área para nutricionistas
-- 📊 Dashboard de acompanhamento alimentar
-- 🤖 Melhorias no modelo de IA
+* 📊 Cálculo automático de calorias e macronutrientes
+* 🥗 Banco de dados com mais de 200 alimentos
+* 📄 Exportação do plano alimentar em PDF
+* 📱 Aplicativo mobile
+* 👩‍⚕️ Área para nutricionistas
+* 📊 Dashboard de acompanhamento alimentar
+* 🤖 Melhorias no modelo de IA
 
 ---
 
 # ⚠️ Aviso Legal
 
-O **MyNutri AI** é uma ferramenta de apoio e não substitui acompanhamento profissional de nutricionistas ou médicos.
+O **MyNutri AI** é uma ferramenta de apoio e **não substitui acompanhamento profissional** de nutricionistas ou médicos.
 
 As recomendações alimentares geradas devem ser utilizadas apenas para fins informativos.
 
@@ -166,14 +193,18 @@ As recomendações alimentares geradas devem ser utilizadas apenas para fins inf
 
 # 📄 Licença
 
-© 2026 MyNutri AI. Todos os direitos reservados.
+© 2026 MyNutri AI.
 
-Este projeto é **proprietário** e seu código fonte não pode ser copiado, modificado, distribuído ou utilizado para fins comerciais sem autorização explícita do autor.
+Este projeto é **proprietário** e seu código fonte **não pode ser copiado, modificado ou redistribuído sem autorização do autor**.
 
 ---
 
-# 👨‍💻 Autor
+# 👨‍💻 Autores
 
-Desenvolvido por **Gabriel Rezende**, **Carlos Alberto** e **Arthur Hoffmann**
+Desenvolvido por:
+
+* **Gabriel Rezende**
+* **Carlos Alberto**
+* **Arthur Hoffmann**
 
 Projeto voltado para aplicação de tecnologia e inteligência artificial na área de nutrição.
