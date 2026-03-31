@@ -2,258 +2,188 @@
 
 Plataforma inteligente para geração de **planos alimentares personalizados** utilizando **Inteligência Artificial**.
 
-O **MyNutri AI** permite que usuários respondam um questionário nutricional e, com base nas respostas fornecidas, a plataforma gera automaticamente uma sugestão de plano alimentar personalizado.
+O **MyNutri AI** permite que usuários respondam um questionário nutricional e, com base nas respostas, a plataforma gera automaticamente um plano alimentar personalizado via IA.
 
-O objetivo do projeto é facilitar o acesso a orientações alimentares iniciais de forma rápida, organizada e baseada em dados.
-
----
-
-# 🚀 Funcionalidades
-
-* 📋 Questionário nutricional inteligente
-* 🤖 Geração automática de dieta com Inteligência Artificial
-* 🎯 Planos alimentares personalizados
-* 📊 Estrutura de refeições diárias
-* 🧠 Análise de objetivos do usuário (emagrecimento, hipertrofia, manutenção)
-* 📱 Interface moderna e responsiva
-* 🎨 Design clean com cores claras (branco e verde)
+> ⚠️ **Aviso:** A plataforma **não substitui a orientação de um nutricionista profissional**.
 
 ---
 
-# 🎯 Objetivo do Projeto
+## 🚀 Funcionalidades (MVP Completo)
 
-O **MyNutri AI** foi criado para ajudar usuários a organizarem sua alimentação de forma prática utilizando tecnologia e inteligência artificial.
-
-A plataforma coleta informações importantes como:
-
-* idade
-* peso
-* altura
-* nível de atividade física
-* objetivo corporal
-* restrições alimentares
-* preferências alimentares
-* frequência de exercícios
-
-Com base nesses dados, o sistema gera um plano alimentar estruturado.
-
-⚠️ **Aviso:**
-A plataforma **não substitui a orientação de um nutricionista profissional**.
+- 📋 Questionário nutricional em múltiplos steps com validação
+- 🔐 Autenticação completa via **JWT** (cadastro + login + refresh)
+- 🤖 Geração automática de dieta com **IA** (OpenAI-compatible)
+- 🎯 Planos alimentares personalizados com calorias por refeição
+- 📊 Persistência do histórico de dietas no banco de dados
+- 📱 Interface moderna, responsiva e mobile-first
 
 ---
 
-# 🛠️ Tecnologias Utilizadas
+## 🛠️ Tecnologias
 
-## Frontend
+### Backend
+- **Python 3.10+** + **Django 6.x**
+- **Django REST Framework** — API REST
+- **SimpleJWT** — autenticação via Bearer Token
+- **SQLite** (dev) / **PostgreSQL** (prod)
+- **django-cors-headers** — CORS configurado
 
-* HTML
-* CSS
-* JavaScript
-* React *(planejado)*
+### Frontend
+- **HTML5** + **CSS3** + **JavaScript** (vanilla)
+- Sem frameworks front-end — SPA manual com fetch API
 
-## Backend
-
-* Python
-* Flask / Django
-
-## Banco de Dados
-
-* PostgreSQL
-* Supabase
-
-## Inteligência Artificial
-
-* API de IA para geração de dietas personalizadas
-
-## Ferramentas
-
-* Git
-* GitHub
-* Trello (organização do projeto)
-* Replit / Cursor / Claude Code (assistência de desenvolvimento)
+### Inteligência Artificial
+- Integração com qualquer API **OpenAI-compatible** (OpenAI, Gemini, etc.)
 
 ---
 
-# 🚀 Como Rodar o Projeto (Setup Local)
+## 📂 Estrutura do Projeto
+
+```
+mynutri-ai-plataform/
+│
+├── mynutri/            # Configurações do projeto Django (settings, urls, wsgi)
+├── user/               # App de autenticação e perfil do usuário
+├── nutrition/          # App de anamnese, geração e exibição de dieta
+│
+├── frontend/
+│   └── public/         # Páginas HTML estáticas (index, auth, questionario, dieta...)
+│
+├── docs/               # Documentação técnica do projeto
+├── scripts/            # Scripts utilitários (validação de env, pre-commit hook)
+│
+├── .env.example        # Variáveis de ambiente necessárias
+├── requirements.txt    # Dependências Python
+└── manage.py
+```
+
+---
+
+## ⚙️ Setup Local
 
 ### Pré-requisitos
-* Python 3.10+
-* Git
-* Node.js (opcional, para testes de interface front-end)
+- Python 3.10+
+- Git
 
 ### Passo a passo
 
-1. **Clone o repositório:**
-   ```bash
-   git clone https://github.com/SEU_USUARIO/mynutri-ai-plataform.git
-   cd mynutri-ai-plataform
-   ```
-
-2. **Crie e ative o ambiente virtual (Backend Python):**
-   ```bash
-   python -m venv venv
-   # No Windows:
-   venv\Scripts\activate
-   # No Linux/Mac:
-   source venv/bin/activate
-   ```
-
-3. **Instale as dependências:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configuração de Variáveis de Ambiente:**
-   Copie o arquivo de exemplo e crie o seu `.env` oficial.
-   ```bash
-   cp .env.example .env
-   ```
-   **Importante:** Abra o `.env` gerado e preencha as chaves necessárias (ex: `SECRET_KEY`, url do banco de dados e a sua chave da **OpenAI** ou **Gemini**). O sistema não funcionará corretamente com a IA sem as chaves válidas configuradas aqui.
-
-5. **Execute as migrações do banco de dados:**
-   ```bash
-   python manage.py migrate
-   ```
-
-6. **Inicie o servidor de desenvolvimento:**
-   ```bash
-   python manage.py runserver
-   ```
-   A aplicação estará rodando em `http://127.0.0.1:8000/`.
-
----
-
-# 📂 Estrutura do Projeto
-
-```
-MyNutri-AI
-│
-├── frontend
-│   ├── public
-│   ├── src
-│   └── styles
-│
-├── backend
-│   ├── app
-│   ├── routes
-│   ├── services
-│   └── models
-│
-├── database
-│
-├── docs
-│   ├── architecture.md
-│   ├── database.md
-│   ├── roadmap.md
-│   ├── api.md
-│   ├── prompts.md
-│   ├── ideas.md
-│   └── git_conventions.md
-│
-└── README.md
+**1. Clone o repositório:**
+```bash
+git clone https://github.com/SEU_USUARIO/mynutri-ai-plataform.git
+cd mynutri-ai-plataform
 ```
 
----
+**2. Crie e ative o ambiente virtual:**
+```bash
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+```
 
-# 📋 Questionário Nutricional
+**3. Instale as dependências:**
+```bash
+pip install -r requirements.txt
+```
 
-A plataforma utiliza um questionário para entender o perfil do usuário.
+**4. Configure as variáveis de ambiente:**
+```bash
+cp .env.example .env
+```
+Abra o `.env` e preencha as chaves obrigatórias:
+- `SECRET_KEY` — chave secreta do Django
+- `AI_API_KEY` — sua chave da OpenAI (ou Gemini)
+- `AI_API_URL` — URL da API de IA
 
-Exemplos de perguntas:
+**5. Execute as migrações:**
+```bash
+python manage.py migrate
+```
 
-* Qual sua idade?
-* Qual seu peso atual?
-* Qual sua altura?
-* Qual seu objetivo principal?
-* Quantas vezes por semana você treina?
-* Você possui restrições alimentares?
-* Possui alergias alimentares?
-* Quais alimentos você prefere?
-* Quantas refeições faz por dia?
+**6. (Opcional) Crie um superusuário para o Admin:**
+```bash
+python manage.py createsuperuser
+```
 
-Essas informações são utilizadas para gerar um plano alimentar personalizado.
+**7. Inicie o servidor:**
+```bash
+python manage.py runserver
+```
 
----
+API disponível em `http://127.0.0.1:8000/api/v1/`
 
-# 🧠 Como funciona a geração da dieta
+**8. Sirva o Frontend:**
+```bash
+cd frontend/public
+python -m http.server 5500
+```
 
-1️⃣ O usuário responde o questionário nutricional
-2️⃣ O sistema analisa os dados fornecidos
-3️⃣ A IA processa as informações
-4️⃣ O sistema gera um plano alimentar estruturado
-
-Exemplo de divisão do plano alimentar:
-
-* Café da manhã
-* Lanche da manhã
-* Almoço
-* Lanche da tarde
-* Jantar
-* Ceia (opcional)
-
----
-
-# 📚 Documentação
-
-A documentação detalhada do projeto está disponível na pasta **docs/**.
-
-Ela inclui:
-
-* Arquitetura do sistema
-* Modelagem do banco de dados
-* Estrutura da API
-* Roadmap do projeto
-* Prompts utilizados pela IA
-* Convenções de Git
+Frontend disponível em `http://localhost:5500`
 
 ---
 
-# 🔒 Segurança e Boas Práticas
+## 🔌 Endpoints da API
 
-Este projeto segue algumas boas práticas de desenvolvimento:
+| Método | Endpoint | Autenticação | Descrição |
+|--------|----------|-------------|-----------|
+| `POST` | `/api/v1/auth/register` | Pública | Cadastro + retorna token |
+| `POST` | `/api/v1/auth/login` | Pública | Login por email/senha |
+| `POST` | `/api/v1/auth/token/refresh` | Pública | Renova access token |
+| `GET`  | `/api/v1/user/profile` | JWT | Dados do usuário |
+| `POST` | `/api/v1/anamnese` | JWT | Envia questionário |
+| `POST` | `/api/v1/diet/generate` | JWT | Gera dieta via IA |
+| `GET`  | `/api/v1/diet` | JWT | Retorna última dieta |
+| `GET`  | `/health/` | Pública | Health check |
 
-* Proteção da branch `main`
-* Uso de **feature branches**
-* **Pull Requests** para revisão de código
-* Versionamento com Git
-* Variáveis sensíveis armazenadas em `.env`
-
----
-
-# 📈 Futuras Melhorias
-
-* 📊 Cálculo automático de calorias e macronutrientes
-* 🥗 Banco de dados com mais de 200 alimentos
-* 📄 Exportação do plano alimentar em PDF
-* 📱 Aplicativo mobile
-* 👩‍⚕️ Área para nutricionistas
-* 📊 Dashboard de acompanhamento alimentar
-* 🤖 Melhorias no modelo de IA
+> Todos os endpoints protegidos exigem `Authorization: Bearer <token>`.
 
 ---
 
-# ⚠️ Aviso Legal
+## 📚 Documentação
 
-O **MyNutri AI** é uma ferramenta de apoio e **não substitui acompanhamento profissional** de nutricionistas ou médicos.
+A documentação técnica detalhada está na pasta **`docs/`**:
 
-As recomendações alimentares geradas devem ser utilizadas apenas para fins informativos.
+| Arquivo | Conteúdo |
+|---------|----------|
+| `API.md` | Contratos detalhados de cada endpoint |
+| `ARCHITECTURE.md` | Arquitetura do sistema em 3 camadas |
+| `DATABASE.md` | Schema do banco de dados |
+| `ROADMAP.md` | Fases de desenvolvimento (MVP → V2 → V3) |
+| `PROMPTS.md` | Prompts usados pela IA |
+| `GIT_CONVENTION.md` | Convenções de branches e commits |
+| `SECURITY.md` | Boas práticas e checklist de segurança |
+| `SECURITY_SETUP.md` | Guia rápido de setup de segurança |
 
 ---
 
-# 📄 Licença
+## 🔒 Segurança
 
-© 2026 MyNutri AI.
-
-Este projeto é **proprietário** e seu código fonte **não pode ser copiado, modificado ou redistribuído sem autorização do autor**.
+- Variáveis sensíveis isoladas em `.env` (nunca commitadas)
+- JWT com `ACCESS_TOKEN_LIFETIME` de 8h e refresh de 7 dias
+- Rate limiting: `3/day` para geração de dieta, `60/hour` para usuários autenticados
+- CORS restritivo em produção (`DEBUG=False`)
+- Pre-commit hook disponível em `scripts/pre-commit-hook`
 
 ---
 
-# 👨‍💻 Autores
+## 📈 Próximas Etapas (Pós-MVP)
 
-Desenvolvido por:
+- [ ] Histórico de dietas (`/dieta/<id>/`)
+- [ ] Dashboard nutricional
+- [ ] Testes automatizados (pytest + Cypress)
+- [ ] CI/CD com GitHub Actions
+- [ ] Deploy em produção (Docker + PostgreSQL)
+- [ ] Exportação de dieta em PDF
 
-* **Gabriel Rezende**
-* **Carlos Alberto**
-* **Arthur Hoffmann**
+---
 
-Projeto voltado para aplicação de tecnologia e inteligência artificial na área de nutrição.
+## 📄 Licença
+
+© 2026 MyNutri AI — Projeto proprietário. Código não pode ser copiado, modificado ou redistribuído sem autorização do autor.
+
+## 👨‍💻 Autores
+
+- **Gabriel Rezende**
+- **Carlos Alberto**
+- **Arthur Hoffmann**
