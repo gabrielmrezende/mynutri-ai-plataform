@@ -93,7 +93,7 @@ IMPORTANTE: Sua resposta DEVE OBRIGATORIAMENTE estar em formato JSON válido e e
             method='POST',
         )
 
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=120) as response:
             raw = response.read().decode('utf-8')
             return json.loads(raw)
 

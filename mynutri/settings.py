@@ -159,12 +159,13 @@ SIMPLE_JWT = {
 }
 
 # =============================================================================
-# CORS — libera o frontend local durante desenvolvimento
+# CORS — libera qualquer origin durante desenvolvimento
 # =============================================================================
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'http://localhost:3000',
-    'http://127.0.0.1:8000',
-]
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'https://mynutri.example.com',  # Trocar por domínio real
+    ]
+
 CORS_ALLOW_CREDENTIALS = True

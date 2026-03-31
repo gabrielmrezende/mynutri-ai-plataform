@@ -289,7 +289,9 @@
   </div>
 
   <script>
-    // Tab switching
+    const API_BASE = 'http://127.0.0.1:8000/api';
+
+    // ── Tab switching ──────────────────────────────────────────────────────────
     const tabs = document.querySelectorAll('.auth-tab');
     const forms = document.querySelectorAll('.auth-form');
 
@@ -297,34 +299,135 @@
       tab.addEventListener('click', () => {
         tabs.forEach(t => t.classList.remove('active'));
         forms.forEach(f => f.classList.remove('active'));
-        
         tab.classList.add('active');
         document.getElementById(tab.getAttribute('data-target')).classList.add('active');
+        clearError();
       });
     });
 
-    // Handle Intent Parameter
+    // ── Intent param ──────────────────────────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const intent = urlParams.get('intent');
-    
+
     if (intent === 'save_diet') {
       document.getElementById('intent-message').classList.add('visible');
-      // Mudar aba para "Criar Conta" automaticamente
       tabs[1].click();
       document.querySelector('.auth-title').textContent = 'Quase lá!';
       document.querySelector('.auth-subtitle').textContent = 'Faltam poucos segundos para ver sua dieta.';
     }
 
-    // Mock form submissions (temporário para flow)
-    document.getElementById('login-form').addEventListener('submit', (e) => {
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function setLoading(btn, loading) {
+      btn.disabled = loading;
+      btn.style.opacity = loading ? '0.7' : '1';
+      btn.style.pointerEvents = loading ? 'none' : '';
+      if (loading) btn.dataset.original = btn.textContent;
+      else btn.textContent = btn.dataset.original || btn.textContent;
+    }
+
+    function showError(msg) {
+      let el = document.getElementById('auth-error');
+      if (!el) {
+        el = document.createElement('p');
+        el.id = 'auth-error';
+        el.style.cssText = 'color:#dc2626;font-size:.875rem;margin-top:12px;text-align:center;';
+        document.querySelector('.auth-card').appendChild(el);
+      }
+      el.textContent = msg;
+    }
+
+    function clearError() {
+      const el = document.getElementById('auth-error');
+      if (el) el.textContent = '';
+    }
+
+    function saveSession(data) {
+      localStorage.setItem('mynutri_token', data.token);
+      localStorage.setItem('mynutri_refresh', data.refresh);
+      if (data.user) localStorage.setItem('mynutri_user', JSON.stringify(data.user));
+    }
+
+    function afterAuth() {
+      // Se veio do questionário com dieta salva em sessionStorage, vai gerar a dieta
+      if (intent === 'save_diet' && sessionStorage.getItem('anamneseData')) {
+        window.location.href = 'dieta.html?generate=1';
+      } else {
+        window.location.href = 'dieta.html';
+      }
+    }
+
+    // ── Login ─────────────────────────────────────────────────────────────────
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      // Em um cenário real, redireciona para painel ou resultado da dieta
-      window.location.href = 'index.html';
+      clearError();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const email = e.target.querySelector('input[type="email"]').value.trim();
+      const senha = e.target.querySelector('input[type="password"]').value;
+
+      setLoading(btn, true);
+      btn.textContent = 'Entrando...';
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: senha }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.detail || 'E-mail ou senha inválidos.');
+          setLoading(btn, false);
+          return;
+        }
+
+        saveSession(data);
+        afterAuth();
+      } catch {
+        showError('Erro de conexão. Verifique se o servidor está rodando.');
+        setLoading(btn, false);
+      }
     });
 
-    document.getElementById('register-form').addEventListener('submit', (e) => {
+    // ── Cadastro ──────────────────────────────────────────────────────────────
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      window.location.href = 'index.html';
+      clearError();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const inputs = e.target.querySelectorAll('input');
+      const nome  = inputs[0].value.trim();
+      const email = inputs[1].value.trim();
+      const senha = inputs[2].value;
+
+      if (senha.length < 8) {
+        showError('A senha deve ter pelo menos 8 caracteres.');
+        return;
+      }
+
+      setLoading(btn, true);
+      btn.textContent = 'Criando conta...';
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome, email, senha }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          const msg = data.email?.[0] || data.senha?.[0] || data.nome?.[0] || 'Erro ao criar conta.';
+          showError(msg);
+          setLoading(btn, false);
+          return;
+        }
+
+        saveSession(data);
+        afterAuth();
+      } catch {
+        showError('Erro de conexão. Verifique se o servidor está rodando.');
+        setLoading(btn, false);
+      }
     });
   </script>
 </body>

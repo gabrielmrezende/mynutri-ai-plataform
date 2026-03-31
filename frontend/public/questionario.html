@@ -108,7 +108,7 @@
                 <span class="form-error" id="idade-error">Informe uma idade válida (10-120).</span>
               </div>
               <div class="form-group">
-                <label class="form-label" for="sexo">Sexo<span class="required">*</span></label>
+                <label class="form-label" id="label-sexo">Sexo<span class="required">*</span></label>
                 <div class="custom-select-wrapper" id="custom-sexo">
                   <div class="custom-select-trigger" tabindex="0">
                     <span class="custom-select-label placeholder">Selecione</span>
@@ -314,7 +314,7 @@
             <p class="form-step-description">Últimas perguntas para deixar sua dieta ainda mais personalizada e fácil de seguir.</p>
 
             <div class="form-group">
-              <label class="form-label" for="refeicoes">Quantidade de refeições por dia <span class="required">*</span></label>
+              <label class="form-label" id="label-refeicoes">Quantidade de refeições por dia <span class="required">*</span></label>
               <div class="custom-select-wrapper" id="custom-refeicoes">
                 <div class="custom-select-trigger" tabindex="0">
                   <span class="custom-select-label placeholder">Selecione</span>
@@ -385,6 +385,9 @@
       </div>
 
       <p class="step-info" id="step-info">Etapa <strong>1</strong> de <strong>5</strong></p>
+
+      <!-- Mensagem de erro de submissão -->
+      <div id="submit-error" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:16px 20px; border-radius:12px; font-size:.9rem; margin-top:16px; line-height:1.5;"></div>
 
     </div>
 
@@ -563,42 +566,113 @@
       });
 
       // --- Form Submit ---
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
+      const API_BASE = 'http://127.0.0.1:8000/api';
 
-        if (!validateStep(currentStep)) return;
+      function showSubmitError(msg) {
+        const el = document.getElementById('submit-error');
+        el.style.display = 'block';
+        el.textContent = msg;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
 
-        // Collect all form data
+      function hideSubmitError() {
+        document.getElementById('submit-error').style.display = 'none';
+      }
+
+      function resetSubmitBtn() {
+        btnSubmit.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Gerar minha dieta`;
+        btnSubmit.style.opacity = '1';
+        btnSubmit.style.pointerEvents = '';
+      }
+
+      // Mapas para converter valores do form para os choices do modelo Django
+      const SEXO_MAP    = { masculino: 'M', feminino: 'F', outro: 'O' };
+      const OBJETIVO_MAP = { perda_peso: 'lose', manutencao: 'maintain', ganho_massa: 'gain', saude: 'maintain' };
+      const ATIVIDADE_MAP = { sedentario: 'sedentary', leve: 'light', moderado: 'moderate', intenso: 'intense', atleta: 'athlete' };
+
+      function collectFormData() {
         const formData = new FormData(form);
-        const data = {};
-
+        const raw = {};
         for (const [key, value] of formData.entries()) {
-          if (data[key]) {
-            // Handle multiple values (checkboxes)
-            if (Array.isArray(data[key])) {
-              data[key].push(value);
-            } else {
-              data[key] = [data[key], value];
-            }
+          if (raw[key]) {
+            raw[key] = Array.isArray(raw[key]) ? [...raw[key], value] : [raw[key], value];
           } else {
-            data[key] = value;
+            raw[key] = value;
           }
         }
 
-        console.log('📋 Dados do questionário:', data);
+        // Monta restrições: tipo_dieta + checkboxes + outras_restricoes
+        const restricoesList = [];
+        if (raw.tipo_dieta && raw.tipo_dieta !== 'onivoro') restricoesList.push(raw.tipo_dieta);
+        if (raw.restricoes) {
+          const checks = Array.isArray(raw.restricoes) ? raw.restricoes : [raw.restricoes];
+          restricoesList.push(...checks);
+        }
+        if (raw.outras_restricoes && raw.outras_restricoes.trim()) {
+          restricoesList.push(raw.outras_restricoes.trim());
+        }
 
-        // Salvar os dados (mock) no sessionStorage para simular a criação posterior
-        sessionStorage.setItem('dietData', JSON.stringify(data));
+        return {
+          idade: parseInt(raw.idade),
+          sexo: SEXO_MAP[raw.sexo] || raw.sexo,
+          peso: parseFloat(raw.peso),
+          altura: parseFloat(raw.altura),
+          objetivo: OBJETIVO_MAP[raw.objetivo] || raw.objetivo,
+          nivel_atividade: ATIVIDADE_MAP[raw.atividade] || raw.atividade,
+          meals_per_day: parseInt(raw.refeicoes) || 3,
+          restricoes: restricoesList.join(', '),
+          food_preferences: raw.alimentos_favoritos || '',
+          allergies: raw.alimentos_evitar || '',
+        };
+      }
 
-        // Feedback visual
-        btnSubmit.innerHTML = 'Processando...';
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!validateStep(currentStep)) return;
+
+        hideSubmitError();
+        const token = localStorage.getItem('mynutri_token');
+
+        // Se não está logado: salva dados e manda para auth
+        if (!token) {
+          sessionStorage.setItem('anamneseData', JSON.stringify(collectFormData()));
+          btnSubmit.textContent = 'Redirecionando...';
+          btnSubmit.style.opacity = '0.7';
+          btnSubmit.style.pointerEvents = 'none';
+          setTimeout(() => { window.location.href = 'auth.html?intent=save_diet'; }, 800);
+          return;
+        }
+
+        // Está logado: envia anamnese e redireciona para dieta.html (que cuida da geração)
+        btnSubmit.textContent = 'Enviando questionário...';
         btnSubmit.style.opacity = '0.7';
         btnSubmit.style.pointerEvents = 'none';
 
-        // Redireciona simulando um pequeno delay para carregar "Value-First"
-        setTimeout(() => {
-          window.location.href = 'auth.html?intent=save_diet';
-        }, 1200);
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
+
+        try {
+          const anamneseRes = await fetch(`${API_BASE}/anamnese`, {
+            method: 'POST', headers,
+            body: JSON.stringify(collectFormData()),
+          });
+
+          if (!anamneseRes.ok) {
+            const err = await anamneseRes.json();
+            const msg = Object.values(err).flat().join(' ') || JSON.stringify(err);
+            showSubmitError('Erro ao salvar questionário: ' + msg);
+            resetSubmitBtn();
+            return;
+          }
+
+          // Anamnese salva! Redireciona para dieta.html que vai gerar a dieta
+          window.location.href = 'dieta.html?generate=1';
+        } catch (err) {
+          showSubmitError('Erro de conexão com o servidor. Verifique se o Django está rodando.\n\nDetalhe: ' + err.message);
+          resetSubmitBtn();
+        }
       });
 
       // --- Tags & Autocomplete System ---

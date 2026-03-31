@@ -1,10 +1,45 @@
-from rest_framework import status
+from rest_framework import status, serializers as drf_serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth import get_user_model
 
 from .serializers import RegisterSerializer, UserProfileSerializer
+
+User = get_user_model()
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Substitui o campo 'username' por 'email' na autenticação JWT.
+    Como o sistema usa username=email internamente, apenas renomeamos o campo.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'] = drf_serializers.EmailField()
+        del self.fields[self.username_field]
+
+    def validate(self, attrs):
+        attrs[self.username_field] = attrs.pop('email', '').lower()
+        return super().validate(attrs)
+
+
+class EmailTokenObtainPairView(TokenObtainPairView):
+    """
+    POST /api/auth/login
+    Aceita { email, password } e retorna { token, refresh }.
+    """
+    serializer_class = EmailTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            # Renomeia 'access' para 'token' para consistência com o endpoint de registro
+            response.data['token'] = response.data.pop('access')
+        return response
 
 
 class RegisterAPIView(APIView):
