@@ -1,0 +1,71 @@
+#!/bin/bash
+# Pre-commit hook para prevenir commits de arquivos sensíveis
+#
+# Instalação:
+# 1. cp scripts/pre-commit-hook .git/hooks/pre-commit
+# 2. chmod +x .git/hooks/pre-commit
+
+echo "🔒 Verificando segurança do commit..."
+
+# Cores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+FAIL=0
+
+# ─────────────────────────────────────────────────────────────
+# 1. Verificar arquivos sensíveis
+# ─────────────────────────────────────────────────────────────
+SENSITIVE_FILES=".env .env.local .env.production secrets.json credentials.json"
+
+for file in $SENSITIVE_FILES; do
+    if git diff --cached --name-only | grep -q "^$file$"; then
+        echo -e "${RED}❌ ERRO: Tentando commitar arquivo sensível: $file${NC}"
+        FAIL=1
+    fi
+done
+
+# ─────────────────────────────────────────────────────────────
+# 2. Verificar padrões de secrets
+# ─────────────────────────────────────────────────────────────
+
+# Padrões a procurar
+PATTERNS=(
+    "sk-proj-[A-Za-z0-9_-]{20,}"  # OpenAI keys
+    "SECRET_KEY\s*=\s*['\"].*['\"]"  # Django SECRET_KEY
+    "api[_-]?key\s*=\s*['\"].*['\"]"  # API keys genéricas
+    "password\s*=\s*['\"].*['\"]"  # Senhas
+)
+
+for pattern in "${PATTERNS[@]}"; do
+    if git diff --cached | grep -iE "$pattern" > /dev/null; then
+        echo -e "${RED}❌ ERRO: Detectado possível secret no código:${NC}"
+        echo "   Padrão: $pattern"
+        git diff --cached | grep -iE "$pattern" | head -3
+        FAIL=1
+    fi
+done
+
+# ─────────────────────────────────────────────────────────────
+# 3. Verificar .gitignore
+# ─────────────────────────────────────────────────────────────
+if ! grep -q "^\.env$" .gitignore; then
+    echo -e "${YELLOW}⚠️  AVISO: .env não está no .gitignore${NC}"
+fi
+
+# ─────────────────────────────────────────────────────────────
+# Resultado final
+# ─────────────────────────────────────────────────────────────
+if [ $FAIL -eq 0 ]; then
+    echo -e "${GREEN}✅ Verificação de segurança passou${NC}"
+    exit 0
+else
+    echo -e "${RED}❌ Commit bloqueado por problemas de segurança${NC}"
+    echo -e "${YELLOW}Dicas:${NC}"
+    echo "  • Use 'git reset HEAD arquivo' para remover do staging"
+    echo "  • Adicione '.env' ao .gitignore se não estiver lá"
+    echo "  • Revise a variável sensível e tente novamente"
+    exit 1
+fi

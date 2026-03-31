@@ -20,6 +20,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv(BASE_DIR / '.env')
 
+# ───────────────────────────────────────────────────────────────
+# 🔒 VALIDAÇÃO DE SEGURANÇA
+# ───────────────────────────────────────────────────────────────
+# Validar variáveis obrigatórias
+_REQUIRED_VARS = {
+    'SECRET_KEY': 'Django secret key (use: python manage.py shell_plus)',
+    'AI_API_KEY': 'OpenAI API key (gere em platform.openai.com/api-keys)',
+    'AI_API_URL': 'OpenAI API URL (ex: https://api.openai.com/v1/chat/completions)',
+}
+
+for var_name, description in _REQUIRED_VARS.items():
+    if not os.getenv(var_name):
+        raise ValueError(
+            f'\n❌ ERRO: Variável de ambiente "{var_name}" não configurada.\n'
+            f'   Descrição: {description}\n'
+            f'   Solução: Configure em seu arquivo .env\n'
+            f'   Veja: .env.example\n'
+        )
+
+# Aviso de DEBUG em produção
+if os.getenv('DEBUG', 'False').lower() == 'true':
+    import sys
+    if 'runserver' not in sys.argv:
+        print('AVISO: DEBUG ativado fora do servidor local!')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -144,6 +169,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/hour',
+        'user': '60/hour',
+        'diet_generate': '3/day',
+    },
 }
 
 # =============================================================================
