@@ -16,17 +16,29 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
+from django.db import connection
+
+
+def health_check(request):
+    """Endpoint de health check — verifica conectividade com o banco."""
+    try:
+        connection.ensure_connection()
+        return JsonResponse({'status': 'ok'})
+    except Exception:
+        return JsonResponse({'status': 'error'}, status=503)
+
 
 urlpatterns = [
+    # Health check (sem autenticação)
+    path('health/', health_check, name='health-check'),
+
     # Painel de administração do Django
     path('admin/', admin.site.urls),
 
-    # Rotas legadas do app user (views HTML — login/register via template)
-    path('user/', include('user.urls')),
-
     # ===========================================================================
-    # API REST — todos os endpoints sob /api/
+    # API REST — todos os endpoints sob /api/v1/
     # ===========================================================================
-    path('api/', include('user.urls_api')),
-    path('api/', include('nutrition.urls_api')),
+    path('api/v1/', include('user.urls_api')),
+    path('api/v1/', include('nutrition.urls_api')),
 ]
