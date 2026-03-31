@@ -85,6 +85,22 @@ body {
   background: var(--white);
   line-height: 1.6;
   overflow-x: hidden;
+  animation: pageFadeIn .35s ease forwards;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+body.page-leaving {
+  animation: pageFadeOut .25s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes pageFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
 }
 
 a { text-decoration: none; color: inherit; }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py showmigrations)",
+      "Bash(python manage.py migrate nutrition)",
+      "Bash(python manage.py check)",
+      "Bash(python manage.py show_urls)",
+      "Bash(python -c \":*)",
+      "Bash(find /c/Users/gabri/OneDrive/Área de Trabalho/mynutri-ai-plataform/frontend -type f \\\\\\(-name *.html -o -name *.js -o -name *.css -o -name *.jsx -o -name *.tsx \\\\\\))",
+      "Bash(grep -r \"API_BASE\\\\|fetch.*http\\\\|axios\" /c/Users/gabri/OneDrive/Área de Trabalho/mynutri-ai-plataform/frontend/public --include=*.js --include=*.html)"
+    ]
+  }
+}

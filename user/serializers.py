@@ -7,7 +7,7 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     """
     Serializer para criação de conta.
-    Endpoint: POST /api/auth/register
+    Endpoint: POST /api/v1/auth/register
     Campos esperados: nome (first_name), email, senha (password)
     """
     nome = serializers.CharField(write_only=True)
@@ -37,13 +37,30 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     """
     Serializer para leitura do perfil do usuário.
-    Endpoint: GET /api/user/profile
+    Endpoint: GET /api/v1/user/profile
     """
     nome = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'nome', 'email', 'date_joined')
+        fields = ('id', 'nome', 'email', 'phone', 'date_of_birth', 'date_joined')
 
     def get_nome(self, obj):
         return obj.get_full_name() or obj.first_name or obj.email
+
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializer para atualização parcial do perfil do usuário.
+    Endpoint: PATCH /api/v1/user/profile
+    Campos aceitos: first_name, last_name, phone, date_of_birth
+    """
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'phone', 'date_of_birth')
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name':  {'required': False},
+            'phone':      {'required': False},
+            'date_of_birth': {'required': False},
+        }

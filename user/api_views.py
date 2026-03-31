@@ -7,7 +7,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 
-from .serializers import RegisterSerializer, UserProfileSerializer
+from .serializers import RegisterSerializer, UserProfileSerializer, UpdateProfileSerializer
 
 User = get_user_model()
 
@@ -75,8 +75,8 @@ class RegisterAPIView(APIView):
 
 class ProfileAPIView(APIView):
     """
-    GET /api/user/profile
-    Retorna os dados do usuário autenticado.
+    GET  /api/v1/user/profile  — retorna dados do usuário autenticado
+    PATCH /api/v1/user/profile  — atualiza first_name, last_name, phone, date_of_birth
     Requer: Authorization: Bearer <token>
     """
     permission_classes = [IsAuthenticated]
@@ -84,3 +84,12 @@ class ProfileAPIView(APIView):
     def get(self, request):
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        serializer = UpdateProfileSerializer(
+            request.user, data=request.data, partial=True
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(UserProfileSerializer(request.user).data, status=status.HTTP_200_OK)

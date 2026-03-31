@@ -1,11 +1,40 @@
+import re
+
 from .models import Anamnese, DietPlan, Meal
 from rest_framework import serializers
+
+
+MAX_TEXT_LENGTH = 500
+
+
+def validate_free_text(value, field_name):
+    """Valida campos de texto livre contra prompt injection e tamanho excessivo."""
+    if len(value) > MAX_TEXT_LENGTH:
+        raise serializers.ValidationError(
+            f'{field_name} não pode exceder {MAX_TEXT_LENGTH} caracteres.'
+        )
+    # Rejeitar padrões que tentam manipular instruções da IA
+    injection_patterns = [
+        r'(?i)ignore\s+(all\s+)?previous\s+instructions',
+        r'(?i)ignore\s+(all\s+)?above',
+        r'(?i)system\s*:',
+        r'(?i)you\s+are\s+now',
+        r'(?i)new\s+instructions?\s*:',
+        r'(?i)forget\s+(all\s+)?previous',
+        r'(?i)disregard\s+(all\s+)?',
+    ]
+    for pattern in injection_patterns:
+        if re.search(pattern, value):
+            raise serializers.ValidationError(
+                f'{field_name} contém conteúdo não permitido.'
+            )
+    return value
 
 
 class AnamneseSerializer(serializers.ModelSerializer):
     """
     Serializer para criação da Anamnese nutricional.
-    Endpoint: POST /api/anamnese
+    Endpoint: POST /api/v1/anamnese
     Mapeia os campos do body documentado em API.md para o model Anamnese.
     """
     # Remapeia o campo 'restricoes' do API.md para 'food_restrictions' do model
@@ -32,6 +61,15 @@ class AnamneseSerializer(serializers.ModelSerializer):
             'answered_at',
         )
         read_only_fields = ('id', 'answered_at')
+
+    def validate_restricoes(self, value):
+        return validate_free_text(value, 'Restrições alimentares')
+
+    def validate_food_preferences(self, value):
+        return validate_free_text(value, 'Preferências alimentares')
+
+    def validate_allergies(self, value):
+        return validate_free_text(value, 'Alergias')
 
 
 class MealSerializer(serializers.ModelSerializer):

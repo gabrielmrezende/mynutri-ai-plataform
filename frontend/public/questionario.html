@@ -7,6 +7,48 @@
   <meta name="description" content="Preencha o questionário nutricional e receba sua dieta personalizada gerada por inteligência artificial." />
   <link rel="stylesheet" href="../src/styles/index.css" />
   <link rel="stylesheet" href="../src/styles/questionario.css" />
+  <style>
+    .user-menu-wrap { position: relative; }
+    .user-menu-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px 7px 10px;
+      border: 1.5px solid var(--green-200); border-radius: var(--radius-full);
+      background: var(--green-50); cursor: pointer;
+      font-size: .875rem; font-weight: 600; color: var(--green-700);
+      transition: all .2s ease;
+    }
+    .user-menu-btn:hover { background: var(--green-100); border-color: var(--green-400); }
+    .user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--gradient-primary); color: #fff;
+      font-size: .75rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .user-menu-btn svg { transition: transform .2s ease; }
+    .user-menu-btn.open svg { transform: rotate(180deg); }
+    .user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--white); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl); border: 1px solid var(--gray-100);
+      min-width: 210px; z-index: 200; overflow: hidden;
+      opacity: 0; transform: translateY(-6px) scale(.97);
+      pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+    }
+    .user-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+    .dropdown-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--gray-100); }
+    .dropdown-header strong { display: block; font-size: .9375rem; color: var(--gray-800); }
+    .dropdown-header span { font-size: .8125rem; color: var(--gray-500); }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px; font-size: .9rem; color: var(--gray-700);
+      text-decoration: none; transition: background .15s ease;
+      border: none; background: none; width: 100%; text-align: left; cursor: pointer;
+    }
+    .dropdown-item:hover { background: var(--gray-50); color: var(--green-700); }
+    .dropdown-item.danger { color: #dc2626; }
+    .dropdown-item.danger:hover { background: #fef2f2; }
+    .dropdown-divider { height: 1px; background: var(--gray-100); margin: 4px 0; }
+  </style>
 </head>
 <body>
 
@@ -23,14 +65,41 @@
         MyNutri <span>AI</span>
       </a>
 
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <a href="auth.html" class="btn btn-text" style="padding: 8px 16px; font-size: .8125rem;">Entrar</a>
-        <a href="index.html" class="btn btn-secondary" id="back-home-btn" style="padding: 8px 20px; font-size: .8125rem;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-          </svg>
-          Sair
+      <!-- Guest: shown when not logged in -->
+      <div id="guestNav" style="display:flex;align-items:center;gap:12px;">
+        <a href="auth.html" class="btn btn-text" style="padding:8px 16px;font-size:.8125rem;">Entrar</a>
+        <a href="index.html" class="btn btn-secondary" style="padding:8px 20px;font-size:.8125rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Voltar
         </a>
+      </div>
+
+      <!-- Authenticated: shown when logged in -->
+      <div class="user-menu-wrap" id="authNav" style="display:none;">
+        <button class="user-menu-btn" id="userMenuBtn">
+          <div class="user-avatar" id="navAvatar">?</div>
+          <span id="navName">…</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="user-dropdown" id="userDropdown">
+          <div class="dropdown-header">
+            <strong id="dropdownName">—</strong>
+            <span id="dropdownEmail">—</span>
+          </div>
+          <a href="perfil.html" class="dropdown-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            Meu Perfil
+          </a>
+          <a href="dieta.html" class="dropdown-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
+            Minha Dieta
+          </a>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item danger" id="logoutBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sair
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -565,8 +634,50 @@
         }
       });
 
+      // --- Session / User menu ---
+      const API_BASE = 'http://127.0.0.1:8000/api/v1';
+      const _token = localStorage.getItem('mynutri_token');
+      const _user  = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+
+      function _initials(name) {
+        if (!name) return '?';
+        return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+      }
+
+      if (_token && _user) {
+        document.getElementById('guestNav').style.display = 'none';
+        document.getElementById('authNav').style.display  = 'block';
+        document.getElementById('navAvatar').textContent     = _initials(_user.nome);
+        document.getElementById('navName').textContent       = _user.nome.split(' ')[0];
+        document.getElementById('dropdownName').textContent  = _user.nome;
+        document.getElementById('dropdownEmail').textContent = _user.email || '';
+      }
+
+      const _menuBtn  = document.getElementById('userMenuBtn');
+      const _dropdown = document.getElementById('userDropdown');
+      if (_menuBtn) {
+        _menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = _dropdown.classList.toggle('open');
+          _menuBtn.classList.toggle('open', open);
+        });
+        document.addEventListener('click', () => {
+          _dropdown.classList.remove('open');
+          _menuBtn.classList.remove('open');
+        });
+      }
+
+      const _logoutBtn = document.getElementById('logoutBtn');
+      if (_logoutBtn) {
+        _logoutBtn.addEventListener('click', () => {
+          localStorage.removeItem('mynutri_token');
+          localStorage.removeItem('mynutri_refresh');
+          localStorage.removeItem('mynutri_user');
+          window.location.href = 'index.html';
+        });
+      }
+
       // --- Form Submit ---
-      const API_BASE = 'http://127.0.0.1:8000/api';
 
       function showSubmitError(msg) {
         const el = document.getElementById('submit-error');

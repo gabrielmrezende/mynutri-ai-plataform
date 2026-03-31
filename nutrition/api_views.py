@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Anamnese, DietPlan
 from .serializers import AnamneseSerializer, DietPlanSerializer
@@ -33,8 +34,11 @@ class DietGenerateAPIView(APIView):
     POST /api/diet/generate
     Aciona a IA para gerar um plano alimentar com base na última anamnese do usuário.
     Requer: Authorization: Bearer <token>
+    Limite: 3 gerações por dia por usuário.
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'diet_generate'
 
     def post(self, request):
         # Busca a anamnese mais recente do usuário

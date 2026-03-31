@@ -289,7 +289,7 @@
   </div>
 
   <script>
-    const API_BASE = 'http://127.0.0.1:8000/api';
+    const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
     // ── Tab switching ──────────────────────────────────────────────────────────
     const tabs = document.querySelectorAll('.auth-tab');
@@ -428,6 +428,17 @@
         showError('Erro de conexão. Verifique se o servidor está rodando.');
         setLoading(btn, false);
       }
+    });
+
+    // Page transitions
+    document.querySelectorAll('a[href]').forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('http')) return;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.body.classList.add('page-leaving');
+        setTimeout(() => { window.location.href = href; }, 260);
+      });
     });
   </script>
 </body>

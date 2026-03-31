@@ -5,6 +5,7 @@ import urllib.request
 import urllib.error
 
 from .models import Anamnese, DietPlan, Meal
+from .prompts import SYSTEM_PROMPT, build_diet_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -24,42 +25,7 @@ class AIService:
         self.api_url = os.getenv('AI_API_URL', '')
 
     def _build_prompt(self, anamnese: Anamnese) -> str:
-        """
-        Monta o prompt conforme o padrão definido em docs/PROMPTS.md,
-        exigindo resposta em JSON estruturado.
-        """
-        restricoes = anamnese.food_restrictions or 'Nenhuma'
-        preferencias = anamnese.food_preferences or 'Sem preferências específicas'
-
-        return f"""Com base nas seguintes informações do usuário, gere um plano alimentar diário equilibrado.
-
-Informações do usuário:
-
-Idade: {anamnese.age}
-Sexo: {anamnese.get_gender_display()}
-Peso: {anamnese.weight_kg} kg
-Altura: {anamnese.height_cm} cm
-Nível de atividade: {anamnese.get_activity_display_pt()}
-Objetivo: {anamnese.get_goal_display_pt()}
-Restrições alimentares: {restricoes}
-Preferências alimentares: {preferencias}
-Refeições por dia: {anamnese.meals_per_day}
-
-Crie um plano alimentar contendo exatamente {anamnese.meals_per_day} refeições com estimativa calórica aproximada.
-
-IMPORTANTE: Sua resposta DEVE OBRIGATORIAMENTE estar em formato JSON válido e estruturado, sem nenhum texto adicional antes ou depois. Use obrigatoriamente a seguinte estrutura:
-
-{{
-  "calorias_totais": 2500,
-  "objetivo": "Ganho de massa",
-  "refeicoes": [
-    {{
-      "nome_refeicao": "Café da manhã",
-      "descricao_refeicao": "2 ovos mexidos, 1 fatia de pão integral com queijo branco.",
-      "calorias_estimadas": 350
-    }}
-  ]
-}}"""
+        return build_diet_prompt(anamnese)
 
     def _call_api(self, prompt: str) -> dict:
         """
@@ -74,10 +40,7 @@ IMPORTANTE: Sua resposta DEVE OBRIGATORIAMENTE estar em formato JSON válido e e
         payload = json.dumps({
             'model': os.getenv('AI_MODEL', 'gpt-3.5-turbo'),
             'messages': [
-                {
-                    'role': 'system',
-                    'content': 'Você é um nutricionista especializado. Sempre responda APENAS em JSON válido, sem texto adicional.',
-                },
+                {'role': 'system', 'content': SYSTEM_PROMPT},
                 {'role': 'user', 'content': prompt},
             ],
             'temperature': 0.7,
@@ -140,22 +103,29 @@ IMPORTANTE: Sua resposta DEVE OBRIGATORIAMENTE estar em formato JSON válido e e
             user=anamnese.user,
             anamnese=anamnese,
             raw_response=diet_data,
-            total_calories=diet_data.get('calorias_totais'),
-            goal_description=diet_data.get('objetivo', ''),
+            total_calories=diet_data.get('calories'),
+            goal_description=diet_data.get('notes', ''),
         )
 
         # Persiste cada refeição individualmente
-        refeicoes = diet_data.get('refeicoes', [])
-        meals_to_create = [
-            Meal(
-                diet_plan=diet_plan,
-                meal_name=r.get('nome_refeicao', ''),
-                description=r.get('descricao_refeicao', ''),
-                calories=r.get('calorias_estimadas', 0),
-                order=idx,
+        # Novo formato: meals[].foods[] — monta descrição a partir dos alimentos
+        meals_to_create = []
+        for idx, meal in enumerate(diet_data.get('meals', [])):
+            foods = meal.get('foods', [])
+            description = ', '.join(
+                f'{f.get("name", "")} ({f.get("quantity", "")})'
+                for f in foods
             )
-            for idx, r in enumerate(refeicoes)
-        ]
+            total_meal_calories = sum(f.get('calories', 0) for f in foods)
+            meals_to_create.append(
+                Meal(
+                    diet_plan=diet_plan,
+                    meal_name=meal.get('name', ''),
+                    description=description,
+                    calories=total_meal_calories,
+                    order=idx,
+                )
+            )
         Meal.objects.bulk_create(meals_to_create)
 
         logger.info(

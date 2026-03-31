@@ -33,12 +33,66 @@
         </div>
       </nav>
 
-      <div class="header-auth">
+      <!-- Guest buttons (default) -->
+      <div class="header-auth" id="guestNav">
         <a href="auth.html" class="btn btn-text">Entrar</a>
         <a href="auth.html" class="btn btn-outline" style="padding: 8px 16px; border-radius: 99px;">Criar conta</a>
       </div>
 
+      <!-- Authenticated user menu (shown when logged in) -->
+      <div id="authNav" class="header-auth" style="display:none;padding:0;">
+        <div style="position:relative;">
+        <button id="userMenuBtn" style="
+          display:flex;align-items:center;gap:8px;
+          padding:7px 14px 7px 10px;
+          border:1.5px solid var(--green-200);border-radius:999px;
+          background:var(--green-50);cursor:pointer;
+          font-size:.875rem;font-weight:600;color:var(--green-700);
+          transition:all .2s ease;white-space:nowrap;
+        ">
+          <div id="navAvatar" style="
+            width:28px;height:28px;border-radius:50%;
+            background:var(--gradient-primary);color:#fff;
+            font-size:.75rem;font-weight:700;
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;
+          ">?</div>
+          <span id="navName">…</span>
+          <svg id="navChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
 
+        <div id="userDropdown" style="
+          position:absolute;top:calc(100% + 8px);right:0;
+          background:#fff;border-radius:16px;
+          box-shadow:0 20px 25px -5px rgba(0,0,0,.08),0 8px 10px -6px rgba(0,0,0,.04);
+          border:1px solid var(--gray-100);min-width:210px;z-index:200;overflow:hidden;
+          opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;
+          transition:opacity .18s ease,transform .18s ease;
+        ">
+          <div style="padding:14px 16px 10px;border-bottom:1px solid var(--gray-100);">
+            <strong id="dropdownName" style="display:block;font-size:.9375rem;color:var(--gray-800);">—</strong>
+            <span id="dropdownEmail" style="font-size:.8125rem;color:var(--gray-500);">—</span>
+          </div>
+          <a href="perfil.html" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:.9rem;color:var(--gray-700);text-decoration:none;transition:background .15s ease;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            Meu Perfil
+          </a>
+          <a href="dieta.html" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:.9rem;color:var(--gray-700);text-decoration:none;transition:background .15s ease;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
+            Minha Dieta
+          </a>
+          <div style="height:1px;background:var(--gray-100);margin:4px 0;"></div>
+          <button id="logoutBtn" style="
+            display:flex;align-items:center;gap:10px;
+            padding:11px 16px;font-size:.9rem;color:#dc2626;
+            background:none;border:none;width:100%;text-align:left;cursor:pointer;
+            transition:background .15s ease;
+          " onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sair
+          </button>
+        </div>
+        </div><!-- /position:relative -->
+      </div>
 
       <button class="mobile-toggle" id="mobile-toggle" aria-label="Abrir menu">
         <span></span><span></span><span></span>
@@ -495,6 +549,69 @@
 
     const heroStats = document.querySelector('.hero-stats');
     if (heroStats) statsObserver.observe(heroStats);
+
+    // --- Page transitions ---
+    (function () {
+      function navigateTo(url) {
+        document.body.classList.add('page-leaving');
+        setTimeout(() => { window.location.href = url; }, 260);
+      }
+      document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto')) return;
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          navigateTo(href);
+        });
+      });
+    })();
+
+    // --- Session state: swap auth buttons for user dropdown ---
+    (function () {
+      const token = localStorage.getItem('mynutri_token');
+      const user  = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+      if (!token || !user) return;
+
+      function initials(name) {
+        if (!name) return '?';
+        return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+      }
+
+      document.getElementById('guestNav').style.display = 'none';
+      const authNav = document.getElementById('authNav');
+      authNav.style.display = 'flex';
+      document.getElementById('navAvatar').textContent     = initials(user.nome);
+      document.getElementById('navName').textContent       = user.nome.split(' ')[0];
+      document.getElementById('dropdownName').textContent  = user.nome;
+      document.getElementById('dropdownEmail').textContent = user.email || '';
+
+      const menuBtn  = document.getElementById('userMenuBtn');
+      const dropdown = document.getElementById('userDropdown');
+      const chevron  = document.getElementById('navChevron');
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = dropdown.style.opacity === '1';
+        dropdown.style.opacity       = open ? '0'                         : '1';
+        dropdown.style.transform     = open ? 'translateY(-6px) scale(.97)' : 'translateY(0) scale(1)';
+        dropdown.style.pointerEvents = open ? 'none'                       : 'all';
+        chevron.style.transform      = open ? ''                            : 'rotate(180deg)';
+      });
+
+      document.addEventListener('click', () => {
+        dropdown.style.opacity       = '0';
+        dropdown.style.transform     = 'translateY(-6px) scale(.97)';
+        dropdown.style.pointerEvents = 'none';
+        chevron.style.transform      = '';
+      });
+
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('mynutri_token');
+        localStorage.removeItem('mynutri_refresh');
+        localStorage.removeItem('mynutri_user');
+        window.location.reload();
+      });
+    })();
   </script>
 
 </body>
