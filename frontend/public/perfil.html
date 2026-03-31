@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meu Perfil — MyNutri AI</title>
+  <link rel="stylesheet" href="../src/styles/index.css" />
+  <style>
+    body { background: var(--gray-50); min-height: 100vh; }
+
+    .profile-page {
+      padding-top: calc(var(--header-h) + 48px);
+      padding-bottom: 72px;
+    }
+
+    /* ── User menu dropdown ── */
+    .user-menu-wrap { position: relative; }
+
+    .user-menu-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px 7px 10px;
+      border: 1.5px solid var(--green-200);
+      border-radius: var(--radius-full);
+      background: var(--green-50);
+      cursor: pointer; font-size: .875rem;
+      font-weight: 600; color: var(--green-700);
+      transition: all .2s ease;
+    }
+    .user-menu-btn:hover { background: var(--green-100); border-color: var(--green-400); }
+
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      color: #fff; font-size: .75rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .user-menu-btn svg { transition: transform .2s ease; }
+    .user-menu-btn.open svg { transform: rotate(180deg); }
+
+    .user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--gray-100);
+      min-width: 210px;
+      z-index: 200;
+      overflow: hidden;
+      opacity: 0; transform: translateY(-6px) scale(.97);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .user-dropdown.open {
+      opacity: 1; transform: translateY(0) scale(1);
+      pointer-events: all;
+    }
+
+    .dropdown-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .dropdown-header strong { display: block; font-size: .9375rem; color: var(--gray-800); }
+    .dropdown-header span   { font-size: .8125rem; color: var(--gray-500); }
+
+    .dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px;
+      font-size: .9rem; color: var(--gray-700);
+      text-decoration: none;
+      transition: background .15s ease;
+      border: none; background: none;
+      width: 100%; text-align: left; cursor: pointer;
+    }
+    .dropdown-item:hover { background: var(--gray-50); color: var(--green-700); }
+    .dropdown-item.active { background: var(--green-50); color: var(--green-700); font-weight: 600; }
+    .dropdown-item.danger { color: #dc2626; }
+    .dropdown-item.danger:hover { background: #fef2f2; color: #dc2626; }
+
+    .dropdown-divider { height: 1px; background: var(--gray-100); margin: 4px 0; }
+
+    /* ── Page grid ── */
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .profile-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Sidebar card ── */
+    .sidebar-card {
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--gray-100);
+      overflow: hidden;
+    }
+    .sidebar-top {
+      background: var(--gradient-primary);
+      padding: 32px 24px 28px;
+      text-align: center;
+    }
+    .avatar-large {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: rgba(255,255,255,.25);
+      color: #fff; font-size: 2rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+      border: 3px solid rgba(255,255,255,.5);
+    }
+    .sidebar-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.125rem; font-weight: 700; color: #fff;
+      margin-bottom: 4px;
+    }
+    .sidebar-email { font-size: .8125rem; color: rgba(255,255,255,.8); }
+
+    .sidebar-nav { padding: 8px 0; }
+    .sidebar-nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 20px;
+      font-size: .9rem; color: var(--gray-600);
+      cursor: pointer; transition: all .15s ease;
+      border-left: 3px solid transparent;
+      user-select: none;
+    }
+    .sidebar-nav-item:hover { background: var(--gray-50); color: var(--gray-800); }
+    .sidebar-nav-item.active {
+      background: var(--green-50); color: var(--green-700);
+      border-left-color: var(--green-500); font-weight: 600;
+    }
+    .sidebar-nav-item svg { flex-shrink: 0; opacity: .7; }
+    .sidebar-nav-item.active svg { opacity: 1; }
+
+    /* ── Content panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--gray-100);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.125rem; font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: 4px;
+    }
+    .card-subtitle { font-size: .875rem; color: var(--gray-500); margin-bottom: 28px; }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-grid .full { grid-column: 1 / -1; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: .8125rem; font-weight: 600;
+      color: var(--gray-600); letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .form-input, .form-select {
+      padding: 11px 14px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: .9375rem; color: var(--gray-800);
+      background: var(--white);
+      transition: all .2s ease;
+      outline: none; width: 100%;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--green-400);
+      box-shadow: 0 0 0 4px rgba(34,197,94,.1);
+    }
+    .form-input:read-only {
+      background: var(--gray-50); color: var(--gray-500);
+      cursor: not-allowed;
+    }
+    .form-hint { font-size: .8rem; color: var(--gray-400); }
+
+    .form-actions {
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 8px; padding-top: 20px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .btn-save {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 28px;
+      background: var(--gradient-primary);
+      color: #fff; border: none; border-radius: var(--radius-md);
+      font-size: .9375rem; font-weight: 600; cursor: pointer;
+      box-shadow: var(--shadow-green);
+      transition: all var(--duration) var(--ease-out);
+    }
+    .btn-save:hover { transform: translateY(-2px); box-shadow: 0 14px 35px -5px rgba(34,197,94,.45); }
+    .btn-save:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    .btn-cancel {
+      padding: 11px 22px;
+      background: var(--white); color: var(--gray-600);
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: .9375rem; font-weight: 500; cursor: pointer;
+      transition: all .2s ease;
+    }
+    .btn-cancel:hover { border-color: var(--gray-400); color: var(--gray-800); }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: 12px 16px; border-radius: var(--radius-md);
+      font-size: .875rem; font-weight: 500;
+      display: none; align-items: center; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .alert.show { display: flex; }
+    .alert-success { background: var(--green-50); color: var(--green-700); border: 1px solid var(--green-200); }
+    .alert-error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+    /* ── Nutritional info grid ── */
+    .info-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .info-item {
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      border: 1px solid var(--gray-100);
+    }
+    .info-item-label { font-size: .75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .info-item-value { font-size: 1rem; font-weight: 600; color: var(--gray-800); }
+
+    .badge {
+      display: inline-block; padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: .8125rem; font-weight: 600;
+    }
+    .badge-green  { background: var(--green-100); color: var(--green-700); }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-purple { background: #f3e8ff; color: #7c3aed; }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px; color: var(--gray-400);
+    }
+    .empty-state svg { margin-bottom: 12px; opacity: .5; }
+    .empty-state p { font-size: .9rem; margin-bottom: 16px; }
+
+    /* ── Password strength ── */
+    .password-strength { margin-top: 6px; }
+    .strength-bar { height: 4px; border-radius: 2px; background: var(--gray-200); overflow: hidden; }
+    .strength-fill { height: 100%; border-radius: 2px; transition: width .3s ease, background .3s ease; width: 0; }
+    .strength-label { font-size: .75rem; color: var(--gray-500); margin-top: 4px; }
+
+    /* ── Spinner ── */
+    .spinner-sm {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="header scrolled" id="header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/>
+            <circle cx="12" cy="9" r="2.5"/>
+          </svg>
+        </div>
+        MyNutri <span>AI</span>
+      </a>
+
+      <div class="user-menu-wrap">
+        <button class="user-menu-btn" id="userMenuBtn">
+          <div class="user-avatar" id="navAvatar">?</div>
+          <span id="navName">Carregando…</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+
+        <div class="user-dropdown" id="userDropdown">
+          <div class="dropdown-header">
+            <strong id="dropdownName">—</strong>
+            <span id="dropdownEmail">—</span>
+          </div>
+          <a href="perfil.html"  class="dropdown-item active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            Meu Perfil
+          </a>
+          <a href="dieta.html" class="dropdown-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
+            Minha Dieta
+          </a>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item danger" id="logoutBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="profile-page">
+    <div class="container">
+      <div class="profile-grid">
+
+        <!-- ── Sidebar ── -->
+        <aside class="sidebar-card">
+          <div class="sidebar-top">
+            <div class="avatar-large" id="sidebarAvatar">?</div>
+            <div class="sidebar-name" id="sidebarName">—</div>
+            <div class="sidebar-email" id="sidebarEmail">—</div>
+          </div>
+
+          <nav class="sidebar-nav">
+            <div class="sidebar-nav-item active" data-panel="dados">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              Dados Pessoais
+            </div>
+            <div class="sidebar-nav-item" data-panel="nutricional">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 6 5 10c0 5 7 12 7 12s7-7 7-12c0-4-3-8-7-8z"/><circle cx="12" cy="10" r="2"/></svg>
+              Perfil Nutricional
+            </div>
+            <div class="sidebar-nav-item" data-panel="senha">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Segurança
+            </div>
+          </nav>
+        </aside>
+
+        <!-- ── Content ── -->
+        <div>
+
+          <!-- Panel: Dados Pessoais -->
+          <div class="panel active" id="panel-dados">
+            <div class="card">
+              <div class="card-title">Dados Pessoais</div>
+              <div class="card-subtitle">Atualize suas informações de perfil</div>
+
+              <div class="alert alert-success" id="alertDadosOk">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Perfil atualizado com sucesso!
+              </div>
+              <div class="alert alert-error" id="alertDadosErr"></div>
+
+              <form id="formDados" novalidate>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Nome</label>
+                    <input type="text" class="form-input" id="inputFirstName" placeholder="Seu nome" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Sobrenome</label>
+                    <input type="text" class="form-input" id="inputLastName" placeholder="Seu sobrenome" />
+                  </div>
+                  <div class="form-group full">
+                    <label class="form-label">E-mail</label>
+                    <input type="email" class="form-input" id="inputEmail" readonly />
+                    <span class="form-hint">O e-mail não pode ser alterado.</span>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Telefone</label>
+                    <input type="tel" class="form-input" id="inputPhone" placeholder="(11) 9 9999-9999" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Data de Nascimento</label>
+                    <input type="date" class="form-input" id="inputDob" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn-save" id="btnSaveDados">
+                    <div class="spinner-sm" id="spinnerDados"></div>
+                    Salvar Alterações
+                  </button>
+                  <button type="button" class="btn-cancel" id="btnCancelDados">Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Panel: Perfil Nutricional -->
+          <div class="panel" id="panel-nutricional">
+            <div class="card">
+              <div class="card-title">Perfil Nutricional</div>
+              <div class="card-subtitle">Informações registradas no seu questionário</div>
+              <div id="nutricionalContent">
+                <div style="display:flex;align-items:center;gap:10px;color:var(--gray-400);font-size:.9rem;">
+                  <div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>
+                  Carregando…
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel: Segurança -->
+          <div class="panel" id="panel-senha">
+            <div class="card">
+              <div class="card-title">Segurança</div>
+              <div class="card-subtitle">Altere sua senha de acesso</div>
+
+              <div class="alert alert-success" id="alertSenhaOk">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Senha alterada com sucesso!
+              </div>
+              <div class="alert alert-error" id="alertSenhaErr"></div>
+
+              <form id="formSenha" novalidate>
+                <div class="form-grid">
+                  <div class="form-group full">
+                    <label class="form-label">Senha Atual</label>
+                    <input type="password" class="form-input" id="inputSenhaAtual" placeholder="••••••••" autocomplete="current-password" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Nova Senha</label>
+                    <input type="password" class="form-input" id="inputNovaSenha" placeholder="Mín. 8 caracteres" autocomplete="new-password" />
+                    <div class="password-strength">
+                      <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+                      <div class="strength-label" id="strengthLabel"></div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Confirmar Senha</label>
+                    <input type="password" class="form-input" id="inputConfirmarSenha" placeholder="Repita a nova senha" autocomplete="new-password" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn-save" id="btnSaveSenha">
+                    <div class="spinner-sm" id="spinnerSenha"></div>
+                    Alterar Senha
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div><!-- /content -->
+      </div><!-- /profile-grid -->
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+    /* ── Auth guard ── */
+    let token = localStorage.getItem('mynutri_token');
+    let userData = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+    if (!token) { window.location.href = 'auth.html'; }
+
+    /* ── Helpers ── */
+    function initials(name) {
+      if (!name) return '?';
+      return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+    }
+
+    function setNavUser(nome, email) {
+      document.getElementById('navAvatar').textContent     = initials(nome);
+      document.getElementById('navName').textContent       = nome.split(' ')[0];
+      document.getElementById('dropdownName').textContent  = nome;
+      document.getElementById('dropdownEmail').textContent = email;
+      document.getElementById('sidebarAvatar').textContent = initials(nome);
+      document.getElementById('sidebarName').textContent   = nome;
+      document.getElementById('sidebarEmail').textContent  = email;
+    }
+
+    function showAlert(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg || el.textContent;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 4000);
+    }
+    function hideAlert(id) { document.getElementById(id).classList.remove('show'); }
+
+    function setLoading(btnId, spinnerId, loading) {
+      const btn = document.getElementById(btnId);
+      const sp  = document.getElementById(spinnerId);
+      btn.disabled = loading;
+      sp.style.display = loading ? 'block' : 'none';
+    }
+
+    /* ── Dropdown ── */
+    const menuBtn      = document.getElementById('userMenuBtn');
+    const dropdown     = document.getElementById('userDropdown');
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = dropdown.classList.toggle('open');
+      menuBtn.classList.toggle('open', open);
+    });
+    document.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+      menuBtn.classList.remove('open');
+    });
+
+    /* ── Logout ── */
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('mynutri_token');
+      localStorage.removeItem('mynutri_refresh');
+      localStorage.removeItem('mynutri_user');
+      window.location.href = 'index.html';
+    });
+
+    /* ── Sidebar nav ── */
+    let originalDados = {};
+    document.querySelectorAll('.sidebar-nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-nav-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        item.classList.add('active');
+        document.getElementById('panel-' + item.dataset.panel).classList.add('active');
+
+        if (item.dataset.panel === 'nutricional') loadNutricional();
+      });
+    });
+
+    /* ── Load profile from API ── */
+    async function loadProfile() {
+      try {
+        const res = await fetch(`${API_BASE}/user/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.status === 401) { window.location.href = 'auth.html'; return; }
+        if (!res.ok) throw new Error('Erro ao carregar perfil');
+
+        const data = await res.json();
+
+        // Split nome into first / last
+        const parts      = (data.nome || '').split(' ');
+        const firstName  = parts[0] || '';
+        const lastName   = parts.slice(1).join(' ') || '';
+
+        document.getElementById('inputFirstName').value = firstName;
+        document.getElementById('inputLastName').value  = lastName;
+        document.getElementById('inputEmail').value     = data.email || '';
+        document.getElementById('inputPhone').value     = data.phone || '';
+        document.getElementById('inputDob').value       = data.date_of_birth || '';
+
+        originalDados = { firstName, lastName, phone: data.phone || '', dob: data.date_of_birth || '' };
+
+        const nomeCompleto = data.nome || data.email;
+        setNavUser(nomeCompleto, data.email);
+
+        // Update localStorage user name
+        if (userData) {
+          userData.nome = nomeCompleto;
+          localStorage.setItem('mynutri_user', JSON.stringify(userData));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    /* ── Save personal data ── */
+    document.getElementById('formDados').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert('alertDadosOk');
+      hideAlert('alertDadosErr');
+
+      const first_name    = document.getElementById('inputFirstName').value.trim();
+      const last_name     = document.getElementById('inputLastName').value.trim();
+      const phone         = document.getElementById('inputPhone').value.trim();
+      const date_of_birth = document.getElementById('inputDob').value || null;
+
+      if (!first_name) {
+        showAlert('alertDadosErr', 'O nome é obrigatório.');
+        return;
+      }
+
+      setLoading('btnSaveDados', 'spinnerDados', true);
+
+      try {
+        const res = await fetch(`${API_BASE}/user/profile`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ first_name, last_name, phone, date_of_birth }),
+        });
+
+        const json = await res.json();
+        if (!res.ok) {
+          const msg = Object.values(json).flat().join(' ');
+          showAlert('alertDadosErr', msg || 'Erro ao salvar.');
+          return;
+        }
+
+        // Update UI
+        const nomeCompleto = json.nome || `${first_name} ${last_name}`.trim();
+        setNavUser(nomeCompleto, json.email);
+        if (userData) {
+          userData.nome = nomeCompleto;
+          localStorage.setItem('mynutri_user', JSON.stringify(userData));
+        }
+        originalDados = { firstName: first_name, lastName: last_name, phone, dob: date_of_birth || '' };
+        showAlert('alertDadosOk');
+      } catch {
+        showAlert('alertDadosErr', 'Erro de conexão. Verifique se o servidor está rodando.');
+      } finally {
+        setLoading('btnSaveDados', 'spinnerDados', false);
+      }
+    });
+
+    /* ── Cancel personal data ── */
+    document.getElementById('btnCancelDados').addEventListener('click', () => {
+      document.getElementById('inputFirstName').value = originalDados.firstName;
+      document.getElementById('inputLastName').value  = originalDados.lastName;
+      document.getElementById('inputPhone').value     = originalDados.phone;
+      document.getElementById('inputDob').value       = originalDados.dob;
+      hideAlert('alertDadosOk');
+      hideAlert('alertDadosErr');
+    });
+
+    /* ── Load nutritional profile ── */
+    async function loadNutricional() {
+      const container = document.getElementById('nutricionalContent');
+      container.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--gray-400);font-size:.9rem;"><div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>Carregando…</div>`;
+
+      try {
+        const res = await fetch(`${API_BASE}/anamnese`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.status === 404 || res.status === 204) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 6 5 10c0 5 7 12 7 12s7-7 7-12c0-4-3-8-7-8z"/><circle cx="12" cy="10" r="2"/></svg>
+              <p>Você ainda não preencheu o questionário nutricional.</p>
+              <a href="questionario.html" class="btn-save" style="text-decoration:none;display:inline-flex;">Preencher Questionário</a>
+            </div>`;
+          return;
+        }
+
+        if (!res.ok) throw new Error();
+
+        const d = await res.json();
+
+        const goalMap     = { lose: 'Emagrecimento', maintain: 'Manutenção', gain: 'Hipertrofia' };
+        const activityMap = { sedentary: 'Sedentário', light: 'Levemente ativo', moderate: 'Moderadamente ativo', intense: 'Muito ativo', athlete: 'Atleta' };
+        const genderMap   = { M: 'Masculino', F: 'Feminino', O: 'Outro' };
+
+        container.innerHTML = `
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-item-label">Sexo</div>
+              <div class="info-item-value">${genderMap[d.sexo] || d.sexo || '—'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Idade</div>
+              <div class="info-item-value">${d.idade ? d.idade + ' anos' : '—'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Peso</div>
+              <div class="info-item-value">${d.peso ? d.peso + ' kg' : '—'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Altura</div>
+              <div class="info-item-value">${d.altura ? d.altura + ' cm' : '—'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Objetivo</div>
+              <div class="info-item-value"><span class="badge badge-green">${goalMap[d.objetivo] || d.objetivo || '—'}</span></div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Nível de Atividade</div>
+              <div class="info-item-value"><span class="badge badge-blue">${activityMap[d.nivel_atividade] || d.nivel_atividade || '—'}</span></div>
+            </div>
+            <div class="info-item">
+              <div class="info-item-label">Refeições/dia</div>
+              <div class="info-item-value">${d.meals_per_day || '—'}</div>
+            </div>
+            ${d.restricoes ? `<div class="info-item"><div class="info-item-label">Restrições</div><div class="info-item-value" style="font-size:.875rem;">${d.restricoes}</div></div>` : ''}
+            ${d.allergies  ? `<div class="info-item"><div class="info-item-label">Alergias</div><div class="info-item-value" style="font-size:.875rem;">${d.allergies}</div></div>` : ''}
+            ${d.food_preferences ? `<div class="info-item"><div class="info-item-label">Preferências</div><div class="info-item-value" style="font-size:.875rem;">${d.food_preferences}</div></div>` : ''}
+          </div>
+          <p style="margin-top:16px;font-size:.8125rem;color:var(--gray-400);">Para alterar esses dados, <a href="questionario.html" style="color:var(--green-600);">refaça o questionário</a>.</p>`;
+      } catch {
+        container.innerHTML = `<p style="color:var(--gray-400);font-size:.9rem;">Não foi possível carregar o perfil nutricional.</p>`;
+      }
+    }
+
+    /* ── Password strength ── */
+    document.getElementById('inputNovaSenha').addEventListener('input', function () {
+      const val   = this.value;
+      const fill  = document.getElementById('strengthFill');
+      const label = document.getElementById('strengthLabel');
+      let strength = 0;
+      if (val.length >= 8)              strength++;
+      if (/[A-Z]/.test(val))            strength++;
+      if (/[0-9]/.test(val))            strength++;
+      if (/[^A-Za-z0-9]/.test(val))     strength++;
+
+      const configs = [
+        { w: '0%',   bg: 'transparent', text: '' },
+        { w: '25%',  bg: '#ef4444',     text: 'Fraca' },
+        { w: '50%',  bg: '#f97316',     text: 'Razoável' },
+        { w: '75%',  bg: '#eab308',     text: 'Boa' },
+        { w: '100%', bg: '#22c55e',     text: 'Forte' },
+      ];
+      fill.style.width      = configs[strength].w;
+      fill.style.background = configs[strength].bg;
+      label.textContent     = configs[strength].text;
+    });
+
+    /* ── Save password (placeholder – needs dedicated endpoint) ── */
+    document.getElementById('formSenha').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert('alertSenhaOk');
+      hideAlert('alertSenhaErr');
+
+      const atual     = document.getElementById('inputSenhaAtual').value;
+      const nova      = document.getElementById('inputNovaSenha').value;
+      const confirmar = document.getElementById('inputConfirmarSenha').value;
+
+      if (!atual || !nova || !confirmar) {
+        showAlert('alertSenhaErr', 'Preencha todos os campos.');
+        return;
+      }
+      if (nova.length < 8) {
+        showAlert('alertSenhaErr', 'A nova senha deve ter pelo menos 8 caracteres.');
+        return;
+      }
+      if (nova !== confirmar) {
+        showAlert('alertSenhaErr', 'As senhas não coincidem.');
+        return;
+      }
+
+      setLoading('btnSaveSenha', 'spinnerSenha', true);
+
+      try {
+        const res = await fetch(`${API_BASE}/user/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ current_password: atual, new_password: nova }),
+        });
+
+        if (res.status === 404) {
+          showAlert('alertSenhaErr', 'Endpoint de alteração de senha ainda não disponível.');
+          return;
+        }
+
+        const json = await res.json();
+        if (!res.ok) {
+          const msg = Object.values(json).flat().join(' ');
+          showAlert('alertSenhaErr', msg || 'Erro ao alterar senha.');
+          return;
+        }
+
+        showAlert('alertSenhaOk');
+        document.getElementById('formSenha').reset();
+        document.getElementById('strengthFill').style.width = '0';
+        document.getElementById('strengthLabel').textContent = '';
+      } catch {
+        showAlert('alertSenhaErr', 'Erro de conexão.');
+      } finally {
+        setLoading('btnSaveSenha', 'spinnerSenha', false);
+      }
+    });
+
+    /* ── Page transitions ── */
+    function navigateTo(url) {
+      document.body.classList.add('page-leaving');
+      setTimeout(() => { window.location.href = url; }, 260);
+    }
+
+    document.querySelectorAll('a[href]').forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto')) return;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo(href);
+      });
+    });
+
+    /* ── Init ── */
+    if (userData?.nome) setNavUser(userData.nome, userData.email || '');
+    loadProfile();
+  </script>
+
+</body>
+</html>

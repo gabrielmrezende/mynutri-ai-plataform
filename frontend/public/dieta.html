@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minha Dieta — MyNutri AI</title>
+  <meta name="description" content="Seu plano alimentar personalizado gerado por inteligência artificial." />
+  <link rel="stylesheet" href="../src/styles/index.css" />
+  <style>
+    body {
+      background: var(--gray-50);
+      min-height: 100vh;
+    }
+
+    .diet-page {
+      padding-top: calc(var(--header-h) + 40px);
+      padding-bottom: 60px;
+    }
+
+    /* ── Loading & Error States ── */
+    .state-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 50vh;
+      text-align: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--green-200);
+      border-top-color: var(--green-500);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .state-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+
+    .state-subtitle {
+      font-size: .9375rem;
+      color: var(--gray-500);
+      max-width: 400px;
+    }
+
+    /* ── Diet Header ── */
+    .diet-header-section {
+      background: var(--gradient-primary);
+      color: var(--white);
+      border-radius: var(--radius-xl);
+      padding: 36px 40px;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .diet-header-left h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .diet-header-left p {
+      font-size: .9375rem;
+      opacity: 0.9;
+    }
+
+    .diet-stats {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.18);
+      border-radius: var(--radius-md);
+      padding: 16px 24px;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      min-width: 120px;
+    }
+
+    .stat-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      display: block;
+    }
+
+    .stat-label {
+      font-size: .8125rem;
+      opacity: 0.85;
+    }
+
+    /* ── Goal Badge ── */
+    .goal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--green-50);
+      color: var(--green-800);
+      border: 1px solid var(--green-200);
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: .875rem;
+      font-weight: 600;
+      margin-bottom: 28px;
+    }
+
+    /* ── Meals Grid ── */
+    .meals-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 20px;
+    }
+
+    .meals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .meal-card {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: transform .2s ease, box-shadow .2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .meal-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--gradient-primary);
+    }
+
+    .meal-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .meal-order {
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--green-600);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .meal-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.0625rem;
+      font-weight: 700;
+      color: var(--gray-900);
+    }
+
+    .meal-desc {
+      font-size: .9rem;
+      color: var(--gray-600);
+      line-height: 1.6;
+    }
+
+    .meal-calories {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-50);
+      color: var(--green-700);
+      border-radius: 999px;
+      padding: 4px 14px;
+      font-size: .8125rem;
+      font-weight: 600;
+      margin-top: auto;
+      align-self: flex-start;
+    }
+
+    /* ── Actions ── */
+    .diet-actions {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .btn-action {
+      padding: 12px 28px;
+      border-radius: var(--radius-md);
+      font-size: .9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--gradient-primary);
+      color: var(--white);
+      box-shadow: var(--shadow-green);
+    }
+
+    .btn-primary:hover { transform: translateY(-2px); }
+
+    .btn-outline {
+      background: var(--white);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-outline:hover { background: var(--gray-50); }
+
+    /* ── Date info ── */
+    .diet-meta {
+      font-size: .8125rem;
+      color: var(--gray-400);
+      margin-top: 32px;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .diet-header-section { padding: 24px; }
+      .diet-header-left h1 { font-size: 1.375rem; }
+      .meals-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── User menu dropdown ── */
+    .user-menu-wrap { position: relative; }
+    .user-menu-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px 7px 10px;
+      border: 1.5px solid var(--green-200); border-radius: var(--radius-full);
+      background: var(--green-50); cursor: pointer;
+      font-size: .875rem; font-weight: 600; color: var(--green-700);
+      transition: all .2s ease;
+    }
+    .user-menu-btn:hover { background: var(--green-100); border-color: var(--green-400); }
+    .user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--gradient-primary); color: #fff;
+      font-size: .75rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .user-menu-btn svg { transition: transform .2s ease; }
+    .user-menu-btn.open svg { transform: rotate(180deg); }
+    .user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--white); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl); border: 1px solid var(--gray-100);
+      min-width: 210px; z-index: 200; overflow: hidden;
+      opacity: 0; transform: translateY(-6px) scale(.97);
+      pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+    }
+    .user-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+    .dropdown-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--gray-100); }
+    .dropdown-header strong { display: block; font-size: .9375rem; color: var(--gray-800); }
+    .dropdown-header span   { font-size: .8125rem; color: var(--gray-500); }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px; font-size: .9rem; color: var(--gray-700);
+      text-decoration: none; transition: background .15s ease;
+      border: none; background: none; width: 100%; text-align: left; cursor: pointer;
+    }
+    .dropdown-item:hover { background: var(--gray-50); color: var(--green-700); }
+    .dropdown-item.active { background: var(--green-50); color: var(--green-700); font-weight: 600; }
+    .dropdown-item.danger { color: #dc2626; }
+    .dropdown-item.danger:hover { background: #fef2f2; color: #dc2626; }
+    .dropdown-divider { height: 1px; background: var(--gray-100); margin: 4px 0; }
+  </style>
+</head>
+<body>
+
+  <header class="header scrolled" id="header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/>
+            <circle cx="12" cy="9" r="2.5"/>
+          </svg>
+        </div>
+        MyNutri <span>AI</span>
+      </a>
+
+      <div class="user-menu-wrap">
+        <button class="user-menu-btn" id="userMenuBtn">
+          <div class="user-avatar" id="navAvatar">?</div>
+          <span id="navName">Carregando…</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="user-dropdown" id="userDropdown">
+          <div class="dropdown-header">
+            <strong id="dropdownName">—</strong>
+            <span id="dropdownEmail">—</span>
+          </div>
+          <a href="perfil.html" class="dropdown-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            Meu Perfil
+          </a>
+          <a href="dieta.html" class="dropdown-item active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
+            Minha Dieta
+          </a>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item danger" id="logoutBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="diet-page">
+    <div class="container">
+
+      <!-- Loading state -->
+      <div class="state-center" id="state-loading">
+        <div class="spinner"></div>
+        <p class="state-title" id="loading-msg">Carregando sua dieta...</p>
+        <p class="state-subtitle">Aguarde um momento.</p>
+      </div>
+
+      <!-- Error state -->
+      <div class="state-center" id="state-error" style="display:none;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p class="state-title" id="error-msg">Nenhuma dieta encontrada.</p>
+        <p class="state-subtitle">Responda o questionário para gerar seu plano alimentar personalizado.</p>
+        <a href="questionario.html" class="btn-action btn-primary" style="margin-top:8px;text-decoration:none;">Fazer questionário</a>
+      </div>
+
+      <!-- Diet content -->
+      <div id="diet-content" style="display:none;">
+
+        <!-- Header Section -->
+        <div class="diet-header-section">
+          <div class="diet-header-left">
+            <h1>Seu Plano Alimentar</h1>
+            <p>Gerado com Inteligência Artificial, 100% personalizado para você.</p>
+          </div>
+          <div class="diet-stats">
+            <div class="stat-card">
+              <span class="stat-value" id="stat-calories">—</span>
+              <span class="stat-label">kcal / dia</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="stat-meals">—</span>
+              <span class="stat-label">refeições</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Goal Badge -->
+        <div class="goal-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+          </svg>
+          <span id="goal-desc">Carregando objetivo...</span>
+        </div>
+
+        <!-- Meals -->
+        <h2 class="meals-title">Refeições do Dia</h2>
+        <div class="meals-grid" id="meals-grid"></div>
+
+        <!-- Actions -->
+        <div class="diet-actions">
+          <a href="questionario.html" class="btn-action btn-primary" style="text-decoration:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+            </svg>
+            Gerar nova dieta
+          </a>
+          <button onclick="window.print()" class="btn-action btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir / Salvar PDF
+          </button>
+        </div>
+
+        <p class="diet-meta" id="diet-date"></p>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+    const token = localStorage.getItem('mynutri_token');
+    const user  = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+
+    if (!token) { window.location.href = 'auth.html'; }
+
+    // ── User menu ──
+    function initials(name) {
+      if (!name) return '?';
+      return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+    }
+
+    if (user?.nome) {
+      document.getElementById('navAvatar').textContent    = initials(user.nome);
+      document.getElementById('navName').textContent      = user.nome.split(' ')[0];
+      document.getElementById('dropdownName').textContent = user.nome;
+      document.getElementById('dropdownEmail').textContent = user.email || '';
+    }
+
+    const menuBtn  = document.getElementById('userMenuBtn');
+    const dropdown = document.getElementById('userDropdown');
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = dropdown.classList.toggle('open');
+      menuBtn.classList.toggle('open', open);
+    });
+    document.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+      menuBtn.classList.remove('open');
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('mynutri_token');
+      localStorage.removeItem('mynutri_refresh');
+      localStorage.removeItem('mynutri_user');
+      window.location.href = 'index.html';
+    });
+
+    function showError(msg) {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-error').style.display = 'flex';
+      document.getElementById('error-msg').textContent = msg;
+    }
+
+    function renderDiet(diet) {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('diet-content').style.display = 'block';
+
+      document.getElementById('stat-calories').textContent = (diet.calorias_totais || '—').toLocaleString('pt-BR');
+      document.getElementById('stat-meals').textContent = diet.refeicoes?.length || '—';
+      document.getElementById('goal-desc').textContent = diet.goal_description || 'Plano personalizado';
+
+      if (diet.created_at) {
+        const date = new Date(diet.created_at);
+        document.getElementById('diet-date').textContent =
+          `Dieta gerada em ${date.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })}`;
+      }
+
+      const grid = document.getElementById('meals-grid');
+      grid.innerHTML = '';
+
+      const mealEmojis = ['🌅', '🥗', '🍽️', '🥤', '🌙', '🍎'];
+
+      (diet.refeicoes || []).forEach((refeicao, i) => {
+        const card = document.createElement('div');
+        card.className = 'meal-card';
+        card.innerHTML = `
+          <span class="meal-order">${mealEmojis[i % mealEmojis.length]} Refeição ${refeicao.order ?? i + 1}</span>
+          <span class="meal-name">${refeicao.nome_refeicao}</span>
+          <p class="meal-desc">${refeicao.descricao_refeicao}</p>
+          <span class="meal-calories">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/>
+            </svg>
+            ${refeicao.calorias_estimadas} kcal
+          </span>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function loadDiet() {
+      const generate = new URLSearchParams(window.location.search).get('generate');
+
+      if (generate === '1') {
+        // Veio do questionário: a anamnese já foi salva, só precisa gerar a dieta
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        };
+
+        // Se tem dados de anamnese pendentes do sessionStorage (fluxo sem login), salva primeiro
+        const anamneseData = sessionStorage.getItem('anamneseData');
+        if (anamneseData) {
+          document.getElementById('loading-msg').textContent = 'Enviando questionário...';
+          try {
+            const aRes = await fetch(`${API_BASE}/anamnese`, {
+              method: 'POST', headers,
+              body: anamneseData,
+            });
+            if (!aRes.ok) {
+              const err = await aRes.json().catch(() => ({}));
+              showError(Object.values(err).flat().join(' ') || 'Erro ao salvar questionário.');
+              return;
+            }
+            sessionStorage.removeItem('anamneseData');
+          } catch (err) {
+            showError('Erro de conexão ao salvar questionário.');
+            return;
+          }
+        }
+
+        // Gera dieta via IA
+        document.getElementById('loading-msg').textContent = 'Gerando sua dieta com IA...';
+        document.querySelector('.state-subtitle').textContent = 'Isso pode levar até 30 segundos. Não feche esta página.';
+
+        try {
+          const dRes = await fetch(`${API_BASE}/diet/generate`, {
+            method: 'POST', headers, body: '{}',
+          });
+
+          if (!dRes.ok) {
+            const err = await dRes.json().catch(() => ({}));
+            showError(err.error || 'Erro ao gerar dieta. Tente novamente.');
+            return;
+          }
+
+          const diet = await dRes.json();
+          renderDiet(diet);
+          history.replaceState(null, '', 'dieta.html');
+
+        } catch (err) {
+          console.error('Erro na geração:', err);
+          showError('A geração da dieta demorou demais ou houve erro de conexão. Tente recarregar a página.');
+        }
+
+      } else {
+        await fetchExistingDiet();
+      }
+    }
+
+    async function fetchExistingDiet() {
+      try {
+        const res = await fetch(`${API_BASE}/diet`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (res.status === 401) {
+          // Token expirado
+          localStorage.removeItem('mynutri_token');
+          window.location.href = 'auth.html';
+          return;
+        }
+
+        if (res.status === 404) {
+          showError('Você ainda não possui um plano alimentar.');
+          return;
+        }
+
+        if (!res.ok) {
+          showError('Não foi possível carregar sua dieta.');
+          return;
+        }
+
+        const diet = await res.json();
+        renderDiet(diet);
+
+      } catch (err) {
+        console.error('Erro ao carregar dieta:', err);
+        showError(`Erro de conexão.\n\nVerifique se o servidor está rodando:\npython manage.py runserver\n\nErro: ${err.message}`);
+      }
+    }
+
+    /* ── Page transitions ── */
+    function navigateTo(url) {
+      document.body.classList.add('page-leaving');
+      setTimeout(() => { window.location.href = url; }, 260);
+    }
+
+    document.querySelectorAll('a[href]').forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto')) return;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo(href);
+      });
+    });
+
+    loadDiet();
+  </script>
+</body>
+</html>
