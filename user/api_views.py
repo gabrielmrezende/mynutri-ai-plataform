@@ -30,15 +30,30 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 class EmailTokenObtainPairView(TokenObtainPairView):
     """
     POST /api/auth/login
-    Aceita { email, password } e retorna { token, refresh }.
+    Aceita { email, password } e retorna { token, refresh, user }.
+    O campo 'user' é incluído para que o frontend possa salvar os dados
+    do usuário no localStorage sem precisar de uma chamada adicional.
     """
     serializer_class = EmailTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            # Renomeia 'access' para 'token' para consistência com o endpoint de registro
+            # Renomeia 'access' → 'token' para consistência com /auth/register
             response.data['token'] = response.data.pop('access')
+
+            # Anexa dados básicos do usuário — evita chamada extra ao /user/profile
+            try:
+                email = request.data.get('email', '').lower()
+                user = User.objects.get(email=email)
+                response.data['user'] = {
+                    'id':   user.id,
+                    'email': user.email,
+                    'nome': user.get_full_name() or user.first_name or user.email,
+                }
+            except User.DoesNotExist:
+                pass  # não interrompe o fluxo; o token já foi retornado
+
         return response
 
 

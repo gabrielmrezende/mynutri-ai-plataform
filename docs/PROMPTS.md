@@ -2,47 +2,81 @@
 
 ## Geração de Dieta
 
-Prompt utilizado para gerar dietas personalizadas com base na anamnese do usuário.
+O prompt é construído dinamicamente em `nutrition/prompts.py` pela função `build_diet_prompt(anamnese)`.
 
-Exemplo de prompt:
+### Campos utilizados da Anamnese
 
-"Com base nas seguintes informações do usuário, gere um plano alimentar diário equilibrado.
+| Campo do Model | Descrição |
+| --- | --- |
+| `age` | Idade em anos |
+| `gender` | Sexo (Masculino / Feminino / Outro) |
+| `weight_kg` | Peso em kg |
+| `height_cm` | Altura em cm |
+| `activity_level` | Nível de atividade (display em PT) |
+| `goal` | Objetivo (display em PT) |
+| `food_preferences` | Preferências alimentares (ponto de partida) |
+| `food_restrictions` | Restrições alimentares (evitar) |
+| `allergies` | Alergias (proibido incluir) |
+| `meals_per_day` | Número de refeições por dia |
 
-Informações do usuário:
+### Lógica de cálculo calórico solicitada à IA
 
-Idade: {idade}
-Sexo: {sexo}
-Peso: {peso}
-Altura: {altura}
-Nível de atividade: {atividade}
-Objetivo: {objetivo}
-Restrições alimentares: {restricoes}
+A IA é instruída a calcular internamente:
 
-Crie um plano alimentar contendo:
+1. **TMB** via Mifflin-St Jeor
+2. **TDEE** = TMB × fator de atividade
+3. **Meta calórica** = TDEE ajustado pelo objetivo (−400~500 para emagrecimento, neutro para manutenção, +300~400 para hipertrofia)
 
-- café da manhã
-- almoço
-- jantar
-- lanches
+### Formato de resposta esperado (JSON)
 
-Inclua estimativa calórica aproximada.
-
-**IMPORTANTE: Sua resposta DEVE OBRIGATORIAMENTE estar em formato JSON válido e estruturado, sem nenhum texto adicional antes ou depois. Use obrigatoriamente a seguinte estrutura:**
 ```json
 {
-  "calorias_totais": 2500,
-  "objetivo": "Ganho de massa",
-  "refeicoes": [
+  "goal_description": "Emagrecimento saudável — déficit calórico moderado de ~400 kcal/dia",
+  "calories": 1900,
+  "macros": {
+    "protein_g": 150,
+    "carbs_g": 190,
+    "fat_g": 55
+  },
+  "meals": [
     {
-      "nome_refeicao": "Café da manhã",
-      "descricao_refeicao": "2 ovos mexidos, 1 fatia de pão integral com queijo branco, 1 xícara de café preto sem açúcar.",
-      "calorias_estimadas": 350
-    },
-    {
-      "nome_refeicao": "Almoço",
-      "descricao_refeicao": "150g de peito de frango grelhado, 100g de arroz integral, salada de folhas à vontade.",
-      "calorias_estimadas": 600
+      "name": "Café da manhã",
+      "time_suggestion": "07:00",
+      "foods": [
+        {
+          "name": "Ovos mexidos",
+          "quantity": "3 unidades (150g)",
+          "calories": 220
+        },
+        {
+          "name": "Pão integral",
+          "quantity": "2 fatias (60g)",
+          "calories": 150
+        }
+      ]
     }
-  ]
+  ],
+  "substitutions": [
+    {
+      "food": "Arroz integral",
+      "alternatives": ["Batata-doce", "Macarrão integral", "Mandioca", "Quinoa"]
+    }
+  ],
+  "notes": "Beba pelo menos 2 a 3 litros de água por dia..."
 }
-```"
+```
+
+### Mapeamento JSON → banco de dados
+
+| Campo JSON | Campo `DietPlan` |
+| --- | --- |
+| `calories` | `total_calories` |
+| `goal_description` | `goal_description` |
+| JSON completo | `raw_response` |
+
+| Campo JSON | Campo `Meal` |
+| --- | --- |
+| `meals[].name` + `time_suggestion` | `meal_name` (ex: "Almoço (12:00)") |
+| `meals[].foods[]` formatados | `description` (lista com bullet points) |
+| soma de `foods[].calories` | `calories` |
+| índice do array | `order` |

@@ -723,6 +723,13 @@
           restricoesList.push(raw.outras_restricoes.trim());
         }
 
+        // Monta food_preferences: alimentos favoritos + observações (se houver)
+        const favs = raw.alimentos_favoritos || '';
+        const obs  = (raw.observacoes || '').trim();
+        const food_preferences = obs
+          ? (favs ? `${favs}\nObservações: ${obs}` : `Observações: ${obs}`)
+          : favs;
+
         return {
           idade: parseInt(raw.idade),
           sexo: SEXO_MAP[raw.sexo] || raw.sexo,
@@ -732,7 +739,7 @@
           nivel_atividade: ATIVIDADE_MAP[raw.atividade] || raw.atividade,
           meals_per_day: parseInt(raw.refeicoes) || 3,
           restricoes: restricoesList.join(', '),
-          food_preferences: raw.alimentos_favoritos || '',
+          food_preferences,
           allergies: raw.alimentos_evitar || '',
         };
       }
@@ -788,24 +795,70 @@
 
       // --- Tags & Autocomplete System ---
       const ALIMENTOS_BRASIL = [
-        "Abacate", "Abacaxi", "Abobrinha", "Açaí", "Acerola", "Alcaparra", "Alecrim", "Alface",
-        "Alho", "Amendoim", "Amêndoa", "Arroz Branco", "Arroz Integral", "Aveia", "Azeite",
-        "Azeitona", "Bacalhau", "Bacon", "Banana", "Barra de Cereal", "Barra de Proteína",
-        "Batata Doce", "Batata Inglesa", "Berinjela", "Beterraba", "Biscoito", "Bolo",
-        "Brócolis", "Cacau", "Café", "Caju", "Camarão", "Carne de Porco", "Carne Moída",
-        "Carne Vermelha", "Castanha de Caju", "Castanha do Pará", "Cebola", "Cebolinha",
-        "Cenoura", "Chá", "Chia", "Chocolate", "Chocolate Amargo", "Coentro", "Couve",
-        "Couve-Flor", "Creatina", "Ervilha", "Espinafre", "Farelo de Aveia", "Farinha de Mandioca",
-        "Feijão", "Feijão Preto", "Fígado", "Frango", "Goiaba", "Grão de Bico", "Hambúrguer",
-        "Iogurte", "Iogurte Natural", "Jiló", "Kiwi", "Laranja", "Leite", "Leite Desnatado",
-        "Leite Vegetal", "Lentilha", "Limão", "Linhaça", "Maçã", "Mamão", "Mandioca",
-        "Manteiga", "Maracujá", "Margarina", "Massa/Macarrão", "Mel", "Melancia", "Melão",
-        "Milho", "Morango", "Nozes", "Óleo de Coco", "Omelete", "Ovo", "Pão de Forma",
-        "Pão Francês", "Pão Integral", "Pasta de Amendoim", "Peito de Peru", "Peixe",
-        "Pepino", "Pera", "Pimenta", "Pimentão", "Pipoca", "Polenta", "Queijo Branco",
-        "Queijo Mussarela", "Quiabo", "Repolho", "Rúcula", "Salsicha", "Salmão", "Soja",
-        "Sorvete", "Suco Natural", "Tapioca", "Tomate", "Uva", "Whey Protein", "Picles"
-      ];
+  // 🍗 Proteínas populares
+      "Frango", "Frango Grelhado", "Frango Assado", "Frango Empanado", "Frango Desfiado",
+      "Carne Bovina", "Carne Moída", "Bife", "Alcatra", "Picanha", "Costela", "Churrasco",
+      "Linguiça", "Calabresa", "Salsicha", "Presunto", "Peito de Peru",
+      "Peixe", "Tilápia", "Salmão", "Atum", "Sardinha",
+      "Ovo", "Ovo Frito", "Ovo Cozido", "Omelete",
+      "Hambúrguer",
+
+      // 🧀 Laticínios
+      "Leite", "Leite Integral", "Leite Desnatado", "Leite Condensado",
+      "Iogurte", "Iogurte Natural", "Iogurte Grego",
+      "Queijo Mussarela", "Queijo Prato", "Queijo Minas", "Queijo Coalho",
+      "Requeijão", "Cream Cheese",
+
+      // 🍞 Carboidratos
+      "Arroz Branco", "Arroz Integral", "Macarrão", "Lasanha", "Nhoque",
+      "Pão Francês", "Pão de Forma", "Pão Integral", "Pão de Queijo",
+      "Batata", "Batata Frita", "Batata Doce", "Purê de Batata",
+      "Mandioca", "Farofa", "Cuscuz", "Tapioca", "Milho", "Polenta",
+
+      // 🥗 Legumes e verduras (mais aceitos)
+      "Alface", "Tomate", "Cenoura", "Brócolis", "Couve", "Repolho",
+      "Pepino", "Beterraba", "Abobrinha", "Berinjela",
+
+      // 🍎 Frutas populares
+      "Banana", "Maçã", "Laranja", "Uva", "Morango", "Manga",
+      "Mamão", "Melancia", "Melão", "Abacaxi", "Maracujá",
+      "Limão", "Pera", "Goiaba", "Açaí",
+
+      // 🍫 Doces e sobremesas
+      "Chocolate", "Chocolate Amargo", "Brigadeiro", "Beijinho",
+      "Bolo de Chocolate", "Bolo de Cenoura", "Bolo de Fubá",
+      "Sorvete", "Doce de Leite", "Pudim", "Gelatina",
+      "Açaí com Granola",
+
+      // 🥤 Bebidas
+      "Café", "Café com Leite", "Chá",
+      "Suco Natural", "Suco de Laranja", "Suco de Uva",
+      "Refrigerante", "Refrigerante Zero",
+      "Água de Coco", "Leite com Chocolate",
+
+      // 🍔 Fast food / comidas populares
+      "Pizza", "Hambúrguer Artesanal", "X-Burguer", "X-Salada",
+      "Batata Frita com Cheddar", "Hot Dog",
+      "Coxinha", "Pastel", "Esfiha", "Kibe", "Empada",
+
+      // 🍛 Pratos brasileiros
+      "Feijão", "Feijão Preto", "Feijoada",
+      "Arroz com Feijão", "Arroz Carreteiro",
+      "Estrogonofe de Frango", "Estrogonofe de Carne",
+      "Risoto", "Panqueca", "Macarronada",
+      "Frango com Batata", "Carne com Batata",
+
+      // 🥪 Lanches
+      "Sanduíche Natural", "Misto Quente", "Torrada",
+      "Pão com Ovo", "Pão com Manteiga",
+      "Pão com Presunto e Queijo",
+      "Wrap", "Crepioca",
+
+      // 🥜 Extras populares
+      "Amendoim", "Castanha de Caju", "Castanha do Pará",
+      "Pasta de Amendoim", "Granola", "Mel",
+      "Azeite", "Manteiga", "Maionese", "Ketchup", "Mostarda"
+    ];
 
       function setupTagsInput(wrapperId, dropdownId, hiddenId, isAvoid = false) {
         const wrapper = document.getElementById(wrapperId);

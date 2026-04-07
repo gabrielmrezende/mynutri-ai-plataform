@@ -90,11 +90,34 @@ class DietPlanSerializer(serializers.ModelSerializer):
     """
     refeicoes = MealSerializer(source='meals', many=True, read_only=True)
     calorias_totais = serializers.IntegerField(source='total_calories')
+    macros = serializers.SerializerMethodField()
+    substitutions = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
+    meals_raw = serializers.SerializerMethodField()
+    explanation = serializers.SerializerMethodField()
 
     class Meta:
         model = DietPlan
         fields = (
             'id', 'calorias_totais', 'goal_description',
-            'refeicoes', 'created_at',
+            'macros', 'substitutions', 'notes',
+            'meals_raw', 'refeicoes', 'explanation', 'created_at',
         )
         read_only_fields = fields
+
+    def get_macros(self, obj):
+        return obj.raw_response.get('macros') if obj.raw_response else None
+
+    def get_substitutions(self, obj):
+        return obj.raw_response.get('substitutions', []) if obj.raw_response else []
+
+    def get_notes(self, obj):
+        return obj.raw_response.get('notes', '') if obj.raw_response else ''
+
+    def get_meals_raw(self, obj):
+        """Retorna as refeições com foods[] estruturados diretamente do JSON da IA."""
+        return obj.raw_response.get('meals', []) if obj.raw_response else []
+
+    def get_explanation(self, obj):
+        """Retorna a explicação de transparência gerada pela IA."""
+        return obj.raw_response.get('explanation') if obj.raw_response else None

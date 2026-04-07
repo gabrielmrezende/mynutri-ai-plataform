@@ -187,3 +187,4 @@ A documentação técnica detalhada está na pasta **`docs/`**:
 - **Gabriel Rezende**
 - **Carlos Alberto**
 - **Arthur Hoffmann**
+- **Pedro Antônio**

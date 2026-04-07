@@ -568,22 +568,57 @@
 
     // --- Session state: swap auth buttons for user dropdown ---
     (function () {
-      const token = localStorage.getItem('mynutri_token');
-      const user  = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
-      if (!token || !user) return;
+      const API_BASE = 'http://127.0.0.1:8000/api/v1';
+      const token    = localStorage.getItem('mynutri_token');
+
+      // Sem token → usuário não está logado, mantém botões de guest
+      if (!token) return;
 
       function initials(name) {
         if (!name) return '?';
         return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
       }
 
-      document.getElementById('guestNav').style.display = 'none';
-      const authNav = document.getElementById('authNav');
-      authNav.style.display = 'flex';
-      document.getElementById('navAvatar').textContent     = initials(user.nome);
-      document.getElementById('navName').textContent       = user.nome.split(' ')[0];
-      document.getElementById('dropdownName').textContent  = user.nome;
-      document.getElementById('dropdownEmail').textContent = user.email || '';
+      function applyUserUI(user) {
+        document.getElementById('guestNav').style.display = 'none';
+        document.getElementById('authNav').style.display  = 'flex';
+        document.getElementById('navAvatar').textContent     = initials(user.nome);
+        document.getElementById('navName').textContent       = user.nome.split(' ')[0];
+        document.getElementById('dropdownName').textContent  = user.nome;
+        document.getElementById('dropdownEmail').textContent = user.email || '';
+      }
+
+      async function loadUser() {
+        // 1. Tenta o cache do localStorage primeiro (evita request desnecessário)
+        const cached = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+        if (cached?.nome) { applyUserUI(cached); return; }
+
+        // 2. Fallback: busca o perfil na API (cobre o caso de login sem user no localStorage)
+        try {
+          const res = await fetch(`${API_BASE}/user/profile`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+
+          if (res.status === 401) {
+            // Token expirado — limpa sessão silenciosamente
+            localStorage.removeItem('mynutri_token');
+            localStorage.removeItem('mynutri_refresh');
+            localStorage.removeItem('mynutri_user');
+            return;
+          }
+
+          if (!res.ok) return;
+
+          const profile = await res.json();
+          const user = { id: profile.id, email: profile.email, nome: profile.nome };
+          localStorage.setItem('mynutri_user', JSON.stringify(user));
+          applyUserUI(user);
+        } catch {
+          // Servidor offline — não altera a UI
+        }
+      }
+
+      loadUser();
 
       const menuBtn  = document.getElementById('userMenuBtn');
       const dropdown = document.getElementById('userDropdown');
@@ -592,10 +627,10 @@
       menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const open = dropdown.style.opacity === '1';
-        dropdown.style.opacity       = open ? '0'                         : '1';
+        dropdown.style.opacity       = open ? '0'                           : '1';
         dropdown.style.transform     = open ? 'translateY(-6px) scale(.97)' : 'translateY(0) scale(1)';
-        dropdown.style.pointerEvents = open ? 'none'                       : 'all';
-        chevron.style.transform      = open ? ''                            : 'rotate(180deg)';
+        dropdown.style.pointerEvents = open ? 'none'                        : 'all';
+        chevron.style.transform      = open ? ''                             : 'rotate(180deg)';
       });
 
       document.addEventListener('click', () => {
