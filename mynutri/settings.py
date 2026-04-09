@@ -39,11 +39,13 @@ for _var, _desc in _REQUIRED_VARS.items():
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-# ALLOWED_HOSTS: lista do .env + domínio automático do Render
+# ALLOWED_HOSTS: lista do .env + domínio automático do Render ou Railway
 _allowed = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
-_render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')  # injetado automaticamente pelo Render
-if _render_host:
-    _allowed.append(_render_host)
+_render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')    # injetado automaticamente pelo Render
+_railway_host = os.getenv('RAILWAY_PUBLIC_DOMAIN')      # injetado automaticamente pelo Railway
+for _auto_host in (_render_host, _railway_host):
+    if _auto_host:
+        _allowed.append(_auto_host)
 ALLOWED_HOSTS = [h.strip() for h in _allowed if h.strip()] or (['localhost', '127.0.0.1'] if DEBUG else [])
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
