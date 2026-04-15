@@ -205,6 +205,44 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # =============================================================================
+# Cache — LocMemCache em dev, Redis em prod (via CACHE_URL)
+# Usado pela validação de e-mail e outros módulos que precisam de cache.
+# Para Redis: CACHE_URL=redis://localhost:6379/1
+# =============================================================================
+_cache_url = os.getenv('CACHE_URL', '')
+if _cache_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _cache_url,
+            'TIMEOUT': 86400,               # 24 h padrão
+            'OPTIONS': {'MAX_ENTRIES': 5000},
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'mynutri-default',
+        }
+    }
+
+# =============================================================================
+# Validação de e-mail em múltiplas camadas
+# Veja: user/email_validation.py para documentação completa.
+# =============================================================================
+# EMAIL_DNS_TIMEOUT=5            — timeout DNS em segundos
+# EMAIL_SMTP_ENABLED=False       — ativa verificação SMTP (lento, opcional)
+# EMAIL_SMTP_TIMEOUT=10          — timeout SMTP em segundos
+# EMAIL_VALIDATION_USE_API=False — ativa validação via API externa
+# EMAIL_VALIDATION_PROVIDER=zerobounce  — 'zerobounce' ou 'hunter'
+# EMAIL_VALIDATION_API_KEY=<key> — chave da API escolhida
+# EMAIL_VALIDATION_CACHE_TTL=86400 — cache de resultados em segundos (24 h)
+#
+# Todas as opções acima são lidas via os.getenv() em email_validation.py.
+# Não é necessário declará-las aqui; basta configurar no .env.
+
+# =============================================================================
 # Logging — INFO em dev, WARNING em prod, erros sempre visíveis
 # =============================================================================
 _log_level = os.getenv('LOG_LEVEL', 'INFO' if DEBUG else 'WARNING')
@@ -237,6 +275,11 @@ LOGGING = {
         'nutrition': {
             'handlers': ['console'],
             'level': 'INFO',  # logs da IA sempre visíveis
+            'propagate': False,
+        },
+        'user.email_validation': {
+            'handlers': ['console'],
+            'level': 'INFO',  # acompanhar rejeições de e-mail
             'propagate': False,
         },
     },
