@@ -1,5 +1,11 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+
+from user.email_validation import validate_email_full
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -19,10 +25,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('nome', 'email', 'senha')
 
     def validate_email(self, value):
-        """Garante que o e-mail seja único no sistema."""
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError('Este email já está em uso.')
-        return value.lower()
+        """
+        Validação de e-mail em múltiplas camadas:
+          1. Unicidade no banco
+          2. Formato (EmailField já garante, reforçado pelo serviço)
+          3. DNS/MX — verifica se o domínio aceita e-mails
+          4. API externa (se configurada) — verifica existência da caixa
+        """
+        email = value.strip().lower()
+
+        # — Unicidade
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError('Este e-mail já está em uso.')
+
+        # — Validação em camadas (formato → DNS → API → SMTP)
+        result = validate_email_full(email)
+        if not result.is_valid:
+            logger.info(
+                'Cadastro rejeitado — e-mail inválido [%s] camada=%s detalhe=%s',
+                email, result.layer, result.details,
+            )
+            raise serializers.ValidationError(result.message)
+
+        return email
 
     def create(self, validated_data):
         """Cria o usuário usando os campos mapeados da documentação."""
