@@ -205,16 +205,95 @@
       transition: background .2s ease;
     }
     .btn-social:hover { background: var(--gray-50); }
+
+    /* Dark Mode Support for Auth Page */
+    html.dark body::before {
+      background: rgba(15, 23, 42, 0.75);
+    }
+
+    html.dark .auth-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    html.dark .auth-tab.active {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    html.dark .auth-title {
+      color: var(--text-primary);
+    }
+
+    html.dark .auth-subtitle {
+      color: var(--text-secondary);
+    }
+
+    html.dark .form-label {
+      color: var(--text-primary);
+    }
+
+    html.dark .form-input {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    html.dark .form-input:focus {
+      border-color: var(--green-400);
+    }
+
+    html.dark .intent-message {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--green-400);
+      border-color: var(--green-600);
+    }
+
+    html.dark .btn-social {
+      background: var(--bg-primary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    html.dark .btn-social:hover {
+      background: var(--bg-secondary);
+    }
+
+    html.dark .social-auth-divider::before,
+    html.dark .social-auth-divider::after {
+      background: var(--border-color);
+    }
+
+    html.dark .social-auth-divider span {
+      color: var(--text-secondary);
+    }
   </style>
 </head>
 <body>
 
   <header class="header scrolled" style="position: relative;">
-    <div class="container header-inner" style="justify-content: center;">
+    <div class="container header-inner" style="justify-content: space-between;">
       <a href="/" class="logo">
         <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI" />
         MyNutri <span>AI</span>
       </a>
+      <!-- Dark Mode Toggle -->
+      <button class="theme-toggle" id="theme-toggle" aria-label="Alternar tema escuro" title="Alternar tema">
+        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -284,6 +363,71 @@
   </div>
 
   <script>
+    // --- Dark Mode System ---
+    (function() {
+      const THEME_KEY = 'mynutri_theme';
+      const html = document.documentElement;
+      const themeToggle = document.getElementById('theme-toggle');
+
+      /**
+       * Initialize theme on page load
+       * Priority: localStorage > system preference > light mode
+       */
+      function initializeTheme() {
+        const saved = localStorage.getItem(THEME_KEY);
+
+        if (saved) {
+          // User has a saved preference
+          setTheme(saved);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          // No saved preference, use system preference
+          setTheme('dark');
+        } else {
+          // Default to light mode
+          setTheme('light');
+        }
+      }
+
+      /**
+       * Apply theme by setting class on html element
+       */
+      function setTheme(theme) {
+        if (theme === 'dark') {
+          html.classList.add('dark');
+          localStorage.setItem(THEME_KEY, 'dark');
+        } else {
+          html.classList.remove('dark');
+          localStorage.setItem(THEME_KEY, 'light');
+        }
+      }
+
+      /**
+       * Toggle between light and dark theme
+       */
+      function toggleTheme() {
+        const isDark = html.classList.contains('dark');
+        setTheme(isDark ? 'light' : 'dark');
+      }
+
+      // Initialize theme on page load
+      initializeTheme();
+
+      // Listen for theme toggle button click
+      if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+      }
+
+      // Listen for system theme changes
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+          // Only update if user hasn't set a preference
+          if (!localStorage.getItem(THEME_KEY)) {
+            setTheme(e.matches ? 'dark' : 'light');
+          }
+        });
+      }
+    })();
+
     const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1';
 
     // ── Tab switching ──────────────────────────────────────────────────────────

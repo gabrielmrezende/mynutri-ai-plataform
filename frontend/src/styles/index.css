@@ -7,7 +7,7 @@
 
 /* ---------- CSS Variables ---------- */
 :root {
-  /* Primary Palette */
+  /* Primary Palette - Light Mode */
   --green-50:  #f0fdf4;
   --green-100: #dcfce7;
   --green-200: #bbf7d0;
@@ -19,7 +19,7 @@
   --green-800: #166534;
   --green-900: #14532d;
 
-  /* Neutrals */
+  /* Neutrals - Light Mode */
   --white:    #ffffff;
   --gray-50:  #f9fafb;
   --gray-100: #f3f4f6;
@@ -63,6 +63,61 @@
   /* Transitions */
   --ease-out: cubic-bezier(.16,1,.3,1);
   --duration: .35s;
+
+  /* Color scheme for page background and text */
+  --bg-primary:   var(--white);
+  --bg-secondary: var(--gray-50);
+  --text-primary: var(--gray-800);
+  --text-secondary: var(--gray-500);
+  --border-color: rgba(0,0,0,.06);
+}
+
+/* ---------- Dark Mode Variables ---------- */
+html.dark {
+  /* Overrides for dark mode */
+  --white:    #0f172a;
+  --gray-50:  #1e293b;
+  --gray-100: #334155;
+  --gray-200: #475569;
+  --gray-300: #64748b;
+  --gray-400: #94a3b8;
+  --gray-500: #cbd5e1;
+  --gray-600: #e2e8f0;
+  --gray-700: #f1f5f9;
+  --gray-800: #f8fafc;
+  --gray-900: #ffffff;
+
+  /* Dark mode specific colors */
+  --green-50:  #0c2818;
+  --green-100: #153e2c;
+  --green-200: #1d5a3f;
+  --green-300: #2a6f52;
+  --green-400: #348456;
+  --green-500: #22c55e;
+  --green-600: #4ade80;
+  --green-700: #86efac;
+  --green-800: #bbf7d0;
+  --green-900: #dcfce7;
+
+  /* Dark gradients */
+  --gradient-light: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  --gradient-hero:  linear-gradient(160deg, rgba(15,23,42,.95) 0%, rgba(15,23,42,.92) 50%, rgba(20,38,28,.9) 100%);
+  --gradient-card:  linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+
+  /* Dark shadows */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,.3);
+  --shadow-md:  0 4px 6px -1px rgba(0,0,0,.4), 0 2px 4px -2px rgba(0,0,0,.3);
+  --shadow-lg:  0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.4);
+  --shadow-xl:  0 20px 25px -5px rgba(0,0,0,.6), 0 8px 10px -6px rgba(0,0,0,.5);
+  --shadow-2xl: 0 25px 50px -12px rgba(0,0,0,.7);
+  --shadow-green: 0 10px 30px -5px rgba(34,197,94,.2);
+
+  /* Dark color scheme */
+  --bg-primary:   #0f172a;
+  --bg-secondary: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --border-color: rgba(255,255,255,.08);
 }
 
 /* ---------- Reset ---------- */
@@ -81,11 +136,12 @@ html {
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: var(--gray-800);
-  background: var(--white);
+  color: var(--text-primary);
+  background: var(--bg-primary);
   line-height: 1.6;
   overflow-x: hidden;
   animation: pageFadeIn .35s ease forwards;
+  transition: background-color var(--duration) ease, color var(--duration) ease;
 }
 
 @keyframes pageFadeIn {
@@ -135,16 +191,18 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-family: 'Outfit', sans-serif;
   font-size: clamp(2rem, 4vw, 2.75rem);
   font-weight: 700;
-  color: var(--gray-900);
+  color: var(--text-primary);
   line-height: 1.2;
   margin-bottom: 16px;
+  transition: color var(--duration) ease;
 }
 
 .section-subtitle {
   font-size: 1.0625rem;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   max-width: 600px;
   line-height: 1.7;
+  transition: color var(--duration) ease;
 }
 
 .text-center { text-align: center; }
@@ -240,6 +298,12 @@ button { cursor: pointer; font-family: inherit; border: none; }
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-bottom: 1px solid rgba(0,0,0,.06);
   box-shadow: var(--shadow-sm);
+  transition: all .3s ease;
+}
+
+html.dark .header.scrolled {
+  background: rgba(15,23,42,.85);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
 .header-inner {
@@ -257,7 +321,8 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-family: 'Outfit', sans-serif;
   font-size: 1.375rem;
   font-weight: 700;
-  color: var(--gray-900);
+  color: var(--text-primary);
+  transition: color var(--duration) ease;
 }
 
 .logo-icon {
@@ -273,7 +338,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 .logo img {
-  height: 60px !important;
+  height: 55px !important;
   width: auto;
   object-fit: contain;
 }
@@ -287,7 +352,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 .nav-link {
   font-size: .9375rem;
   font-weight: 500;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   transition: color var(--duration) ease;
   position: relative;
 }
@@ -324,6 +389,62 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-size: .875rem;
 }
 
+/* ---------- Theme Toggle Button ---------- */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0 12px;
+  transition: all var(--duration) ease;
+  position: relative;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-secondary);
+  transform: scale(1.05);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle svg {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  transition: opacity .3s ease, transform .3s cubic-bezier(.16,1,.3,1);
+}
+
+/* Light mode: show moon icon, hide sun icon */
+.theme-toggle .sun-icon {
+  opacity: 0;
+  transform: rotate(-180deg) scale(0);
+}
+
+.theme-toggle .moon-icon {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+
+/* Dark mode: show sun icon, hide moon icon */
+html.dark .theme-toggle .sun-icon {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+
+html.dark .theme-toggle .moon-icon {
+  opacity: 0;
+  transform: rotate(180deg) scale(0);
+}
 
 .mobile-toggle {
   display: none;
@@ -336,7 +457,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 .mobile-toggle span {
   width: 24px;
   height: 2px;
-  background: var(--gray-700);
+  background: var(--text-primary);
   border-radius: 2px;
   transition: all .3s ease;
 }
@@ -350,6 +471,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   padding-top: var(--header-h);
   overflow: hidden;
   background: url('../assets/hero-bg-nutri.png') center/cover no-repeat fixed;
+  transition: background-color var(--duration) ease;
 }
 
 .hero::after {
@@ -359,6 +481,11 @@ button { cursor: pointer; font-family: inherit; border: none; }
   background: rgba(240, 253, 244, 0.65);
   backdrop-filter: blur(6px);
   z-index: 0;
+  transition: background var(--duration) ease;
+}
+
+html.dark .hero::after {
+  background: rgba(15, 23, 42, 0.75);
 }
 
 .hero::before {
@@ -402,9 +529,10 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-size: clamp(2.5rem, 5vw, 3.75rem);
   font-weight: 800;
   line-height: 1.1;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 20px;
   animation: fadeInUp .6s .1s var(--ease-out) both;
+  transition: color var(--duration) ease;
 }
 
 .hero-title .highlight {
@@ -416,11 +544,12 @@ button { cursor: pointer; font-family: inherit; border: none; }
 
 .hero-description {
   font-size: 1.125rem;
-  color: #34373d;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 36px;
   max-width: 500px;
   animation: fadeInUp .6s .2s var(--ease-out) both;
+  transition: color var(--duration) ease;
 }
 
 .hero-actions {
@@ -452,8 +581,9 @@ button { cursor: pointer; font-family: inherit; border: none; }
 
 .hero-stat-label {
   font-size: .8125rem;
-  color: #34373d;
+  color: var(--text-secondary);
   font-weight: 500;
+  transition: color var(--duration) ease;
 }
 
 .hero-visual {
@@ -534,8 +664,9 @@ button { cursor: pointer; font-family: inherit; border: none; }
 /* ---------- How it Works ---------- */
 .how-it-works {
   padding: 120px 0;
-  background: var(--white);
+  background: var(--bg-primary);
   position: relative;
+  transition: background-color var(--duration) ease;
 }
 
 .steps-grid {
@@ -563,7 +694,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   text-align: center;
   padding: 40px 28px;
   border-radius: var(--radius-xl);
-  background: var(--white);
+  background: var(--bg-secondary);
   transition: all var(--duration) var(--ease-out);
 }
 
@@ -604,20 +735,23 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-family: 'Outfit', sans-serif;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 12px;
+  transition: color var(--duration) ease;
 }
 
 .step-card p {
   font-size: .9375rem;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   line-height: 1.6;
+  transition: color var(--duration) ease;
 }
 
 /* ---------- Benefits ---------- */
 .benefits {
   padding: 120px 0;
   background: var(--gradient-light);
+  transition: background var(--duration) ease;
 }
 
 .benefits-grid {
@@ -628,10 +762,10 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 .benefit-card {
-  background: var(--white);
+  background: var(--bg-secondary);
   border-radius: var(--radius-xl);
   padding: 36px 28px;
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--border-color);
   transition: all var(--duration) var(--ease-out);
   position: relative;
   overflow: hidden;
@@ -679,20 +813,23 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-family: 'Outfit', sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 10px;
+  transition: color var(--duration) ease;
 }
 
 .benefit-card p {
   font-size: .9375rem;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   line-height: 1.65;
+  transition: color var(--duration) ease;
 }
 
 /* ---------- Meal Plan Preview ---------- */
 .meal-plan {
   padding: 120px 0;
-  background: var(--white);
+  background: var(--bg-primary);
+  transition: background-color var(--duration) ease;
 }
 
 .meal-plan-inner {
@@ -746,20 +883,23 @@ button { cursor: pointer; font-family: inherit; border: none; }
   font-family: 'Outfit', sans-serif;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--gray-800);
+  color: var(--text-primary);
   margin-bottom: 4px;
+  transition: color var(--duration) ease;
 }
 
 .meal-feature-text p {
   font-size: .875rem;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   line-height: 1.6;
+  transition: color var(--duration) ease;
 }
 
 /* ---------- Testimonials ---------- */
 .testimonials {
   padding: 120px 0;
   background: var(--gradient-light);
+  transition: background var(--duration) ease;
 }
 
 .testimonials-grid {
@@ -770,10 +910,10 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 .testimonial-card {
-  background: var(--white);
+  background: var(--bg-secondary);
   border-radius: var(--radius-xl);
   padding: 32px 28px;
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--border-color);
   transition: all var(--duration) var(--ease-out);
   display: flex;
   flex-direction: column;
@@ -794,11 +934,12 @@ button { cursor: pointer; font-family: inherit; border: none; }
 
 .testimonial-text {
   font-size: .9375rem;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 24px;
   flex: 1;
   font-style: italic;
+  transition: color var(--duration) ease;
 }
 
 .testimonial-author {
@@ -806,7 +947,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   align-items: center;
   gap: 12px;
   padding-top: 20px;
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-color);
 }
 
 .testimonial-avatar {
@@ -826,19 +967,22 @@ button { cursor: pointer; font-family: inherit; border: none; }
 .testimonial-author-info strong {
   display: block;
   font-size: .875rem;
-  color: var(--gray-800);
+  color: var(--text-primary);
+  transition: color var(--duration) ease;
 }
 
 .testimonial-author-info span {
   font-size: .8125rem;
-  color: var(--gray-400);
+  color: var(--text-secondary);
+  transition: color var(--duration) ease;
 }
 
 /* ---------- Final CTA ---------- */
 .cta-section {
   padding: 120px 0;
-  background: var(--white);
+  background: var(--bg-primary);
   position: relative;
+  transition: background-color var(--duration) ease;
 }
 
 .cta-box {
@@ -915,6 +1059,12 @@ button { cursor: pointer; font-family: inherit; border: none; }
   background: var(--gray-900);
   color: var(--gray-400);
   padding: 64px 0 32px;
+  transition: background-color var(--duration) ease, color var(--duration) ease;
+}
+
+html.dark .footer {
+  background: #050d1a;
+  color: var(--gray-400);
 }
 
 .footer-grid {
@@ -925,22 +1075,25 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 .footer-brand .logo {
-  color: var(--white);
+  color: var(--gray-900);
   margin-bottom: 16px;
+  transition: color var(--duration) ease;
 }
 
 .footer-brand p {
   font-size: .875rem;
   line-height: 1.7;
   max-width: 280px;
+  transition: color var(--duration) ease;
 }
 
 .footer h4 {
   font-family: 'Outfit', sans-serif;
   font-size: .9375rem;
   font-weight: 600;
-  color: var(--white);
+  color: var(--gray-900);
   margin-bottom: 20px;
+  transition: color var(--duration) ease;
 }
 
 .footer-links li { margin-bottom: 12px; }
@@ -961,6 +1114,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
+  transition: border-color var(--duration) ease;
 }
 
 .footer-bottom p {
