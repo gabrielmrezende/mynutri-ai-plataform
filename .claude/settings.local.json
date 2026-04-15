@@ -13,7 +13,9 @@
       "Bash(venv/Scripts/pytest --tb=short -q)",
       "Bash(venv/Scripts/pytest nutrition/test_critical.py -v --tb=short)",
       "Bash(grep -E \"staticfiles|db.sqlite3|.env$\" .gitignore)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/update_html_darkmode.sh)"
     ]
   }
 }
