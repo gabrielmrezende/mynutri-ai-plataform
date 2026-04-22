@@ -1,5 +1,6 @@
 import logging
 
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,6 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from .models import Anamnese, DietJob, DietPlan
 from .serializers import AnamneseSerializer, DietPlanSerializer, DietPlanSummarySerializer
 from .tasks import generate_diet_task
+from .pdf_generator import generate_diet_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,28 @@ class AnamneseAPIView(APIView):
             AnamneseSerializer(anamnese).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class AnamneseLastAPIView(APIView):
+    """
+    GET /api/v1/anamnese/last
+    Retorna a anamnese mais recente do usuário logado para pré-preenchimento do questionário.
+    Requer: Authorization: Bearer <token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        anamnese = (
+            Anamnese.objects.filter(user=request.user)
+            .order_by('-answered_at')
+            .first()
+        )
+        if not anamnese:
+            return Response(
+                {'detail': 'Nenhuma anamnese encontrada.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(AnamneseSerializer(anamnese).data, status=status.HTTP_200_OK)
 
 
 class DietGenerateAPIView(APIView):
@@ -184,3 +208,40 @@ class DietDetailAPIView(APIView):
             )
 
         return Response(DietPlanSerializer(diet_plan).data, status=status.HTTP_200_OK)
+
+
+class DietPDFAPIView(APIView):
+    """
+    GET /api/v1/diet/<id>/pdf
+    Gera e retorna o plano alimentar em formato PDF.
+    Requer: Authorization: Bearer <token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            diet_plan = (
+                DietPlan.objects.prefetch_related('meals')
+                .get(pk=pk, user=request.user)
+            )
+        except DietPlan.DoesNotExist:
+            return Response(
+                {'error': 'Plano alimentar não encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            pdf_bytes = generate_diet_pdf(diet_plan)
+        except Exception:
+            logger.exception('Erro ao gerar PDF para DietPlan#%s', pk)
+            return Response(
+                {'error': 'Não foi possível gerar o PDF. Tente novamente.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        date_str  = diet_plan.created_at.strftime('%Y-%m-%d') if diet_plan.created_at else 'dieta'
+        filename  = f'mynutri-dieta-{date_str}.pdf'
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
