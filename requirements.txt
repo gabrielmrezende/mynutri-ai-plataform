@@ -21,10 +21,14 @@ psycopg2-binary==2.9.11
 # ─── Utilidades ───────────────────────────────────────────────────────────────
 tzdata==2025.3
 dnspython==2.7.0             # validação DNS/MX de e-mail
+requests==2.32.3             # validação de id_token Google OAuth
 
 # ─── Celery + Broker ─────────────────────────────────────────────────────────
 celery==5.4.0
 redis==5.2.1                 # cliente Redis para broker/backend do Celery
+
+# ─── PDF ──────────────────────────────────────────────────────────────────────
+reportlab==4.2.5
 
 # ─── Testes ───────────────────────────────────────────────────────────────────
 pytest==9.0.3

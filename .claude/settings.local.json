@@ -28,7 +28,14 @@
       "Bash(python -m pytest -q --tb=short)",
       "Bash(python -m pytest -v --tb=short)",
       "Bash(python -m pytest nutrition/ -v --co -q)",
-      "Bash(python -m pytest --collect-only -q)"
+      "Bash(python -m pytest --collect-only -q)",
+      "Bash(python -m pytest --tb=short -v)",
+      "Bash(pytest --tb=short)",
+      "Bash(python -c \"from nutrition.pdf_generator import generate_diet_pdf; print\\('import OK'\\)\")",
+      "Bash(venv/Scripts/python.exe -c \"from nutrition.pdf_generator import generate_diet_pdf; print\\('import OK'\\)\")",
+      "Bash(venv/Scripts/python.exe manage.py check)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
