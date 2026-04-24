@@ -385,9 +385,8 @@
     // --- Session state: swap auth buttons for user dropdown ---
     (function () {
       const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1';
-      const token    = localStorage.getItem('mynutri_token');
-
-      if (!token) return;
+      const _cachedUser = localStorage.getItem('mynutri_user');
+      if (!_cachedUser) return;
 
       function initials(name) {
         if (!name) return '?';
@@ -414,13 +413,9 @@
         if (cached?.nome) { applyUserUI(cached); return; }
 
         try {
-          const res = await fetch(`${API_BASE}/user/profile`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
+          const res = await fetch(`${API_BASE}/user/profile`, { credentials: 'include' });
 
           if (res.status === 401) {
-            localStorage.removeItem('mynutri_token');
-            localStorage.removeItem('mynutri_refresh');
             localStorage.removeItem('mynutri_user');
             return;
           }
@@ -453,9 +448,8 @@
         menuBtn.classList.remove('open');
       });
 
-      document.getElementById('logoutBtn').addEventListener('click', () => {
-        localStorage.removeItem('mynutri_token');
-        localStorage.removeItem('mynutri_refresh');
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
         localStorage.removeItem('mynutri_user');
         window.location.reload();
       });
@@ -509,14 +503,11 @@
         ? 'http://127.0.0.1:8000/api/v1'
         : '/api/v1';
 
-      const headers = { 'Content-Type': 'application/json' };
-      const token = localStorage.getItem('mynutri_token');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       try {
         const res = await fetch(`${API_BASE}/contact`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ nome, email, assunto, mensagem }),
         });
 

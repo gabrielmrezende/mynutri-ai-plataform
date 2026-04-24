@@ -200,5 +200,5 @@ A documentação técnica detalhada está na pasta **`docs/`**:
 
 - **Gabriel Rezende** — [LinkedIn](https://www.linkedin.com/in/gabrielmrezende/)
 - **Carlos Alberto**
-- **Arthur Hoffmann**
+- **Arthur Hoffmann** — [LinkedIn](https://www.linkedin.com/in/arthur-hoffmann-a2383226b/)
 - **Pedro Antônio**

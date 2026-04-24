@@ -188,7 +188,7 @@ class TestTokenRefresh:
             format='json',
         )
         assert response.status_code == 200
-        assert 'access' in response.data
+        assert 'token' in response.data  # renomeado de 'access' para consistência com /auth/login
 
     def test_refresh_token_invalido(self, api_client):
         response = api_client.post(

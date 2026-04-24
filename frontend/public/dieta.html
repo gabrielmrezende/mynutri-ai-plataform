@@ -797,9 +797,7 @@
     })();
 
     const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1';
-    const token = localStorage.getItem('mynutri_token');
-
-    if (!token) { window.location.href = '/auth/'; }
+    if (!localStorage.getItem('mynutri_user')) { window.location.href = '/auth/'; }
 
     // ── Emojis por refeição ──
     const MEAL_EMOJIS = ['🌅', '🥗', '🍽️', '🥤', '🌙', '🍎', '🥑', '🫐'];
@@ -826,11 +824,9 @@
       const cached = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
       if (cached?.nome) { applyUserUI(cached); return; }
       try {
-        const res = await fetch(`${API_BASE}/user/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
+        const res = await fetch(`${API_BASE}/user/profile`, { credentials: 'include' });
         if (res.status === 401) {
-          ['mynutri_token','mynutri_refresh','mynutri_user'].forEach(k => localStorage.removeItem(k));
+          localStorage.removeItem('mynutri_user');
           window.location.href = '/auth/';
           return;
         }
@@ -853,8 +849,9 @@
       dropdown.classList.remove('open');
       menuBtn.classList.remove('open');
     });
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-      ['mynutri_token','mynutri_refresh','mynutri_user'].forEach(k => localStorage.removeItem(k));
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
+      localStorage.removeItem('mynutri_user');
       window.location.href = '/';
     });
 
@@ -1275,8 +1272,6 @@
     function pollJobStatus(jobId) {
       const POLL_INTERVAL = 3000;  // 3 segundos
       const MAX_POLLS     = 60;    // timeout: 3min (60 × 3s)
-      const headers       = { 'Authorization': `Bearer ${token}` };
-
       return new Promise((resolve, reject) => {
         let polls = 0;
 
@@ -1284,12 +1279,12 @@
           polls++;
 
           try {
-            const res = await fetch(`${API_BASE}/diet/status/${jobId}`, { headers });
+            const res = await fetch(`${API_BASE}/diet/status/${jobId}`, { credentials: 'include' });
 
             if (res.status === 401) {
               clearInterval(interval);
               stopLoadingTips();
-              localStorage.removeItem('mynutri_token');
+              localStorage.removeItem('mynutri_user');
               window.location.href = '/auth/';
               return;
             }
@@ -1307,7 +1302,7 @@
               clearInterval(interval);
               stopLoadingTips();
               // Busca o plano completo pelo ID retornado
-              const planRes = await fetch(`${API_BASE}/diet/${data.diet_plan_id}`, { headers });
+              const planRes = await fetch(`${API_BASE}/diet/${data.diet_plan_id}`, { credentials: 'include' });
               if (!planRes.ok) { reject(new Error('Erro ao carregar dieta gerada.')); return; }
               resolve(await planRes.json());
 
@@ -1336,14 +1331,14 @@
       const generate = new URLSearchParams(window.location.search).get('generate');
 
       if (generate === '1') {
-        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        const jsonHeaders = { 'Content-Type': 'application/json' };
 
         // 1. Envia anamnese pendente se houver
         const pending = sessionStorage.getItem('anamneseData');
         if (pending) {
           document.getElementById('loading-msg').textContent = 'Enviando questionário...';
           try {
-            const ar = await fetch(`${API_BASE}/anamnese`, { method:'POST', headers, body:pending });
+            const ar = await fetch(`${API_BASE}/anamnese`, { method:'POST', headers: jsonHeaders, credentials:'include', body:pending });
             if (!ar.ok) {
               const e = await ar.json().catch(() => ({}));
               showError(Object.values(e).flat().join(' ') || 'Erro ao salvar questionário.');
@@ -1360,7 +1355,7 @@
 
         let jobId;
         try {
-          const dr = await fetch(`${API_BASE}/diet/generate`, { method:'POST', headers, body:'{}' });
+          const dr = await fetch(`${API_BASE}/diet/generate`, { method:'POST', headers: jsonHeaders, credentials:'include', body:'{}' });
           if (!dr.ok) {
             stopLoadingTips();
             const e = await dr.json().catch(() => ({}));
@@ -1373,9 +1368,7 @@
           // Modo síncrono (dev sem Redis): job já está done, busca direto
           if (jobData.status === 'done' && jobData.diet_plan_id) {
             stopLoadingTips();
-            const planRes = await fetch(`${API_BASE}/diet/${jobData.diet_plan_id}`, {
-              headers: { 'Authorization': `Bearer ${token}` },
-            });
+            const planRes = await fetch(`${API_BASE}/diet/${jobData.diet_plan_id}`, { credentials: 'include' });
             renderDiet(await planRes.json());
             history.replaceState(null, '', 'dieta.html');
             return;
@@ -1405,8 +1398,8 @@
 
     async function fetchExistingDiet() {
       try {
-        const res = await fetch(`${API_BASE}/diet`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.status === 401) { localStorage.removeItem('mynutri_token'); window.location.href = '/auth/'; return; }
+        const res = await fetch(`${API_BASE}/diet`, { credentials: 'include' });
+        if (res.status === 401) { localStorage.removeItem('mynutri_user'); window.location.href = '/auth/'; return; }
         if (res.status === 404) { showError('Você ainda não possui um plano alimentar.'); return; }
         if (!res.ok)            { showError('Não foi possível carregar sua dieta.'); return; }
         renderDiet(await res.json());
@@ -1428,9 +1421,7 @@
       label.textContent = 'Gerando PDF...';
 
       try {
-        const res = await fetch(`${API_BASE}/diet/${dietId}/pdf`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
+        const res = await fetch(`${API_BASE}/diet/${dietId}/pdf`, { credentials: 'include' });
 
         if (!res.ok) {
           alert('Não foi possível gerar o PDF. Tente novamente.');

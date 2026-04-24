@@ -305,10 +305,9 @@
       : '/api/v1';
 
     /* ── Auth guard ── */
-    const token = localStorage.getItem('mynutri_token');
     const userData = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
 
-    if (!token) {
+    if (!userData) {
       window.location.href = '/auth/';
     }
 
@@ -334,9 +333,8 @@
       document.getElementById('userDropdown').classList.remove('open');
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-      localStorage.removeItem('mynutri_token');
-      localStorage.removeItem('mynutri_refresh');
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
       localStorage.removeItem('mynutri_user');
       window.location.href = '/auth/';
     });
@@ -368,11 +366,10 @@
       showFlex('stateLoading');
 
       try {
-        const res = await fetch(`${API_BASE}/diet/list`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await fetch(`${API_BASE}/diet/list`, { credentials: 'include' });
 
         if (res.status === 401) {
+          localStorage.removeItem('mynutri_user');
           window.location.href = '/auth/';
           return;
         }

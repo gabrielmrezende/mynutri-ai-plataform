@@ -1,23 +1,33 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
-from .api_views import RegisterAPIView, ProfileAPIView, EmailTokenObtainPairView, ContactAPIView, GoogleAuthAPIView
+from .api_views import (
+    RegisterAPIView, ProfileAPIView, EmailTokenObtainPairView,
+    ContactAPIView, GoogleAuthAPIView, TestimonialAPIView,
+    LogoutAPIView, CookieTokenRefreshView,
+)
 
 urlpatterns = [
-    # POST /api/v1/auth/register  → Criação de conta + retorna token JWT
+    # POST /api/v1/auth/register       → Criação de conta + retorna token JWT + seta cookies
     path('auth/register', RegisterAPIView.as_view(), name='api-register'),
 
-    # POST /api/v1/auth/login     → Login com email/senha → retorna token + refresh
+    # POST /api/v1/auth/login          → Login com email/senha → retorna token + refresh + seta cookies
     path('auth/login', EmailTokenObtainPairView.as_view(), name='api-login'),
 
-    # POST /api/v1/auth/google    → Login/cadastro via Google OAuth → retorna token + refresh
+    # POST /api/v1/auth/google         → Login/cadastro via Google OAuth → retorna token + refresh + seta cookies
     path('auth/google', GoogleAuthAPIView.as_view(), name='api-google-auth'),
 
-    # POST /api/v1/auth/token/refresh → Renova o access token usando o refresh token
-    path('auth/token/refresh', TokenRefreshView.as_view(), name='api-token-refresh'),
+    # POST /api/v1/auth/token/refresh  → Renova access token via cookie HttpOnly ou body JSON
+    path('auth/token/refresh', CookieTokenRefreshView.as_view(), name='api-token-refresh'),
 
-    # GET /api/v1/user/profile    → Dados do usuário logado
+    # POST /api/v1/auth/logout         → Remove cookies HttpOnly de autenticação
+    path('auth/logout', LogoutAPIView.as_view(), name='api-logout'),
+
+    # GET /api/v1/user/profile         → Dados do usuário logado
     path('user/profile', ProfileAPIView.as_view(), name='api-profile'),
 
-    # POST /api/v1/contact        → Envia e-mail de contato (público, rate-limit 5/h)
+    # POST /api/v1/contact             → Envia e-mail de contato (público, rate-limit 5/h)
     path('contact', ContactAPIView.as_view(), name='api-contact'),
+
+    # GET  /api/v1/testimonials        → Lista depoimentos aprovados (público)
+    # POST /api/v1/testimonials        → Cria depoimento (requer autenticação)
+    path('testimonials', TestimonialAPIView.as_view(), name='api-testimonials'),
 ]

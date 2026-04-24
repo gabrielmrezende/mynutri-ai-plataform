@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Testes & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Verificar configuração Django
+        run: python manage.py check
+        env:
+          DJANGO_SETTINGS_MODULE: mynutri.test_settings
+
+      - name: Rodar testes
+        run: pytest --tb=short -q
+        env:
+          DJANGO_SETTINGS_MODULE: mynutri.test_settings
+
+  e2e:
+    name: Testes E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: test   # só roda se os testes unitários passarem
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependências Python
+        run: pip install -r requirements.txt
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar Playwright
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - name: Iniciar servidor Django em background
+        run: |
+          python manage.py migrate --settings=mynutri.test_settings --run-syncdb
+          python manage.py runserver --settings=mynutri.test_settings &
+          sleep 4   # aguarda o servidor subir
+        env:
+          DJANGO_SETTINGS_MODULE: mynutri.test_settings
+
+      - name: Rodar testes E2E
+        run: npx playwright test --reporter=list
+        env:
+          CI: true
+
+      - name: Upload relatório Playwright
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  security:
+    name: Verificação de segurança
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar ferramentas de segurança
+        run: pip install bandit safety
+
+      - name: Bandit — análise estática de segurança
+        run: bandit -r . -x ./frontend,./staticfiles,./node_modules -ll -q
+
+      - name: Safety — dependências com vulnerabilidades conhecidas
+        run: safety check -r requirements.txt

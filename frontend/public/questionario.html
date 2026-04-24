@@ -660,7 +660,6 @@
 
       // --- Session / User menu ---
       const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1';
-      const _token = localStorage.getItem('mynutri_token');
       const _user  = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
 
       function _initials(name) {
@@ -668,7 +667,7 @@
         return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('');
       }
 
-      if (_token && _user) {
+      if (_user) {
         document.getElementById('guestNav').style.display = 'none';
         document.getElementById('authNav').style.display  = 'block';
         document.getElementById('navAvatar').textContent     = _initials(_user.nome);
@@ -693,9 +692,8 @@
 
       const _logoutBtn = document.getElementById('logoutBtn');
       if (_logoutBtn) {
-        _logoutBtn.addEventListener('click', () => {
-          localStorage.removeItem('mynutri_token');
-          localStorage.removeItem('mynutri_refresh');
+        _logoutBtn.addEventListener('click', async () => {
+          await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
           localStorage.removeItem('mynutri_user');
           window.location.href = '/';
         });
@@ -773,10 +771,9 @@
         if (!validateStep(currentStep)) return;
 
         hideSubmitError();
-        const token = localStorage.getItem('mynutri_token');
 
         // Se não está logado: salva dados e manda para auth
-        if (!token) {
+        if (!_user) {
           sessionStorage.setItem('anamneseData', JSON.stringify(collectFormData()));
           btnSubmit.textContent = 'Redirecionando...';
           btnSubmit.style.opacity = '0.7';
@@ -790,14 +787,11 @@
         btnSubmit.style.opacity = '0.7';
         btnSubmit.style.pointerEvents = 'none';
 
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        };
-
         try {
           const anamneseRes = await fetch(`${API_BASE}/anamnese`, {
-            method: 'POST', headers,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify(collectFormData()),
           });
 
@@ -1066,15 +1060,13 @@
       }
 
       async function _prefillFromAnamnese() {
-        if (!_token) return;
+        if (!_user) return;
 
         // Preenche o nome mesmo sem anamnese anterior
         if (_user?.nome) _fillInput('nome', _user.nome);
 
         try {
-          const res = await fetch(`${API_BASE}/anamnese/last`, {
-            headers: { 'Authorization': `Bearer ${_token}` },
-          });
+          const res = await fetch(`${API_BASE}/anamnese/last`, { credentials: 'include' });
 
           if (!res.ok) return; // sem anamnese anterior — nome já foi preenchido acima
 

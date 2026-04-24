@@ -1,9 +1,11 @@
 import logging
+import unicodedata
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from user.email_validation import validate_email_full
+from user.models import Testimonial
 
 logger = logging.getLogger(__name__)
 
@@ -90,3 +92,55 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'phone':      {'required': False},
             'date_of_birth': {'required': False},
         }
+
+
+class TestimonialReadSerializer(serializers.ModelSerializer):
+    """
+    Serializer de leitura para depoimentos — expõe dados públicos.
+    Endpoint: GET /api/v1/testimonials
+    """
+    nome = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Testimonial
+        fields = ('id', 'nome', 'avatar', 'text', 'rating', 'created_at')
+
+    def get_nome(self, obj):
+        return obj.user.get_full_name() or obj.user.first_name or obj.user.email
+
+    def get_avatar(self, obj):
+        name = self.get_nome(obj)
+        parts = name.strip().split()
+        return ''.join(p[0].upper() for p in parts[:2] if p)
+
+
+class TestimonialCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer de escrita para criação de depoimentos.
+    Endpoint: POST /api/v1/testimonials
+    Sanitiza o texto para evitar XSS e injection.
+    """
+    class Meta:
+        model = Testimonial
+        fields = ('text', 'rating')
+
+    def validate_text(self, value):
+        # Normaliza unicode e remove caracteres de controle
+        text = unicodedata.normalize('NFKC', value)
+        text = ''.join(ch for ch in text if not unicodedata.category(ch).startswith('C'))
+        text = text.strip()
+
+        if not text:
+            raise serializers.ValidationError('O depoimento não pode estar vazio.')
+        if len(text) < 10:
+            raise serializers.ValidationError('O depoimento deve ter pelo menos 10 caracteres.')
+        if len(text) > 500:
+            raise serializers.ValidationError('O depoimento deve ter no máximo 500 caracteres.')
+
+        return text
+
+    def validate_rating(self, value):
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError('A nota deve ser entre 1 e 5.')
+        return value

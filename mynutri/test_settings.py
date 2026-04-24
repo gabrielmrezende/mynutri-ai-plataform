@@ -67,6 +67,7 @@ AUTH_USER_MODEL = 'user.CustomUser'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'user.authentication.CookieJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
@@ -77,6 +78,9 @@ REST_FRAMEWORK = {
         'anon': '1000/hour',
         'user': '1000/hour',
         'diet_generate': '1000/day',
+        'login': '1000/hour',
+        'contact': '1000/hour',
+        'testimonial': '1000/day',
     },
 }
 

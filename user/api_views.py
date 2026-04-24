@@ -10,19 +10,57 @@ from rest_framework import status, serializers as drf_serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 from user.models import Profile
 
 from .forms import ContatoForm
-from .serializers import RegisterSerializer, UserProfileSerializer, UpdateProfileSerializer
+from .models import Testimonial
+from .serializers import (
+    RegisterSerializer, UserProfileSerializer, UpdateProfileSerializer,
+    TestimonialReadSerializer, TestimonialCreateSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+# =============================================================================
+# Cookie helpers
+# =============================================================================
+
+def _set_auth_cookies(response, access_token, refresh_token):
+    """Define os cookies HttpOnly para access e refresh tokens."""
+    secure = not settings.DEBUG
+    response.set_cookie(
+        'mynutri_access',
+        str(access_token),
+        max_age=8 * 3600,       # 8 horas — igual ao ACCESS_TOKEN_LIFETIME
+        httponly=True,
+        secure=secure,
+        samesite='Lax',
+        path='/',
+    )
+    response.set_cookie(
+        'mynutri_refresh',
+        str(refresh_token),
+        max_age=7 * 24 * 3600,  # 7 dias — igual ao REFRESH_TOKEN_LIFETIME
+        httponly=True,
+        secure=secure,
+        samesite='Lax',
+        path='/',
+    )
+
+
+def _clear_auth_cookies(response):
+    """Remove os cookies de autenticação (logout)."""
+    response.delete_cookie('mynutri_access', path='/')
+    response.delete_cookie('mynutri_refresh', path='/')
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -40,6 +78,11 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         return super().validate(attrs)
 
 
+class LoginThrottle(AnonRateThrottle):
+    """5 tentativas de login por 10 minutos por IP — previne brute force."""
+    scope = 'login'
+
+
 class EmailTokenObtainPairView(TokenObtainPairView):
     """
     POST /api/auth/login
@@ -48,6 +91,7 @@ class EmailTokenObtainPairView(TokenObtainPairView):
     do usuário no localStorage sem precisar de uma chamada adicional.
     """
     serializer_class = EmailTokenObtainPairSerializer
+    throttle_classes = [LoginThrottle]
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -66,6 +110,8 @@ class EmailTokenObtainPairView(TokenObtainPairView):
                 }
             except User.DoesNotExist:
                 pass  # não interrompe o fluxo; o token já foi retornado
+
+            _set_auth_cookies(response, response.data['token'], response.data['refresh'])
 
         return response
 
@@ -87,7 +133,7 @@ class RegisterAPIView(APIView):
 
         # Gera par de tokens JWT para o novo usuário
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
                 'token': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -99,6 +145,8 @@ class RegisterAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+        _set_auth_cookies(response, refresh.access_token, refresh)
+        return response
 
 
 class ContactThrottle(AnonRateThrottle):
@@ -208,7 +256,7 @@ class GoogleAuthAPIView(APIView):
             logger.info('New user created via Google OAuth — email=%s', email)
 
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
                 'token': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -220,6 +268,95 @@ class GoogleAuthAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+        _set_auth_cookies(response, refresh.access_token, refresh)
+        return response
+
+
+class LogoutAPIView(APIView):
+    """
+    POST /api/v1/auth/logout
+    Remove os cookies HttpOnly de autenticação. Seguro para AllowAny porque
+    limpar um cookie inválido não representa risco.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        response = Response({'message': 'Logout realizado com sucesso.'})
+        _clear_auth_cookies(response)
+        return response
+
+
+class CookieTokenRefreshView(APIView):
+    """
+    POST /api/v1/auth/token/refresh
+    Aceita o refresh token do cookie HttpOnly 'mynutri_refresh' ou do body JSON.
+    Retorna novo access token e atualiza os cookies.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_raw = request.data.get('refresh') or request.COOKIES.get('mynutri_refresh')
+        if not refresh_raw:
+            return Response(
+                {'detail': 'Refresh token não encontrado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TokenRefreshSerializer(data={'refresh': refresh_raw})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            raise InvalidToken(exc.args[0])
+
+        access = serializer.validated_data['access']
+        new_refresh = serializer.validated_data.get('refresh', refresh_raw)
+
+        response = Response({'token': str(access)})
+        _set_auth_cookies(response, access, new_refresh)
+        return response
+
+
+class TestimonialThrottle(AnonRateThrottle):
+    """3 depoimentos por dia por IP para usuários não autenticados (fallback)."""
+    scope = 'testimonial'
+
+
+class TestimonialAPIView(APIView):
+    """
+    GET  /api/v1/testimonials  — lista os depoimentos aprovados (público)
+    POST /api/v1/testimonials  — cria um novo depoimento (requer autenticação)
+    """
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get(self, request):
+        qs = Testimonial.objects.filter(is_approved=True).select_related('user')[:30]
+        serializer = TestimonialReadSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        from django.utils import timezone
+        today = timezone.now().date()
+        today_count = Testimonial.objects.filter(
+            user=request.user,
+            created_at__date=today,
+        ).count()
+        if today_count >= 3:
+            return Response(
+                {'error': 'Você já enviou 3 depoimentos hoje. Tente novamente amanhã.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        serializer = TestimonialCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        testimonial = serializer.save(user=request.user)
+        logger.info('New testimonial — user=%s rating=%s', request.user.email, testimonial.rating)
+        return Response(TestimonialReadSerializer(testimonial).data, status=status.HTTP_201_CREATED)
 
 
 class ProfileAPIView(APIView):

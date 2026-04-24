@@ -1034,7 +1034,7 @@ html.dark .hero::after {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 28px;
-  margin-top: 56px;
+  margin-top: 56px; /* overridden to 0 when inside .testimonials-carousel-wrapper */
 }
 
 .testimonial-card {
@@ -1103,6 +1103,198 @@ html.dark .hero::after {
   font-size: .8125rem;
   color: var(--text-secondary);
   transition: color var(--duration) ease;
+}
+
+/* ---------- Testimonial Form ---------- */
+.testimonial-form-wrapper {
+  margin-top: 64px;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.testimonial-form-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 36px 32px;
+  text-align: left;
+}
+
+.testimonial-form-box h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.testimonial-form-box p {
+  font-size: .9rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.testimonial-login-prompt {
+  text-align: center;
+  padding: 28px;
+  color: var(--text-secondary);
+  font-size: .9375rem;
+}
+
+.testimonial-login-prompt a {
+  color: var(--green-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.testimonial-login-prompt a:hover {
+  text-decoration: underline;
+}
+
+.star-rating {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.star-rating input {
+  display: none;
+}
+
+.star-rating label {
+  font-size: 1.75rem;
+  color: var(--border-color);
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.1s ease;
+  line-height: 1;
+}
+
+.star-rating label:hover,
+.star-rating label:hover ~ label,
+.star-rating input:checked ~ label {
+  color: #facc15;
+}
+
+.star-rating label:hover {
+  transform: scale(1.2);
+}
+
+.testimonial-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: .9375rem;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
+  box-sizing: border-box;
+}
+
+.testimonial-textarea:focus {
+  outline: none;
+  border-color: var(--green-500);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, .15);
+}
+
+.testimonial-char-count {
+  font-size: .8rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.testimonial-char-count.over {
+  color: #ef4444;
+}
+
+.testimonial-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.testimonial-feedback {
+  font-size: .875rem;
+  flex: 1;
+}
+
+.testimonial-feedback.success { color: var(--green-600); }
+.testimonial-feedback.error   { color: #ef4444; }
+
+/* ---------- Carousel wrapper ---------- */
+.testimonials-carousel-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 56px;
+}
+
+.testimonials-carousel-wrapper .testimonials-grid {
+  flex: 1;
+  margin-top: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  min-height: 220px;
+}
+
+.carousel-arrow {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration) ease, border-color var(--duration) ease,
+              color var(--duration) ease, opacity var(--duration) ease,
+              box-shadow var(--duration) ease;
+}
+
+.carousel-arrow:hover:not(:disabled) {
+  background: var(--green-600);
+  border-color: var(--green-600);
+  color: #fff;
+  box-shadow: var(--shadow-md);
+}
+
+.carousel-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border-color);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--duration) ease, transform var(--duration) ease;
+}
+
+.carousel-dot.active {
+  background: var(--green-600);
+  transform: scale(1.35);
 }
 
 /* ---------- Final CTA ---------- */

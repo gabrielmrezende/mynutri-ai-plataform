@@ -484,8 +484,8 @@
     }
 
     function saveSession(data) {
-      localStorage.setItem('mynutri_token', data.token);
-      localStorage.setItem('mynutri_refresh', data.refresh);
+      // Tokens são guardados em cookies HttpOnly pelo servidor (Set-Cookie no response).
+      // Só salvamos metadados do usuário no localStorage — não contém credenciais.
       if (data.user) localStorage.setItem('mynutri_user', JSON.stringify(data.user));
     }
 
@@ -513,6 +513,7 @@
         const res = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ email, password: senha }),
         });
         const data = await res.json();
@@ -553,6 +554,7 @@
         const res = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ nome, email, senha }),
         });
         const data = await res.json();
@@ -581,6 +583,7 @@
         const res = await fetch(`${API_BASE}/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ id_token: response.credential }),
         });
         const data = await res.json();

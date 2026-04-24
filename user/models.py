@@ -72,3 +72,25 @@ class Profile(models.Model):
 
     def __str__(self):
         return f'Perfil de {self.user.username}'
+
+
+class Testimonial(models.Model):
+    """Depoimento de um usuário autenticado exibido na landing page."""
+
+    RATING_CHOICES = [(i, f'{i} estrela{"s" if i > 1 else ""}') for i in range(1, 6)]
+
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name='testimonials'
+    )
+    text = models.TextField('Depoimento', max_length=500)
+    rating = models.PositiveSmallIntegerField('Nota', choices=RATING_CHOICES, default=5)
+    is_approved = models.BooleanField('Aprovado', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Depoimento'
+        verbose_name_plural = 'Depoimentos'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Depoimento de {self.user.email} ({self.rating}★)'

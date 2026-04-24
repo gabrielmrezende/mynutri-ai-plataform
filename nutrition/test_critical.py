@@ -583,6 +583,9 @@ class TestRateLimiting:
                 'anon': '1000/hour',
                 'user': '1000/hour',
                 'diet_generate': '2/minute',
+                'login': '1000/hour',
+                'contact': '1000/hour',
+                'testimonial': '1000/day',
             },
         }
     )
@@ -615,6 +618,9 @@ class TestRateLimiting:
                 'anon': '1000/hour',
                 'user': '1000/hour',
                 'diet_generate': '2/minute',
+                'login': '1000/hour',
+                'contact': '1000/hour',
+                'testimonial': '1000/day',
             },
         }
     )
@@ -645,6 +651,9 @@ class TestRateLimiting:
                 'anon': '1000/hour',
                 'user': '1000/hour',
                 'diet_generate': '2/minute',
+                'login': '1000/hour',
+                'contact': '1000/hour',
+                'testimonial': '1000/day',
             },
         }
     )

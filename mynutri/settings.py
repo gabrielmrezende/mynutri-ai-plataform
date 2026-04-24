@@ -152,7 +152,8 @@ STATICFILES_DIRS = [BASE_DIR / 'frontend']
 # =============================================================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'user.authentication.CookieJWTAuthentication',  # cookie HttpOnly primeiro
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Bearer fallback
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -166,6 +167,7 @@ REST_FRAMEWORK = {
         'user': '60/hour',
         'diet_generate': '3/day',
         'contact': '5/hour',
+        'login': '5/10min',
     },
 }
 
@@ -328,3 +330,32 @@ LOGGING = {
         },
     },
 }
+
+# =============================================================================
+# Sentry — monitoramento de erros em produção
+# Configure SENTRY_DSN no .env ou nas vars de ambiente do Render.
+# Em desenvolvimento (sem SENTRY_DSN), este bloco é ignorado.
+# =============================================================================
+_sentry_dsn = os.getenv('SENTRY_DSN', '')
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    import logging as _logging
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[
+            DjangoIntegration(),
+            CeleryIntegration(),
+            LoggingIntegration(
+                level=_logging.INFO,        # captura logs INFO como breadcrumbs
+                event_level=_logging.ERROR, # envia ao Sentry só a partir de ERROR
+            ),
+        ],
+        traces_sample_rate=float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+        profiles_sample_rate=float(os.getenv('SENTRY_PROFILES_SAMPLE_RATE', '0.1')),
+        environment=os.getenv('ENVIRONMENT', 'production'),
+        send_default_pii=False,  # nunca envia dados pessoais por padrão
+    )

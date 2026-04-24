@@ -461,9 +461,8 @@
     const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1';
 
     /* ── Auth guard ── */
-    let token = localStorage.getItem('mynutri_token');
     let userData = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
-    if (!token) { window.location.href = '/auth/'; }
+    if (!userData) { window.location.href = '/auth/'; }
 
     /* ── Helpers ── */
     function initials(name) {
@@ -511,9 +510,8 @@
     });
 
     /* ── Logout ── */
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-      localStorage.removeItem('mynutri_token');
-      localStorage.removeItem('mynutri_refresh');
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
       localStorage.removeItem('mynutri_user');
       window.location.href = '/';
     });
@@ -534,9 +532,7 @@
     /* ── Load profile from API ── */
     async function loadProfile() {
       try {
-        const res = await fetch(`${API_BASE}/user/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await fetch(`${API_BASE}/user/profile`, { credentials: 'include' });
 
         if (res.status === 401) { window.location.href = '/auth/'; return; }
         if (!res.ok) throw new Error('Erro ao carregar perfil');
@@ -590,10 +586,8 @@
       try {
         const res = await fetch(`${API_BASE}/user/profile`, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ first_name, last_name, phone, date_of_birth }),
         });
 
@@ -636,9 +630,7 @@
       container.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--gray-400);font-size:.9rem;"><div class="spinner" style="width:24px;height:24px;border-width:3px;"></div>Carregando…</div>`;
 
       try {
-        const res = await fetch(`${API_BASE}/anamnese`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await fetch(`${API_BASE}/anamnese`, { credentials: 'include' });
 
         if (res.status === 404 || res.status === 204) {
           container.innerHTML = `
@@ -749,10 +741,8 @@
       try {
         const res = await fetch(`${API_BASE}/user/change-password`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ current_password: atual, new_password: nova }),
         });
 
