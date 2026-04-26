@@ -7,6 +7,7 @@ from .api_views import (
     DietAPIView,
     DietListAPIView,
     DietDetailAPIView,
+    DietSubstitutionsAPIView,
     DietPDFAPIView,
 )
 
@@ -28,6 +29,9 @@ urlpatterns = [
 
     # GET  /api/v1/diet/list              → Histórico completo de planos alimentares
     path('diet/list', DietListAPIView.as_view(), name='api-diet-list'),
+
+    # PATCH /api/v1/diet/<id>/substitutions → Atualiza substituições de alimentos
+    path('diet/<int:pk>/substitutions', DietSubstitutionsAPIView.as_view(), name='api-diet-substitutions'),
 
     # GET  /api/v1/diet/<id>/pdf          → Baixa o plano alimentar em PDF
     path('diet/<int:pk>/pdf', DietPDFAPIView.as_view(), name='api-diet-pdf'),

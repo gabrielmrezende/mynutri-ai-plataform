@@ -210,6 +210,74 @@ class DietDetailAPIView(APIView):
         return Response(DietPlanSerializer(diet_plan).data, status=status.HTTP_200_OK)
 
 
+class DietSubstitutionsAPIView(APIView):
+    """
+    PATCH /api/v1/diet/<id>/substitutions
+    Substitui a lista de substituições de um DietPlan do usuário autenticado.
+    Body: { "substitutions": [{ "food": "...", "alternatives": ["...", ...] }] }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            diet_plan = DietPlan.objects.get(pk=pk, user=request.user)
+        except DietPlan.DoesNotExist:
+            return Response(
+                {'error': 'Plano alimentar não encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        substitutions = request.data.get('substitutions')
+        if not isinstance(substitutions, list):
+            return Response(
+                {'error': 'O campo "substitutions" deve ser uma lista.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(substitutions) > 50:
+            return Response(
+                {'error': 'Máximo de 50 substituições permitido.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        errors = []
+        for i, item in enumerate(substitutions):
+            if not isinstance(item, dict):
+                errors.append(f'Item {i}: formato inválido.')
+                continue
+            food = (item.get('food') or '').strip()
+            alts = item.get('alternatives')
+            if not food:
+                errors.append(f'Item {i}: "food" não pode ser vazio.')
+            elif len(food) > 100:
+                errors.append(f'Item {i}: "food" excede 100 caracteres.')
+            if not isinstance(alts, list) or not alts:
+                errors.append(f'Item {i}: "alternatives" deve ser uma lista não vazia.')
+            else:
+                for j, alt in enumerate(alts):
+                    if not isinstance(alt, str) or not alt.strip():
+                        errors.append(f'Item {i}, alternativa {j}: não pode ser vazia.')
+                    elif len(alt) > 100:
+                        errors.append(f'Item {i}, alternativa {j}: excede 100 caracteres.')
+        if errors:
+            return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        cleaned = [
+            {
+                'food': item['food'].strip(),
+                'alternatives': [a.strip() for a in item['alternatives']
+                                 if isinstance(a, str) and a.strip()],
+            }
+            for item in substitutions
+        ]
+
+        raw = dict(diet_plan.raw_response or {})
+        raw['substitutions'] = cleaned
+        diet_plan.raw_response = raw
+        diet_plan.save(update_fields=['raw_response'])
+
+        return Response({'substitutions': cleaned}, status=status.HTTP_200_OK)
+
+
 class DietPDFAPIView(APIView):
     """
     GET /api/v1/diet/<id>/pdf
