@@ -82,6 +82,10 @@ class LoginThrottle(AnonRateThrottle):
     """5 tentativas de login por 10 minutos por IP — previne brute force."""
     scope = 'login'
 
+    def parse_rate(self, rate):
+        # DRF doesn't support multi-minute periods; hardcode 5 per 10 minutes
+        return (5, 600)
+
 
 class EmailTokenObtainPairView(TokenObtainPairView):
     """

@@ -167,7 +167,7 @@ REST_FRAMEWORK = {
         'user': '60/hour',
         'diet_generate': '3/day',
         'contact': '5/hour',
-        'login': '5/10min',
+        'login': '5/minute',
     },
 }
 
