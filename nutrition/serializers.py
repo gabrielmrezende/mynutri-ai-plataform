@@ -116,8 +116,9 @@ class AnamneseSerializer(serializers.ModelSerializer):
     )
     idade = serializers.IntegerField(source='age', min_value=1, max_value=120)
     sexo = serializers.ChoiceField(source='gender', choices=Anamnese.GENDER_CHOICES)
-    peso = serializers.DecimalField(source='weight_kg', max_digits=5, decimal_places=2)
-    altura = serializers.DecimalField(source='height_cm', max_digits=5, decimal_places=2)
+    peso = serializers.DecimalField(source='weight_kg', max_digits=5, decimal_places=2, min_value=10, max_value=500)
+    altura = serializers.DecimalField(source='height_cm', max_digits=5, decimal_places=2, min_value=50, max_value=280)
+    meals_per_day = serializers.IntegerField(min_value=1, max_value=12, default=3, required=False)
 
     class Meta:
         model = Anamnese
@@ -138,6 +139,18 @@ class AnamneseSerializer(serializers.ModelSerializer):
     def validate_allergies(self, value):
         return validate_free_text(value, 'Alergias')
 
+    def validate(self, data):
+        peso = data.get('weight_kg')
+        altura = data.get('height_cm')
+        if peso is not None and altura is not None:
+            altura_m = float(altura) / 100
+            bmi = float(peso) / (altura_m ** 2)
+            if bmi < 10 or bmi > 70:
+                raise serializers.ValidationError(
+                    'A combinação de peso e altura não é fisiologicamente plausível.'
+                )
+        return data
+
 
 class MealSerializer(serializers.ModelSerializer):
     """Serializer para cada refeição individual. Usado aninhado no DietPlanSerializer."""
@@ -147,7 +160,7 @@ class MealSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Meal
-        fields = ('nome_refeicao', 'descricao_refeicao', 'calorias_estimadas', 'order')
+        fields = ('id', 'nome_refeicao', 'descricao_refeicao', 'calorias_estimadas', 'order')
 
 
 class DietPlanSummarySerializer(serializers.ModelSerializer):

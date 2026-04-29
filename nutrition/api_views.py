@@ -1,13 +1,15 @@
 import logging
+from datetime import timedelta
 
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 
-from .models import Anamnese, DietJob, DietPlan
+from .models import Anamnese, DietJob, DietPlan, Meal, MealRegenerationLog
 from .serializers import AnamneseSerializer, DietPlanSerializer, DietPlanSummarySerializer
 from .tasks import generate_diet_task
 from .pdf_generator import generate_diet_pdf
@@ -313,3 +315,283 @@ class DietPDFAPIView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+
+
+class MealRegenerateAPIView(APIView):
+    """
+    PATCH /api/v1/diet/<diet_pk>/meal/<meal_pk>/regenerate
+    Regenera pontualmente uma refeição sem alterar as demais do plano.
+
+    Body (opcional): { "reason": "não gostei dos alimentos" }
+
+    Resposta: dados atualizados da refeição + meals_raw_entry + macros totais.
+
+    Limites:
+      - 3 regenerações por dia por DietPlan (contagem em MealRegenerationLog)
+      - Usuário só pode regenerar refeições do seu próprio plano
+    """
+
+    permission_classes = [IsAuthenticated]
+    DAILY_LIMIT = 3
+
+    def patch(self, request, diet_pk, meal_pk):
+        try:
+            diet_plan = (
+                DietPlan.objects
+                .prefetch_related('meals')
+                .select_related('anamnese')
+                .get(pk=diet_pk, user=request.user)
+            )
+        except DietPlan.DoesNotExist:
+            return Response(
+                {'error': 'Plano alimentar não encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            meal = diet_plan.meals.get(pk=meal_pk)
+        except Meal.DoesNotExist:
+            return Response(
+                {'error': 'Refeição não encontrada neste plano.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ── Rate limit: 3 regenerações por dia por DietPlan ──────────────────
+        cutoff = timezone.now() - timedelta(days=1)
+        daily_count = MealRegenerationLog.objects.filter(
+            diet_plan=diet_plan,
+            created_at__gte=cutoff,
+            is_undone=False,
+        ).count()
+
+        if daily_count >= self.DAILY_LIMIT:
+            return Response(
+                {
+                    'error': (
+                        f'Limite de {self.DAILY_LIMIT} regenerações por dia atingido '
+                        'para este plano. Tente novamente amanhã.'
+                    ),
+                    'regenerations_remaining': 0,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # ── Validações ────────────────────────────────────────────────────────
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) > 300:
+            return Response(
+                {'error': '"reason" não pode exceder 300 caracteres.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not diet_plan.anamnese_id:
+            return Response(
+                {'error': 'Não é possível regenerar: plano sem anamnese associada.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw = diet_plan.raw_response or {}
+        meals_raw = raw.get('meals', [])
+        meal_index = meal.order
+
+        if meal_index >= len(meals_raw):
+            return Response(
+                {'error': 'Índice de refeição desatualizado. Recarregue a página.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Salva estado anterior para undo ───────────────────────────────────
+        prev_description = meal.description
+        prev_calories    = meal.calories
+        prev_raw_meal    = meals_raw[meal_index]
+
+        # ── Chama AIService ───────────────────────────────────────────────────
+        from .services import AIService
+        service = AIService()
+
+        try:
+            result = service.regenerate_meal(diet_plan, meal_index, reason)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception(
+                'Erro ao regenerar refeição %d do DietPlan#%d', meal_index, diet_plan.pk
+            )
+            return Response(
+                {'error': 'Falha ao regenerar a refeição. Tente novamente.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # ── Atualiza Meal ─────────────────────────────────────────────────────
+        meal.meal_name   = result['new_meal_name']
+        meal.description = result['new_description']
+        meal.calories    = result['new_calories']
+        meal.save(update_fields=['meal_name', 'description', 'calories'])
+
+        # ── Atualiza raw_response e recalcula totais ──────────────────────────
+        raw_copy = dict(raw)
+        meals_copy = list(raw_copy.get('meals', []))
+        meals_copy[meal_index] = result['new_raw_meal']
+        raw_copy['meals'] = meals_copy
+
+        total_cal  = 0
+        total_prot = 0.0
+        total_carb = 0.0
+        total_fat  = 0.0
+        for m in meals_copy:
+            for f in m.get('foods', []):
+                total_cal  += f.get('calories',  0) or 0
+                total_prot += f.get('protein_g', 0) or 0
+                total_carb += f.get('carbs_g',   0) or 0
+                total_fat  += f.get('fat_g',     0) or 0
+
+        raw_copy['calories'] = total_cal
+        raw_copy['macros'] = {
+            'protein_g': round(total_prot),
+            'carbs_g':   round(total_carb),
+            'fat_g':     round(total_fat),
+        }
+
+        # Regenera substituições contextuais com o plano atualizado
+        from .substitutions import generate_meal_substitutions
+        from .services import _parse_allergens
+        allergens_list = _parse_allergens(
+            (diet_plan.anamnese.allergies or '') if diet_plan.anamnese else ''
+        )
+        raw_copy['substitutions'] = generate_meal_substitutions(meals_copy, allergens_list)
+
+        diet_plan.raw_response  = raw_copy
+        diet_plan.total_calories = total_cal
+        diet_plan.save(update_fields=['raw_response', 'total_calories'])
+
+        # ── Registra log (auditoria + undo) ───────────────────────────────────
+        log = MealRegenerationLog.objects.create(
+            diet_plan=diet_plan,
+            meal=meal,
+            user=request.user,
+            reason=reason,
+            previous_description=prev_description,
+            previous_calories=prev_calories,
+            previous_raw_meal=prev_raw_meal,
+        )
+
+        remaining = self.DAILY_LIMIT - (daily_count + 1)
+
+        return Response(
+            {
+                'meal': {
+                    'id':          meal.pk,
+                    'meal_name':   meal.meal_name,
+                    'description': meal.description,
+                    'calories':    meal.calories,
+                    'order':       meal.order,
+                },
+                'meals_raw_entry':         result['new_raw_meal'],
+                'macros':                  raw_copy['macros'],
+                'total_calories':          total_cal,
+                'log_id':                  log.pk,
+                'regenerations_remaining': remaining,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class MealUndoAPIView(APIView):
+    """
+    POST /api/v1/diet/<diet_pk>/meal/<meal_pk>/undo
+    Desfaz a última regeneração de uma refeição, restaurando o estado anterior.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, diet_pk, meal_pk):
+        try:
+            diet_plan = (
+                DietPlan.objects
+                .get(pk=diet_pk, user=request.user)
+            )
+        except DietPlan.DoesNotExist:
+            return Response(
+                {'error': 'Plano alimentar não encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            meal = Meal.objects.get(pk=meal_pk, diet_plan=diet_plan)
+        except Meal.DoesNotExist:
+            return Response(
+                {'error': 'Refeição não encontrada neste plano.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Busca a última regeneração não desfeita desta refeição
+        last_log = (
+            MealRegenerationLog.objects
+            .filter(diet_plan=diet_plan, meal=meal, is_undone=False)
+            .first()
+        )
+
+        if not last_log:
+            return Response(
+                {'error': 'Nenhuma regeneração disponível para desfazer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Restaura Meal ─────────────────────────────────────────────────────
+        prev_raw = last_log.previous_raw_meal
+        time_sug  = prev_raw.get('time_suggestion', '')
+        meal_name = prev_raw.get('name', meal.meal_name)
+        meal.meal_name   = f'{meal_name} ({time_sug})' if time_sug else meal_name
+        meal.description = last_log.previous_description
+        meal.calories    = last_log.previous_calories
+        meal.save(update_fields=['meal_name', 'description', 'calories'])
+
+        # ── Restaura raw_response ─────────────────────────────────────────────
+        raw_copy = dict(diet_plan.raw_response or {})
+        meals_copy = list(raw_copy.get('meals', []))
+        meal_index = meal.order
+
+        if 0 <= meal_index < len(meals_copy):
+            meals_copy[meal_index] = prev_raw
+            raw_copy['meals'] = meals_copy
+
+            total_cal  = 0
+            total_prot = 0.0
+            total_carb = 0.0
+            total_fat  = 0.0
+            for m in meals_copy:
+                for f in m.get('foods', []):
+                    total_cal  += f.get('calories',  0) or 0
+                    total_prot += f.get('protein_g', 0) or 0
+                    total_carb += f.get('carbs_g',   0) or 0
+                    total_fat  += f.get('fat_g',     0) or 0
+
+            raw_copy['calories'] = total_cal
+            raw_copy['macros'] = {
+                'protein_g': round(total_prot),
+                'carbs_g':   round(total_carb),
+                'fat_g':     round(total_fat),
+            }
+            diet_plan.raw_response   = raw_copy
+            diet_plan.total_calories = total_cal
+            diet_plan.save(update_fields=['raw_response', 'total_calories'])
+
+        # Marca o log como desfeito (mantém para auditoria)
+        last_log.is_undone = True
+        last_log.save(update_fields=['is_undone'])
+
+        return Response(
+            {
+                'meal': {
+                    'id':          meal.pk,
+                    'meal_name':   meal.meal_name,
+                    'description': meal.description,
+                    'calories':    meal.calories,
+                    'order':       meal.order,
+                },
+                'meals_raw_entry': prev_raw,
+                'macros':          raw_copy.get('macros'),
+                'total_calories':  raw_copy.get('calories'),
+            },
+            status=status.HTTP_200_OK,
+        )

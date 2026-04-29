@@ -244,3 +244,54 @@ class Meal(models.Model):
 
     def __str__(self):
         return f'{self.meal_name} ({self.calories} kcal) — Plano #{self.diet_plan_id}'
+
+
+class MealRegenerationLog(models.Model):
+    """
+    Registra cada regeneração pontual de uma refeição.
+
+    Serve para:
+      - Rate limiting: 3 regenerações por dia por DietPlan
+      - Auditoria: qual refeição foi alterada, quando e por quem
+      - Undo: restaura o estado anterior da refeição
+    """
+
+    diet_plan = models.ForeignKey(
+        DietPlan,
+        on_delete=models.CASCADE,
+        related_name='regeneration_logs',
+        verbose_name='Plano Alimentar',
+    )
+    meal = models.ForeignKey(
+        Meal,
+        on_delete=models.CASCADE,
+        related_name='regeneration_logs',
+        verbose_name='Refeição',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='meal_regeneration_logs',
+        verbose_name='Usuário',
+    )
+    reason = models.TextField('Motivo informado', blank=True)
+
+    # Estado anterior — usado para desfazer a regeneração
+    previous_description = models.TextField('Descrição anterior')
+    previous_calories = models.PositiveIntegerField('Calorias anteriores')
+    previous_raw_meal = models.JSONField('Refeição anterior (JSON)')
+
+    is_undone = models.BooleanField('Desfeito', default=False)
+
+    created_at = models.DateTimeField('Gerado em', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Log de Regeneração'
+        verbose_name_plural = 'Logs de Regeneração'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f'Regeneração de "{self.meal.meal_name}" '
+            f'por {self.user} em {self.created_at.strftime("%d/%m/%Y %H:%M")}'
+        )

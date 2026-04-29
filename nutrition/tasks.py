@@ -17,7 +17,10 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-_RETRYABLE_PHRASES = ('formato inesperado', 'json inválido', 'json válido')
+_RETRYABLE_PHRASES = (
+    'formato inesperado', 'json inválido', 'json válido',
+    'alergia', 'cobertura nutricional', 'desbalanceamento',
+)
 
 
 @shared_task(bind=True, max_retries=2, name='nutrition.tasks.generate_diet')
@@ -30,7 +33,7 @@ def generate_diet_task(self, job_id: int) -> None:
     Falhas permanentes (API key inválida, anamnese ausente) não são retentadas.
     """
     from .models import DietJob
-    from .services import AIService
+    from .services import AIService, AllergenViolation, MacroImbalanceError, NutritionDataGap
 
     try:
         job = DietJob.objects.select_related('anamnese', 'user').get(pk=job_id)
@@ -83,7 +86,26 @@ def generate_diet_task(self, job_id: int) -> None:
 
         # Falha definitiva
         job.status = DietJob.STATUS_FAILED
-        job.error_message = str(exc)
+        if isinstance(exc, AllergenViolation):
+            job.error_message = (
+                'Não foi possível gerar um plano respeitando suas alergias após '
+                'várias tentativas. Verifique se o campo de alergias está claro '
+                '(ex: "amendoim, leite, frutos do mar") ou contate o suporte.'
+            )
+        elif isinstance(exc, NutritionDataGap):
+            job.error_message = (
+                'Não conseguimos gerar um plano com cálculos calóricos confiáveis '
+                'após várias tentativas. Tente reformular suas preferências '
+                'alimentares com termos mais comuns ou contate o suporte.'
+            )
+        elif isinstance(exc, MacroImbalanceError):
+            job.error_message = (
+                'Não conseguimos gerar um plano com macronutrientes equilibrados '
+                'após várias tentativas. Tente ajustar suas preferências alimentares '
+                'incluindo mais fontes de proteína (frango, ovos, peixe) ou contate o suporte.'
+            )
+        else:
+            job.error_message = str(exc)
         job.save(update_fields=['status', 'error_message', 'updated_at'])
         logger.error('generate_diet_task: DietJob#%s falhou definitivamente — %s', job_id, exc)
 

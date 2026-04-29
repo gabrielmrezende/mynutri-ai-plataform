@@ -1,7 +1,7 @@
 from django.urls import path
 from .api_views import (
     RegisterAPIView, ProfileAPIView, EmailTokenObtainPairView,
-    ContactAPIView, GoogleAuthAPIView, TestimonialAPIView,
+    ContactAPIView, GoogleAuthAPIView, GoogleOAuthCallbackView, TestimonialAPIView,
     LogoutAPIView, CookieTokenRefreshView,
 )
 
@@ -12,8 +12,11 @@ urlpatterns = [
     # POST /api/v1/auth/login          → Login com email/senha → retorna token + refresh + seta cookies
     path('auth/login', EmailTokenObtainPairView.as_view(), name='api-login'),
 
-    # POST /api/v1/auth/google         → Login/cadastro via Google OAuth → retorna token + refresh + seta cookies
+    # POST /api/v1/auth/google         → Login/cadastro via Google OAuth (callback fetch) → retorna token + refresh + seta cookies
     path('auth/google', GoogleAuthAPIView.as_view(), name='api-google-auth'),
+
+    # POST /api/v1/auth/google/callback → Recebe credential do Google redirect flow → seta cookies + redireciona
+    path('auth/google/callback', GoogleOAuthCallbackView.as_view(), name='api-google-callback'),
 
     # POST /api/v1/auth/token/refresh  → Renova access token via cookie HttpOnly ou body JSON
     path('auth/token/refresh', CookieTokenRefreshView.as_view(), name='api-token-refresh'),

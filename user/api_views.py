@@ -5,6 +5,9 @@ import requests as http_requests
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
+from django.http import HttpResponseRedirect
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from rest_framework import status, serializers as drf_serializers
 from rest_framework.views import APIView
@@ -272,6 +275,66 @@ class GoogleAuthAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+        _set_auth_cookies(response, refresh.access_token, refresh)
+        return response
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class GoogleOAuthCallbackView(APIView):
+    """
+    POST /api/v1/auth/google/callback
+    Recebe { credential, g_csrf_token } do Google Sign-In no modo redirect.
+    Google envia um POST form-encoded após autenticação; esta view valida o
+    double-submit CSRF do Google, processa o credential e redireciona para /dieta/.
+    Usa @csrf_exempt porque o CSRF aqui é gerenciado pelo próprio Google.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        credential = request.POST.get('credential') or request.data.get('credential', '')
+        g_csrf_body = request.POST.get('g_csrf_token') or request.data.get('g_csrf_token', '')
+        g_csrf_cookie = request.COOKIES.get('g_csrf_token', '')
+
+        if not g_csrf_body or not g_csrf_cookie or g_csrf_body != g_csrf_cookie:
+            logger.warning('Google OAuth callback: CSRF mismatch body=%s cookie=%s', g_csrf_body, g_csrf_cookie)
+            return HttpResponseRedirect('/auth/?google_error=csrf')
+
+        if not credential:
+            return HttpResponseRedirect('/auth/?google_error=no_credential')
+
+        try:
+            resp = http_requests.get(
+                'https://oauth2.googleapis.com/tokeninfo',
+                params={'id_token': credential},
+                timeout=5,
+            )
+        except http_requests.RequestException as exc:
+            logger.error('Google tokeninfo failed in callback — %s', exc)
+            return HttpResponseRedirect('/auth/?google_error=service_unavailable')
+
+        if resp.status_code != 200:
+            return HttpResponseRedirect('/auth/?google_error=invalid_token')
+
+        google_data = resp.json()
+        email = google_data.get('email', '').lower()
+        if not email:
+            return HttpResponseRedirect('/auth/?google_error=no_email')
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email,
+                'first_name': google_data.get('given_name', ''),
+                'last_name': google_data.get('family_name', ''),
+            },
+        )
+        if created:
+            Profile.objects.get_or_create(user=user)
+            logger.info('New user via Google OAuth redirect — email=%s', email)
+
+        refresh = RefreshToken.for_user(user)
+        response = HttpResponseRedirect('/dieta/')
         _set_auth_cookies(response, refresh.access_token, refresh)
         return response
 

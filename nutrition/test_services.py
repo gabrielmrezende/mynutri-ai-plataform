@@ -231,7 +231,11 @@ class TestAdjustToCalorieTarget:
 
     @patch('nutrition.services.lookup_food_nutrition')
     def test_com_grande_divergencia_escala_quantidades(self, mock_lookup, ai_service):
-        """Divergência >10% deve escalar quantity_g e recalcular macros."""
+        """Divergência >10% deve escalar quantity_g e recalcular macros.
+
+        Usa dois alimentos não-proteicos (carboidrato + vegetal) para verificar
+        escala livre sem caps. Proteínas têm cap ±15% por design — testar separado.
+        """
         def _scaled_lookup(name, qty):
             return {
                 'calories': int(qty * 5),
@@ -247,7 +251,7 @@ class TestAdjustToCalorieTarget:
                 {'foods': [
                     {'name': 'Arroz', 'quantity_g': 100, 'quantity_text': '100g',
                      'calories': 500, 'protein_g': 25, 'carbs_g': 60, 'fat_g': 10},
-                    {'name': 'Frango', 'quantity_g': 100, 'quantity_text': '100g',
+                    {'name': 'Batata doce', 'quantity_g': 100, 'quantity_text': '100g',
                      'calories': 500, 'protein_g': 25, 'carbs_g': 60, 'fat_g': 10},
                 ]},
             ],
@@ -256,6 +260,28 @@ class TestAdjustToCalorieTarget:
         # scale=2 → quantity_g: 100→200 → lookup retorna 200*5=1000 por alimento
         assert result['calories'] == 2000
         assert result['meals'][0]['foods'][0]['calories'] == 1000
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_proteina_tem_cap_de_escala(self, mock_lookup, ai_service):
+        """Proteínas (frango, peixe, ovo) são limitadas a ±15% para preservar adequação proteica."""
+        def _scaled_lookup(name, qty):
+            return {'calories': int(qty * 5), 'protein_g': qty * 0.25,
+                    'carbs_g': qty * 0.60, 'fat_g': qty * 0.10}
+        mock_lookup.side_effect = _scaled_lookup
+
+        data = {
+            'calories': 1000,
+            'meals': [
+                {'foods': [
+                    {'name': 'Frango grelhado', 'quantity_g': 100, 'quantity_text': '100g',
+                     'calories': 1000, 'protein_g': 25, 'carbs_g': 60, 'fat_g': 10},
+                ]},
+            ],
+        }
+        result = ai_service._adjust_to_calorie_target(data, target_calories=2000)
+        # scale=2 mas cap é 1.15 → 100*1.15 = 115g → 115*5 = 575 kcal
+        assert result['meals'][0]['foods'][0]['quantity_g'] == 115
+        assert result['meals'][0]['foods'][0]['calories'] == 575
 
     def test_target_zero_nao_altera(self, ai_service):
         data = {'calories': 1800, 'meals': []}

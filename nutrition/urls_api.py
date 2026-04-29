@@ -9,6 +9,8 @@ from .api_views import (
     DietDetailAPIView,
     DietSubstitutionsAPIView,
     DietPDFAPIView,
+    MealRegenerateAPIView,
+    MealUndoAPIView,
 )
 
 urlpatterns = [
@@ -35,6 +37,20 @@ urlpatterns = [
 
     # GET  /api/v1/diet/<id>/pdf          → Baixa o plano alimentar em PDF
     path('diet/<int:pk>/pdf', DietPDFAPIView.as_view(), name='api-diet-pdf'),
+
+    # PATCH /api/v1/diet/<diet_pk>/meal/<meal_pk>/regenerate → Regenera uma refeição
+    path(
+        'diet/<int:diet_pk>/meal/<int:meal_pk>/regenerate',
+        MealRegenerateAPIView.as_view(),
+        name='api-meal-regenerate',
+    ),
+
+    # POST /api/v1/diet/<diet_pk>/meal/<meal_pk>/undo → Desfaz última regeneração
+    path(
+        'diet/<int:diet_pk>/meal/<int:meal_pk>/undo',
+        MealUndoAPIView.as_view(),
+        name='api-meal-undo',
+    ),
 
     # GET  /api/v1/diet/<id>              → Plano alimentar específico por ID
     path('diet/<int:pk>', DietDetailAPIView.as_view(), name='api-diet-detail'),

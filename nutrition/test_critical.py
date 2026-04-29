@@ -72,7 +72,9 @@ def anamnese_obj(db, create_user):
     )
 
 
-# Resposta mínima válida do Passo 1 (seleção de alimentos)
+# Resposta mínima válida do Passo 1 (seleção de alimentos).
+# Usa 4 refeições (meals_per_day=4) com proteína adequada para o perfil do
+# anamnese_obj (80kg, lose) — necessário para passar a validação de macros.
 _FOOD_SELECTION_RESPONSE = {
     'goal_description': 'Emagrecimento saudável',
     'meals': [
@@ -80,17 +82,37 @@ _FOOD_SELECTION_RESPONSE = {
             'name': 'Café da manhã',
             'time_suggestion': '07:00',
             'foods': [
-                {'name': 'Ovos mexidos', 'quantity_text': '3 unidades', 'quantity_g': 150},
-                {'name': 'Pão francês', 'quantity_text': '1 unidade', 'quantity_g': 50},
+                {'name': 'Ovos mexidos',    'quantity_text': '4 unidades', 'quantity_g': 200},
+                {'name': 'Pão francês',     'quantity_text': '1 unidade',  'quantity_g': 50},
+                {'name': 'Iogurte natural', 'quantity_text': '1 pote',     'quantity_g': 150},
             ],
         },
         {
             'name': 'Almoço',
             'time_suggestion': '12:00',
             'foods': [
-                {'name': 'Frango grelhado', 'quantity_text': '1 filé (120g)', 'quantity_g': 120},
-                {'name': 'Arroz branco', 'quantity_text': '4 col. sopa', 'quantity_g': 120},
-                {'name': 'Feijão cozido', 'quantity_text': '2 conchas', 'quantity_g': 100},
+                {'name': 'Frango grelhado', 'quantity_text': '1 filé (180g)', 'quantity_g': 180},
+                {'name': 'Arroz branco',    'quantity_text': '4 col. sopa',   'quantity_g': 120},
+                {'name': 'Feijão cozido',   'quantity_text': '2 conchas',     'quantity_g': 100},
+                {'name': 'Salada mista',    'quantity_text': '1 prato',       'quantity_g': 80},
+            ],
+        },
+        {
+            'name': 'Lanche da tarde',
+            'time_suggestion': '15:30',
+            'foods': [
+                {'name': 'Atum em água',   'quantity_text': '1 lata pequena', 'quantity_g': 80},
+                {'name': 'Batata doce',    'quantity_text': '1 unidade',      'quantity_g': 120},
+            ],
+        },
+        {
+            'name': 'Jantar',
+            'time_suggestion': '19:30',
+            'foods': [
+                {'name': 'Tilapia grelhada', 'quantity_text': '1 filé (200g)', 'quantity_g': 200},
+                {'name': 'Brocolis cozido',  'quantity_text': '1 xícara',      'quantity_g': 100},
+                {'name': 'Batata doce',      'quantity_text': '1 unidade',     'quantity_g': 100},
+                {'name': 'Azeite oliva',     'quantity_text': '1 col. sopa',   'quantity_g': 10},
             ],
         },
     ],
@@ -98,6 +120,15 @@ _FOOD_SELECTION_RESPONSE = {
         {'food': 'Pão francês', 'alternatives': ['Tapioca', 'Cuscuz']},
     ],
     'notes': 'Beba pelo menos 2 litros de água por dia.',
+}
+
+# Resposta mínima válida das dicas personalizadas
+_NOTES_RESPONSE = {
+    'tips': [
+        'Distribua suas 3 refeições a cada 4–5 horas para manter o metabolismo ativo.',
+        'Beba cerca de 35ml de água por kg corporal — para seu peso, ~2,6L por dia.',
+        'Prefira frango grelhado no jantar para atingir sua meta proteica de emagrecimento.',
+    ],
 }
 
 # Resposta mínima válida do Passo 2 (explicação)
@@ -158,8 +189,8 @@ class TestPromptStructureAndFlow:
         assert len(system_msgs) == 1
         assert system_msgs[0]['content'] == SYSTEM_PROMPT_FOODS
 
-    def test_passo1_usa_temperature_baixo(self, anamnese_obj):
-        """Passo 1 (seleção de alimentos) deve usar temperature <= 0.4 para consistência."""
+    def test_passo1_usa_temperature_moderada(self, anamnese_obj):
+        """Passo 1 (seleção de alimentos) deve usar temperature entre 0.4 e 0.7 para variedade."""
         service = AIService()
         service.api_key = 'test-key'
         service.api_url = 'http://test/'
@@ -179,7 +210,8 @@ class TestPromptStructureAndFlow:
         with patch.object(urllib.request, 'urlopen', fake_urlopen):
             service.generate_diet(anamnese_obj)
 
-        assert captured[0].get('temperature', 1.0) <= 0.4
+        temp = captured[0].get('temperature', 1.0)
+        assert 0.4 <= temp <= 0.7, f'Temperatura esperada entre 0.4 e 0.7, recebida: {temp}'
 
     def test_passo1_contem_target_calories(self, anamnese_obj):
         """O prompt do Passo 1 deve conter o alvo calórico calculado pelo backend."""
@@ -415,7 +447,10 @@ class TestAdjustToCalorieTarget:
         assert result['meals'][0]['foods'][0]['quantity_g'] == 120
 
     def test_escala_quando_divergencia_maior_10_porcento(self, service):
-        """Divergência > 10% deve escalar quantity_g e recalcular calories via DB."""
+        """
+        Divergência > 10% deve escalar quantity_g e recalcular calories via DB.
+        Fontes proteicas são limitadas a +15% máximo para preservar adequação proteica.
+        """
         data = {
             'calories': 1000,
             'meals': [{'foods': [
@@ -424,14 +459,26 @@ class TestAdjustToCalorieTarget:
             ]}],
         }
         result = service._adjust_to_calorie_target(data, target_calories=2000)
-        # quantity_g deve ter dobrado (scale ≈ 2.0)
-        assert result['meals'][0]['foods'][0]['quantity_g'] == 200
-        # calories deve ter sido recalculado via DB — não é o valor original escalado
-        # lookup_food_nutrition('Frango grelhado', 200) → 159*2 = 318 kcal (não 2000)
+        # Frango é fonte proteica → scale limitado a 1.15 → 100g × 1.15 = 115g
+        assert result['meals'][0]['foods'][0]['quantity_g'] == 115
+        # calories deve ter sido recalculado via DB para a nova quantidade
         from nutrition.nutrition_db import lookup_food_nutrition
-        expected_per_food = lookup_food_nutrition('Frango grelhado', 200)['calories']
+        expected_per_food = lookup_food_nutrition('Frango grelhado', 115)['calories']
         assert result['meals'][0]['foods'][0]['calories'] == expected_per_food
         assert result['calories'] == expected_per_food  # único alimento → total igual
+
+    def test_escala_nao_proteica_sem_restricao(self, service):
+        """Alimentos não proteicos (arroz) recebem a escala completa sem restrição."""
+        data = {
+            'calories': 1000,
+            'meals': [{'foods': [
+                {'name': 'Arroz branco cozido', 'quantity_g': 100, 'quantity_text': '100g',
+                 'calories': 1000, 'protein_g': 2, 'carbs_g': 28, 'fat_g': 0},
+            ]}],
+        }
+        result = service._adjust_to_calorie_target(data, target_calories=2000)
+        # Arroz não é fonte proteica → scale completo de 2.0 → 200g
+        assert result['meals'][0]['foods'][0]['quantity_g'] == 200
 
     def test_tolerancia_10_porcento_documentada(self, service):
         """9% de desvio está dentro da tolerância → não escala."""
@@ -451,10 +498,11 @@ class TestPipelineCompleto:
     """Testa o pipeline completo com dois mocks de _call_api."""
 
     def _make_api_side_effects(self):
-        """Retorna side_effects para os dois _call_api calls."""
+        """Retorna side_effects para os três _call_api calls do pipeline."""
         return [
-            _wrap_api_response(_FOOD_SELECTION_RESPONSE),   # Passo 1
-            _wrap_api_response(_EXPLANATION_RESPONSE),      # Passo 2
+            _wrap_api_response(_FOOD_SELECTION_RESPONSE),  # Passo 1 — seleção de alimentos
+            _wrap_api_response(_NOTES_RESPONSE),            # Dicas personalizadas
+            _wrap_api_response(_EXPLANATION_RESPONSE),      # Passo 2 — explicação
         ]
 
     @patch.object(AIService, '_call_api')
@@ -490,26 +538,27 @@ class TestPipelineCompleto:
 
     @patch.object(AIService, '_call_api')
     def test_pipeline_explanation_opcional(self, mock_call, anamnese_obj):
-        """Se a geração de explicação falhar, o DietPlan deve ser criado mesmo assim."""
-        # Passo 1 ok, Passo 2 falha
+        """Se dicas e explicação falharem, o DietPlan deve ser criado mesmo assim."""
+        # Passo 1 ok, dicas falha, explicação falha
         mock_call.side_effect = [
             _wrap_api_response(_FOOD_SELECTION_RESPONSE),
-            Exception('API unavailable'),
+            Exception('API unavailable'),  # dicas — falha silenciosa
+            Exception('API unavailable'),  # explicação — falha silenciosa
         ]
         service = AIService()
         diet_plan = service.generate_diet(anamnese_obj)
 
-        # Plan foi criado mesmo sem explanation
+        # Plan foi criado mesmo sem dicas nem explanation
         assert diet_plan.pk is not None
         assert diet_plan.raw_response.get('explanation') is None
 
     @patch.object(AIService, '_call_api')
-    def test_pipeline_dois_calls_a_api(self, mock_call, anamnese_obj):
-        """O pipeline deve realizar exatamente 2 chamadas à API."""
+    def test_pipeline_tres_calls_a_api(self, mock_call, anamnese_obj):
+        """O pipeline deve realizar exatamente 3 chamadas à API: seleção + dicas + explicação."""
         mock_call.side_effect = self._make_api_side_effects()
         service = AIService()
         service.generate_diet(anamnese_obj)
-        assert mock_call.call_count == 2
+        assert mock_call.call_count == 3
 
     @patch.object(AIService, '_call_api')
     def test_pipeline_refeicoes_sem_foods_levanta_erro(self, mock_call, anamnese_obj):
@@ -533,6 +582,529 @@ class TestPipelineCompleto:
         assert diet_plan.total_calories == soma_meals, (
             f'total_calories={diet_plan.total_calories} diverge da soma das meals={soma_meals}'
         )
+
+
+# ============================================================================
+# ÁREA 2.5 — ENFORCEMENT DE ALERGIAS
+# ============================================================================
+
+class TestParseAllergens:
+    """Verifica o parsing do campo livre de alergias."""
+
+    def test_vazio_retorna_lista_vazia(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('') == []
+        assert _parse_allergens('   ') == []
+
+    def test_alergeno_simples(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim') == ['amendoim']
+
+    def test_separador_virgula(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim, leite') == ['amendoim', 'leite']
+
+    def test_separador_ponto_virgula(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim; leite') == ['amendoim', 'leite']
+
+    def test_separador_e(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim e leite') == ['amendoim', 'leite']
+
+    def test_separador_quebra_linha(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim\nleite') == ['amendoim', 'leite']
+
+    def test_remove_acentos_e_caixa(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('Amêndoa, LEITE') == ['amendoa', 'leite']
+
+    def test_alergeno_multipalavra(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('frutos do mar, leite') == ['frutos do mar', 'leite']
+
+    def test_descarta_entradas_curtas(self):
+        from nutrition.services import _parse_allergens
+        # "ov" tem só 2 chars → descartado
+        assert _parse_allergens('ov, amendoim') == ['amendoim']
+
+    def test_dedup(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim, AMENDOIM, amendoim') == ['amendoim']
+
+
+class TestFoodContainsAllergen:
+    """Verifica detecção de alergenos no nome do alimento."""
+
+    def test_sem_alergenos_retorna_none(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Frango grelhado', []) is None
+
+    def test_alimento_vazio_retorna_none(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('', ['amendoim']) is None
+
+    def test_match_palavra_exata(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Pasta de amendoim', ['amendoim']) == 'amendoim'
+
+    def test_match_inicio_palavra(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Amendoim torrado', ['amendoim']) == 'amendoim'
+
+    def test_match_com_acento_no_alimento(self):
+        from nutrition.services import _food_contains_allergen
+        # "amêndoa" no alimento, "amendoa" como allergeno normalizado
+        assert _food_contains_allergen('Amêndoa fatiada', ['amendoa']) == 'amendoa'
+
+    def test_word_boundary_evita_falso_positivo(self):
+        """'novo' não deve casar com 'ovo'."""
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Prato novo', ['ovo']) is None
+        # Mas 'ovo' como palavra deve casar
+        assert _food_contains_allergen('Ovo cozido', ['ovo']) == 'ovo'
+
+    def test_word_boundary_evita_substring_palavra(self):
+        """'amendoinzinho' não deveria existir, mas se existisse, não casa."""
+        from nutrition.services import _food_contains_allergen
+        # 'amendoado' contém 'amendo' mas não 'amendoim' → sem match
+        assert _food_contains_allergen('Sabor amendoado', ['amendoim']) is None
+
+    def test_match_alergeno_multipalavra(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Sopa de frutos do mar',
+                                       ['frutos do mar']) == 'frutos do mar'
+
+    def test_match_primeiro_alergeno_da_lista(self):
+        from nutrition.services import _food_contains_allergen
+        # Alimento com dois alergenos — retorna o primeiro encontrado
+        result = _food_contains_allergen('Pão com leite e amendoim',
+                                         ['amendoim', 'leite'])
+        assert result in ('amendoim', 'leite')
+
+    def test_alimento_seguro_retorna_none(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Frango grelhado', ['amendoim', 'leite']) is None
+
+
+@pytest.mark.django_db
+class TestEnforceAllergiesPipeline:
+    """Verifica que o pipeline rejeita planos que violam alergias declaradas."""
+
+    @pytest.fixture
+    def anamnese_com_alergia_amendoim(self, create_user):
+        user = create_user()
+        return Anamnese.objects.create(
+            user=user, age=28, gender='M', weight_kg=80, height_cm=178,
+            activity_level='moderate', goal='lose', meals_per_day=2,
+            food_preferences='', food_restrictions='',
+            allergies='amendoim',
+        )
+
+    @pytest.fixture
+    def anamnese_sem_alergia(self, create_user):
+        user = create_user()
+        return Anamnese.objects.create(
+            user=user, age=28, gender='M', weight_kg=80, height_cm=178,
+            activity_level='moderate', goal='lose', meals_per_day=2,
+            food_preferences='', food_restrictions='', allergies='',
+        )
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_falha_se_violar_alergia(self, mock_call,
+                                              anamnese_com_alergia_amendoim):
+        """Plano com 'Pasta de amendoim' deve levantar AllergenViolation."""
+        from nutrition.services import AllergenViolation
+        bad_response = {
+            'goal_description': 'Teste',
+            'meals': [{
+                'name': 'Lanche',
+                'time_suggestion': '15:00',
+                'foods': [
+                    {'name': 'Pasta de amendoim', 'quantity_text': '20g',
+                     'quantity_g': 20},
+                ],
+            }],
+        }
+        mock_call.return_value = _wrap_api_response(bad_response)
+        service = AIService()
+        with pytest.raises(AllergenViolation, match='amendoim'):
+            service.generate_diet(anamnese_com_alergia_amendoim)
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_passa_se_alimentos_seguros(self, mock_call,
+                                                 anamnese_com_alergia_amendoim):
+        """Plano sem alergenos deve gerar normalmente, mesmo com allergies setado."""
+        mock_call.side_effect = [
+            _wrap_api_response(_FOOD_SELECTION_RESPONSE),  # sem amendoim
+            _wrap_api_response(_NOTES_RESPONSE),
+            _wrap_api_response(_EXPLANATION_RESPONSE),
+        ]
+        service = AIService()
+        plan = service.generate_diet(anamnese_com_alergia_amendoim)
+        assert plan.pk is not None
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_pula_check_se_sem_alergias(self, mock_call,
+                                                  anamnese_sem_alergia):
+        """Sem alergias declaradas, qualquer alimento passa (mesmo amendoim)."""
+        # Resposta nutricionalmente completa que inclui amendoim — verifica
+        # que o alimento NÃO é bloqueado quando nenhuma alergia foi declarada.
+        response_with_amendoim = {
+            'goal_description': 'Teste',
+            'meals': [
+                {
+                    'name': 'Almoço',
+                    'time_suggestion': '12:00',
+                    'foods': [
+                        {'name': 'Frango grelhado', 'quantity_text': '180g', 'quantity_g': 180},
+                        {'name': 'Arroz branco', 'quantity_text': '100g', 'quantity_g': 100},
+                        {'name': 'Feijão cozido', 'quantity_text': '80g', 'quantity_g': 80},
+                        {'name': 'Azeite oliva', 'quantity_text': '10ml', 'quantity_g': 10},
+                    ],
+                },
+                {
+                    'name': 'Jantar',
+                    'time_suggestion': '19:00',
+                    'foods': [
+                        {'name': 'Tilapia grelhada', 'quantity_text': '180g', 'quantity_g': 180},
+                        {'name': 'Batata doce', 'quantity_text': '100g', 'quantity_g': 100},
+                        {'name': 'Pasta de amendoim', 'quantity_text': '20g', 'quantity_g': 20},
+                        {'name': 'Salada mista', 'quantity_text': '80g', 'quantity_g': 80},
+                    ],
+                },
+            ],
+        }
+        mock_call.side_effect = [
+            _wrap_api_response(response_with_amendoim),
+            _wrap_api_response(_NOTES_RESPONSE),
+            _wrap_api_response(_EXPLANATION_RESPONSE),
+        ]
+        service = AIService()
+        plan = service.generate_diet(anamnese_sem_alergia)
+        assert plan.pk is not None
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_falha_antes_de_chamar_explanation(
+        self, mock_call, anamnese_com_alergia_amendoim,
+    ):
+        """Fail-fast: ao detectar alergeno, não deve chamar IA para notes/explanation."""
+        from nutrition.services import AllergenViolation
+        bad_response = {
+            'goal_description': 'Teste',
+            'meals': [{
+                'name': 'Café da manhã', 'time_suggestion': '07:00',
+                'foods': [{'name': 'Pão com amendoim', 'quantity_text': '50g',
+                          'quantity_g': 50}],
+            }],
+        }
+        mock_call.return_value = _wrap_api_response(bad_response)
+        service = AIService()
+        with pytest.raises(AllergenViolation):
+            service.generate_diet(anamnese_com_alergia_amendoim)
+        # Apenas 1 chamada (Passo 1) — notes e explanation não foram acionados
+        assert mock_call.call_count == 1
+
+    @patch.object(AIService, '_call_api')
+    def test_regenerate_meal_falha_se_violar_alergia(self, mock_call,
+                                                       anamnese_com_alergia_amendoim):
+        """Regeneração que retorna alergeno deve levantar AllergenViolation."""
+        from nutrition.services import AllergenViolation
+        plan = DietPlan.objects.create(
+            user=anamnese_com_alergia_amendoim.user,
+            anamnese=anamnese_com_alergia_amendoim,
+            raw_response={
+                'meals': [{
+                    'name': 'Café da manhã', 'time_suggestion': '07:00',
+                    'foods': [{'name': 'Pão', 'quantity_text': '1 fatia',
+                              'quantity_g': 50, 'calories': 145}],
+                }],
+            },
+            total_calories=145,
+        )
+        Meal.objects.create(
+            diet_plan=plan, meal_name='Café da manhã (07:00)',
+            description='Pão', calories=145, order=0,
+        )
+        mock_call.return_value = _wrap_api_response({
+            'name': 'Café da manhã', 'time_suggestion': '07:00',
+            'foods': [{'name': 'Pasta de amendoim', 'quantity_text': '30g',
+                      'quantity_g': 30}],
+        })
+        service = AIService()
+        with pytest.raises(AllergenViolation, match='amendoim'):
+            service.regenerate_meal(plan, 0)
+
+
+# ============================================================================
+# ÁREA 2.6 — COBERTURA DO BANCO NUTRICIONAL (NutritionDataGap)
+# ============================================================================
+
+class TestLookupSourceField:
+    """Verifica que lookup_food_nutrition expõe a camada de match em '_source'."""
+
+    def test_match_exato_marca_exact(self):
+        from nutrition.nutrition_db import lookup_food_nutrition
+        r = lookup_food_nutrition('Frango grelhado', 100)
+        assert r['_source'] == 'exact'
+
+    def test_match_fuzzy_marca_fuzzy(self):
+        """Variação no nome cai em fuzzy ou exact dependendo da normalização."""
+        from nutrition.nutrition_db import lookup_food_nutrition
+        # 'Peito de frango grelhado' não é chave exata, deve cair em fuzzy
+        r = lookup_food_nutrition('Peito de frango grelhado bem suculento', 100)
+        assert r['_source'] in ('fuzzy', 'exact')
+
+    def test_categoria_marca_category(self):
+        """Alimento que cai no fallback de categoria por palavra-chave."""
+        from nutrition.nutrition_db import lookup_food_nutrition
+        # 'Bisteca suína' — 'carne' no fallback de categoria? Vamos usar um exemplo claro.
+        # 'Hambúrguer' → palavra-chave 'carne' não bate; vai pra generic.
+        # 'Pato assado' → palavra-chave 'pato' bate em fallback de aves.
+        r = lookup_food_nutrition('Pato assado', 100)
+        assert r['_source'] in ('category', 'fuzzy', 'exact')
+
+    def test_alimento_desconhecido_marca_generic(self):
+        from nutrition.nutrition_db import lookup_food_nutrition
+        r = lookup_food_nutrition('zzzzzzz_inexistente_xxxxxxx', 100)
+        assert r['_source'] == 'generic'
+
+    def test_input_invalido_marca_invalid(self):
+        from nutrition.nutrition_db import lookup_food_nutrition
+        assert lookup_food_nutrition('', 100)['_source'] == 'invalid'
+        assert lookup_food_nutrition('Frango', 0)['_source'] == 'invalid'
+
+
+class TestEnrichReturnsStats:
+    """Verifica que _enrich_foods_with_macros retorna stats por camada."""
+
+    @pytest.fixture
+    def service(self):
+        return AIService()
+
+    def test_retorna_tupla_dict_stats(self, service):
+        data = {'meals': [{'foods': [
+            {'name': 'Frango grelhado', 'quantity_g': 100, 'quantity_text': '100g'},
+        ]}]}
+        result, stats = service._enrich_foods_with_macros(data)
+        assert isinstance(result, dict)
+        assert isinstance(stats, dict)
+        assert stats['total'] == 1
+
+    def test_stats_categoriza_por_camada(self, service):
+        data = {'meals': [{'foods': [
+            {'name': 'Frango grelhado', 'quantity_g': 100, 'quantity_text': '100g'},
+            {'name': 'zzzzzzz_inexistente_xxxxxxx', 'quantity_g': 100, 'quantity_text': '100g'},
+        ]}]}
+        _, stats = service._enrich_foods_with_macros(data)
+        assert stats['total'] == 2
+        assert stats['exact'] >= 1
+        assert stats['generic'] == 1
+        assert 'zzzzzzz_inexistente_xxxxxxx' in stats['generic_names']
+
+
+@pytest.mark.django_db
+class TestCheckDbCoverage:
+    """Verifica o gate _check_db_coverage."""
+
+    @pytest.fixture
+    def service(self):
+        return AIService()
+
+    @pytest.fixture
+    def anamnese(self, create_user):
+        user = create_user()
+        return Anamnese.objects.create(
+            user=user, age=30, gender='M', weight_kg=80, height_cm=180,
+            activity_level='moderate', goal='maintain', meals_per_day=3,
+        )
+
+    def test_total_zero_nao_levanta(self, service, anamnese):
+        service._check_db_coverage({'total': 0}, anamnese)  # não levanta
+
+    def test_zero_generic_nao_levanta(self, service, anamnese):
+        stats = {'total': 10, 'exact': 8, 'fuzzy': 2, 'generic': 0, 'generic_names': []}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_um_generic_em_5_nao_levanta(self, service, anamnese):
+        """1 alimento exótico em 5 (20%) — count < 2, não levanta."""
+        stats = {'total': 5, 'exact': 4, 'generic': 1, 'generic_names': ['exotic']}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_dois_generic_em_5_levanta(self, service, anamnese):
+        """2/5 = 40% — count ≥ 2 e ratio ≥ 20%, deve levantar."""
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 5, 'exact': 3, 'generic': 2,
+                'generic_names': ['exotic1', 'exotic2']}
+        with pytest.raises(NutritionDataGap, match='Cobertura nutricional'):
+            service._check_db_coverage(stats, anamnese)
+
+    def test_dois_generic_em_15_nao_levanta(self, service, anamnese):
+        """2/15 = 13% — ratio < 20%, não levanta."""
+        stats = {'total': 15, 'exact': 13, 'generic': 2,
+                'generic_names': ['exotic1', 'exotic2']}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_tres_generic_em_15_levanta(self, service, anamnese):
+        """3/15 = 20% — exatamente no limite, levanta."""
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 15, 'exact': 12, 'generic': 3,
+                'generic_names': ['e1', 'e2', 'e3']}
+        with pytest.raises(NutritionDataGap):
+            service._check_db_coverage(stats, anamnese)
+
+    def test_mensagem_inclui_nomes(self, service, anamnese):
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 4, 'exact': 2, 'generic': 2,
+                'generic_names': ['Coxinha', 'Pão de queijo']}
+        with pytest.raises(NutritionDataGap, match='Coxinha'):
+            service._check_db_coverage(stats, anamnese)
+
+
+@pytest.mark.django_db
+class TestDbCoveragePipeline:
+    """Verifica integração: pipeline rejeita planos com muitos alimentos no fallback."""
+
+    @pytest.fixture
+    def anamnese(self, create_user):
+        user = create_user()
+        return Anamnese.objects.create(
+            user=user, age=30, gender='M', weight_kg=80, height_cm=180,
+            activity_level='moderate', goal='maintain', meals_per_day=2,
+            food_preferences='', food_restrictions='', allergies='',
+        )
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_falha_se_muitos_alimentos_desconhecidos(self, mock_call, anamnese):
+        """Plano com ≥2 alimentos no fallback genérico (≥20%) deve falhar."""
+        from nutrition.services import NutritionDataGap
+        bad_response = {
+            'goal_description': 'Teste',
+            'meals': [{
+                'name': 'Almoço',
+                'time_suggestion': '12:00',
+                'foods': [
+                    {'name': 'zzzzz_alimento_inexistente_aaa', 'quantity_text': '100g',
+                     'quantity_g': 100},
+                    {'name': 'yyyyy_alimento_inexistente_bbb', 'quantity_text': '100g',
+                     'quantity_g': 100},
+                    {'name': 'wwwww_alimento_inexistente_ccc', 'quantity_text': '100g',
+                     'quantity_g': 100},
+                ],
+            }],
+        }
+        mock_call.return_value = _wrap_api_response(bad_response)
+        service = AIService()
+        with pytest.raises(NutritionDataGap, match='Cobertura nutricional'):
+            service.generate_diet(anamnese)
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_passa_com_alimentos_conhecidos(self, mock_call, anamnese):
+        """Plano com todos alimentos no DB deve gerar normalmente."""
+        mock_call.side_effect = [
+            _wrap_api_response(_FOOD_SELECTION_RESPONSE),
+            _wrap_api_response(_NOTES_RESPONSE),
+            _wrap_api_response(_EXPLANATION_RESPONSE),
+        ]
+        service = AIService()
+        plan = service.generate_diet(anamnese)
+        assert plan.pk is not None
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_passa_com_um_unico_desconhecido(self, mock_call, anamnese):
+        """1 alimento exótico em 5 não dispara o gate (abaixo do count mínimo)."""
+        # Resposta com 2 refeições completas + 1 alimento desconhecido no almoço.
+        # O alimento desconhecido (zzzzz) cai no fallback genérico mas representa
+        # apenas 1 de 9 itens (11%) → abaixo do gate de 20%.
+        ok_response = {
+            'goal_description': 'Teste',
+            'meals': [
+                {
+                    'name': 'Almoço',
+                    'time_suggestion': '12:00',
+                    'foods': [
+                        {'name': 'Frango grelhado', 'quantity_text': '120g', 'quantity_g': 120},
+                        {'name': 'Arroz', 'quantity_text': '100g', 'quantity_g': 100},
+                        {'name': 'Feijão', 'quantity_text': '80g', 'quantity_g': 80},
+                        {'name': 'Tomate', 'quantity_text': '50g', 'quantity_g': 50},
+                        {'name': 'zzzzz_unico_desconhecido_xxxxxxx', 'quantity_text': '20g',
+                         'quantity_g': 20},
+                    ],
+                },
+                {
+                    'name': 'Jantar',
+                    'time_suggestion': '19:30',
+                    'foods': [
+                        {'name': 'Tilapia grelhada', 'quantity_text': '200g', 'quantity_g': 200},
+                        {'name': 'Batata doce', 'quantity_text': '120g', 'quantity_g': 120},
+                        {'name': 'Azeite oliva', 'quantity_text': '15ml', 'quantity_g': 15},
+                        {'name': 'Brocolis cozido', 'quantity_text': '80g', 'quantity_g': 80},
+                    ],
+                },
+            ],
+        }
+        mock_call.side_effect = [
+            _wrap_api_response(ok_response),
+            _wrap_api_response(_NOTES_RESPONSE),
+            _wrap_api_response(_EXPLANATION_RESPONSE),
+        ]
+        service = AIService()
+        plan = service.generate_diet(anamnese)
+        assert plan.pk is not None
+
+    @patch.object(AIService, '_call_api')
+    def test_geracao_falha_antes_de_chamar_explanation(self, mock_call, anamnese):
+        """Fail-fast: ao detectar gap, não deve chamar IA para notes/explanation."""
+        from nutrition.services import NutritionDataGap
+        bad_response = {
+            'goal_description': 'Teste',
+            'meals': [{
+                'name': 'Almoço', 'time_suggestion': '12:00',
+                'foods': [
+                    {'name': 'aaaaa_desconhecido_111', 'quantity_text': '100g',
+                     'quantity_g': 100},
+                    {'name': 'bbbbb_desconhecido_222', 'quantity_text': '100g',
+                     'quantity_g': 100},
+                ],
+            }],
+        }
+        mock_call.return_value = _wrap_api_response(bad_response)
+        service = AIService()
+        with pytest.raises(NutritionDataGap):
+            service.generate_diet(anamnese)
+        # Apenas 1 chamada (Passo 1) — notes e explanation não foram acionados
+        assert mock_call.call_count == 1
+
+    @patch.object(AIService, '_call_api')
+    def test_regenerate_meal_falha_se_alimentos_desconhecidos(self, mock_call, anamnese):
+        from nutrition.services import NutritionDataGap
+        plan = DietPlan.objects.create(
+            user=anamnese.user,
+            anamnese=anamnese,
+            raw_response={
+                'meals': [{
+                    'name': 'Café da manhã', 'time_suggestion': '07:00',
+                    'foods': [{'name': 'Pão', 'quantity_text': '50g',
+                              'quantity_g': 50, 'calories': 145}],
+                }],
+            },
+            total_calories=145,
+        )
+        Meal.objects.create(
+            diet_plan=plan, meal_name='Café da manhã (07:00)',
+            description='Pão', calories=145, order=0,
+        )
+        mock_call.return_value = _wrap_api_response({
+            'name': 'Café da manhã', 'time_suggestion': '07:00',
+            'foods': [
+                {'name': 'aaaaa_inexistente', 'quantity_text': '50g', 'quantity_g': 50},
+                {'name': 'bbbbb_inexistente', 'quantity_text': '50g', 'quantity_g': 50},
+            ],
+        })
+        service = AIService()
+        with pytest.raises(NutritionDataGap):
+            service.regenerate_meal(plan, 0)
 
 
 # ============================================================================
@@ -699,3 +1271,125 @@ class TestRateLimiting:
             f'Cache de produção ({actual_class}) detectado em testes. '
             'Use cache in-memory para testes.'
         )
+
+
+# ---------------------------------------------------------------------------
+# A7 — Validação de limites em peso, altura e meals_per_day (AnamneseSerializer)
+# ---------------------------------------------------------------------------
+
+_VALID_ANAMNESE = {
+    'idade': 30,
+    'sexo': 'M',
+    'peso': 80,
+    'altura': 175,
+    'nivel_atividade': 'moderate',
+    'objetivo': 'lose',
+    'meals_per_day': 4,
+}
+
+
+@pytest.mark.django_db
+class TestAnamneseSerializerBounds:
+    """Garante que limites fisiológicos são aplicados no endpoint POST /api/v1/anamnese."""
+
+    def _post(self, auth_client, payload):
+        client, _ = auth_client
+        return client.post('/api/v1/anamnese', payload, format='json')
+
+    # --- peso ---
+
+    def test_peso_zero_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'peso': 0}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_peso_negativo_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'peso': -5}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_peso_abaixo_minimo_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'peso': 9}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_peso_acima_maximo_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'peso': 501}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_peso_no_limite_inferior_aceito(self, auth_client):
+        # 10 kg é o mínimo permitido (casos médicos extremos)
+        data = {**_VALID_ANAMNESE, 'peso': 10, 'altura': 120}
+        r = self._post(auth_client, data)
+        # Pode falhar validação de IMC (IMC = 10/(1.2²) ≈ 6.9 < 10) — esperamos 400
+        # O importante é que não retorna 500 (ZeroDivisionError)
+        assert r.status_code in (200, 201, 400)
+
+    def test_peso_500kg_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'peso': 500}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    # --- altura ---
+
+    def test_altura_abaixo_minimo_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'altura': 49}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_altura_acima_maximo_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'altura': 281}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_altura_zero_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'altura': 0}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    # --- meals_per_day ---
+
+    def test_meals_per_day_zero_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'meals_per_day': 0}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_meals_per_day_50_retorna_400(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'meals_per_day': 50}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_meals_per_day_maximo_aceito(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'meals_per_day': 12}
+        r = self._post(auth_client, data)
+        assert r.status_code in (200, 201)
+
+    def test_meals_per_day_minimo_aceito(self, auth_client):
+        data = {**_VALID_ANAMNESE, 'meals_per_day': 1}
+        r = self._post(auth_client, data)
+        assert r.status_code in (200, 201)
+
+    # --- validação cruzada de IMC ---
+
+    def test_imc_implausivel_baixo_retorna_400(self, auth_client):
+        # IMC = 10 / (1.8²) ≈ 3.1 → abaixo de 10
+        data = {**_VALID_ANAMNESE, 'peso': 10, 'altura': 180}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_imc_implausivel_alto_retorna_400(self, auth_client):
+        # IMC = 500 / (1.5²) ≈ 222 → acima de 70
+        data = {**_VALID_ANAMNESE, 'peso': 499, 'altura': 150}
+        r = self._post(auth_client, data)
+        assert r.status_code == 400
+
+    def test_imc_valido_aceito(self, auth_client):
+        # IMC = 80 / (1.75²) ≈ 26 → plausível
+        data = {**_VALID_ANAMNESE, 'peso': 80, 'altura': 175}
+        r = self._post(auth_client, data)
+        assert r.status_code in (200, 201)
+
+    def test_dados_completamente_validos_aceitos(self, auth_client):
+        r = self._post(auth_client, _VALID_ANAMNESE)
+        assert r.status_code in (200, 201)

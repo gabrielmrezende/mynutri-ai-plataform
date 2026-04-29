@@ -254,16 +254,22 @@ _CATEGORY_FALLBACKS: list[tuple[list[str], tuple[float, float, float, float]]] =
     (['amendoim', 'castanha', 'nozes', 'amendoa'], (600, 18.0, 18.0, 52.0)),
 ]
 
-# Palavras ignoradas na normalização (preposições, modos de preparo comuns)
+# Palavras removidas na normalização — apenas preposições/artigos e descritores
+# de tamanho/embalagem que não têm valor nutricional.
+#
+# IMPORTANTE: palavras de preparo (grelhado, cozido, integral, desnatado…)
+# NÃO estão aqui. Elas participam do matching porque o DB tem entradas distintas
+# com valores calóricos diferentes para cada preparo (ex: frango grelhado ≠
+# frango assado). A normalização simétrica (input e chaves do DB) garante que
+# "frango grelhado" bata na entrada correta em vez da entrada genérica "frango".
 _STRIP_WORDS = frozenset({
-    'grelhado', 'grelhada', 'cozido', 'cozida', 'assado', 'assada',
-    'refogado', 'refogada', 'mexido', 'mexida', 'frito', 'frita',
-    'cru', 'crua', 'natural', 'fresco', 'fresca', 'escorrido', 'escorrida',
-    'desnatado', 'desnatada', 'semidesnatado', 'integral', 'light',
-    'em', 'de', 'do', 'da', 'dos', 'das', 'ao', 'na', 'no',
+    # Preposições e artigos
+    'em', 'de', 'do', 'da', 'dos', 'das', 'ao', 'na', 'no', 'e',
     'sem', 'com', 'para',
+    # Tamanho — não afeta macros
     'pequeno', 'pequena', 'medio', 'media', 'grande',
-    'lata', 'pele', 'agua', 'oleo', 'tipo',
+    # Embalagem e contexto irrelevantes
+    'lata', 'pele', 'tipo',
 })
 
 
@@ -280,31 +286,47 @@ def _normalize(name: str) -> str:
     return ' '.join(words)
 
 
+# Versão do DB com chaves normalizadas pelo mesmo _normalize aplicado aos inputs.
+# Isso garante matching simétrico: "Frango Grelhado" (input) bate em
+# "frango grelhado" (chave normalizada) em vez de colapsar para "frango".
+_DB_NORMALIZED: dict[str, tuple[float, float, float, float]] = {
+    _normalize(k): v for k, v in _DB.items()
+}
+
+
 def lookup_food_nutrition(food_name: str, quantity_g: float) -> dict:
     """
     Retorna calorias e macros para um alimento dado peso em gramas.
 
-    Estratégia em 4 camadas:
-      1. Match exato no banco após normalização
-      2. Score por sobreposição de palavras (melhor match acima de 40%)
-      3. Fallback por categoria (palavras-chave)
-      4. Fallback genérico (~150 kcal/100g, macros balanceados)
+    Estratégia em 4 camadas. O dict retornado inclui '_source' indicando qual
+    camada produziu o resultado — usado por services._check_db_coverage para
+    rejeitar planos com cobertura insuficiente.
+
+      'exact'    — match exato no DB normalizado
+      'fuzzy'    — score por sobreposição ≥ 40% (camada 2)
+      'category' — palavra-chave de categoria (camada 3)
+      'generic'  — sem match — fallback 150 kcal/100g (camada 4)
+      'invalid'  — input inválido (nome vazio ou qty ≤ 0)
     """
     if not food_name or quantity_g <= 0:
-        return _scale(150, 8.0, 20.0, 4.0, quantity_g)
+        result = _scale(150, 8.0, 20.0, 4.0, quantity_g)
+        result['_source'] = 'invalid'
+        return result
 
     normalized = _normalize(food_name)
 
-    # 1. Match exato
-    if normalized in _DB:
-        return _scale(*_DB[normalized], quantity_g)
+    # 1. Match exato (normalização simétrica: input e chaves do DB tratados igual)
+    if normalized in _DB_NORMALIZED:
+        result = _scale(*_DB_NORMALIZED[normalized], quantity_g)
+        result['_source'] = 'exact'
+        return result
 
     # 2. Score por sobreposição de palavras
     food_words = set(normalized.split())
     best_score = 0.0
     best_key   = None
 
-    for key in _DB:
+    for key in _DB_NORMALIZED:
         key_words = set(key.split())
         overlap   = len(food_words & key_words)
         if overlap == 0:
@@ -320,18 +342,32 @@ def lookup_food_nutrition(food_name: str, quantity_g: float) -> dict:
             'Alimento "%s" → match no banco: "%s" (score=%.2f)',
             food_name, best_key, best_score,
         )
-        return _scale(*_DB[best_key], quantity_g)
+        result = _scale(*_DB_NORMALIZED[best_key], quantity_g)
+        result['_source'] = 'fuzzy'
+        return result
 
     # 3. Fallback por categoria
     norm_original = _strip_accents(food_name.lower())
     for keywords, macros in _CATEGORY_FALLBACKS:
         if any(kw in norm_original for kw in keywords):
-            logger.debug('Alimento "%s" → fallback de categoria.', food_name)
-            return _scale(*macros, quantity_g)
+            logger.info(
+                '[DB_GAP] Alimento "%s" não encontrado — fallback de categoria (palavra-chave: %s).',
+                food_name,
+                next(kw for kw in keywords if kw in norm_original),
+            )
+            result = _scale(*macros, quantity_g)
+            result['_source'] = 'category'
+            return result
 
-    # 4. Fallback genérico
-    logger.warning('Alimento não encontrado no banco: "%s". Usando fallback genérico.', food_name)
-    return _scale(150, 8.0, 20.0, 4.0, quantity_g)
+    # 4. Fallback genérico — indica lacuna real no banco nutricional
+    logger.warning(
+        '[DB_GAP] Alimento "%s" sem correspondência no banco nutricional. '
+        'Usando fallback genérico (150 kcal/100g). Considere adicionar ao nutrition_db.py.',
+        food_name,
+    )
+    result = _scale(150, 8.0, 20.0, 4.0, quantity_g)
+    result['_source'] = 'generic'
+    return result
 
 
 def _scale(
