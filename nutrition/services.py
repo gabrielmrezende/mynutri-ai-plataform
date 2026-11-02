@@ -20,6 +20,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .models import Anamnese, DietPlan, Meal
 import unicodedata
 
+from .allergens import (
+    food_contains_allergen,
+    food_violates_restriction,
+    is_allergen_term,
+    parse_allergens,
+    parse_restrictions,
+)
 from .nutrition_db import lookup_food_nutrition
 
 # Palavras-chave que identificam fontes proteicas primárias.
@@ -315,48 +322,38 @@ class MacroImbalanceError(TransientAIError):
     pass
 
 
-def _parse_allergens(allergies_text: str) -> list[str]:
+class RestrictionViolation(AllergenViolation):
     """
-    Parseia o campo de alergias (texto livre) em lista de alergenos normalizados.
-
-    Aceita separadores: vírgula, ponto-e-vírgula, ponto, quebra de linha, " e ".
-    Normaliza para minúsculas sem acentos. Descarta entradas com < 3 caracteres.
+    Plano gerado contém alimento que viola restrição alimentar declarada
+    (vegetariano, vegano, sem lactose, sem glúten...). Subclasse de
+    AllergenViolation para herdar o mesmo tratamento de retry.
     """
-    if not allergies_text or not allergies_text.strip():
-        return []
-    parts = re.split(r'[,;.\n]|\s+e\s+', allergies_text)
-    seen: set[str] = set()
-    out: list[str] = []
-    for p in parts:
-        normalized = _strip_accents(p.strip().lower())
-        normalized = re.sub(r'^[^\w\s]+|[^\w\s]+$', '', normalized).strip()
-        if len(normalized) >= 3 and normalized not in seen:
-            seen.add(normalized)
-            out.append(normalized)
-    return out
+    pass
 
 
-def _food_contains_allergen(food_name: str, allergens: list[str]) -> str | None:
-    """
-    Retorna o alergeno detectado no nome do alimento, ou None.
+# Parsing e matching de alergias/restrições vivem em allergens.py; os nomes
+# com prefixo "_" são mantidos por compatibilidade (views e testes os importam).
+_parse_allergens = parse_allergens
+_food_contains_allergen = food_contains_allergen
+_parse_restrictions = parse_restrictions
 
-    Estratégia:
-      - Alergeno de uma palavra (ex: "amendoim"): word boundary, evita falso
-        positivo em "novo" → "ovo".
-      - Alergeno multi-palavra (ex: "frutos do mar"): substring, garante que
-        a frase inteira esteja presente.
+
+def _declared_allergens(anamnese) -> list[str]:
     """
-    if not food_name or not allergens:
-        return None
-    normalized = _strip_accents(food_name.lower())
-    for allergen in allergens:
-        if ' ' in allergen:
-            if allergen in normalized:
-                return allergen
-        else:
-            if re.search(rf'\b{re.escape(allergen)}\b', normalized):
-                return allergen
-    return None
+    Alérgenos efetivos do usuário: campo de alergias + alérgenos declarados
+    no campo de restrições (o questionário envia os checkboxes de alergia
+    — gluten, lactose, ovo... — junto com as restrições).
+    """
+    allergens = parse_allergens(getattr(anamnese, 'allergies', '') or '')
+    for restriction in parse_restrictions(getattr(anamnese, 'food_restrictions', '') or ''):
+        if is_allergen_term(restriction) and restriction not in allergens:
+            allergens.append(restriction)
+    return allergens
+
+
+def _declared_restrictions(anamnese) -> list[str]:
+    """Restrições de dieta reconhecidas no campo food_restrictions."""
+    return parse_restrictions(getattr(anamnese, 'food_restrictions', '') or '')
 
 
 from .prompts import (
@@ -374,6 +371,20 @@ from .prompts import (
 from .substitutions import generate_meal_substitutions
 
 logger = logging.getLogger(__name__)
+
+
+def substitutions_for_plan(meals: list[dict], anamnese) -> list[dict]:
+    """
+    Gera substituições respeitando alergias E restrições do usuário.
+    Ponto único para views/tasks gerarem substituições de um plano.
+    """
+    if anamnese is None:
+        return generate_meal_substitutions(meals, [])
+    return generate_meal_substitutions(
+        meals,
+        _declared_allergens(anamnese),
+        restrictions=_declared_restrictions(anamnese),
+    )
 
 
 class AIService:
@@ -846,39 +857,72 @@ class AIService:
 
         O LLM pode ignorar a instrução "evite completamente" no prompt. Esta
         camada determinística é a última linha de defesa antes de servir um
-        plano potencialmente perigoso.
+        plano potencialmente perigoso. Cada alérgeno é expandido para a sua
+        família de alimentos (ex: 'leite' → queijo, iogurte, whey...).
 
-        Levanta AllergenViolation com a lista de violações encontradas.
-        Como AllergenViolation é ValueError com "alergia" na mensagem, a task
-        do Celery faz retry automático (até 2x) — geração não-determinística
-        pode produzir um plano válido na próxima tentativa.
+        Levanta AllergenViolation (TransientAIError): a task do Celery faz
+        retry automático — geração não-determinística pode produzir um plano
+        válido na próxima tentativa.
         """
-        allergens = _parse_allergens(anamnese.allergies or '')
+        allergens = _declared_allergens(anamnese)
         if not allergens:
             return
 
+        violations = self._find_violations(
+            diet_data, lambda name: food_contains_allergen(name, allergens),
+        )
+        if violations:
+            logger.error(
+                '[ALLERGY_VIOLATION] Plano para usuário %s viola alergias declaradas: %s',
+                anamnese.user_id, self._format_violations(violations),
+            )
+            raise AllergenViolation(
+                'O plano gerado contém alimentos incompatíveis com as alergias '
+                f'declaradas ({self._format_violations(violations)}). Tente gerar novamente.'
+            )
+
+    def _enforce_restrictions(self, diet_data: dict, anamnese: Anamnese) -> None:
+        """
+        Verifica se algum alimento do plano viola as restrições de dieta
+        declaradas (vegetariano, vegano, sem lactose, sem glúten...).
+        Levanta RestrictionViolation (retryable), como _enforce_allergies.
+        """
+        restrictions = _declared_restrictions(anamnese)
+        if not restrictions:
+            return
+
+        violations = self._find_violations(
+            diet_data, lambda name: food_violates_restriction(name, restrictions),
+        )
+        if violations:
+            logger.error(
+                '[RESTRICTION_VIOLATION] Plano para usuário %s viola restrições declaradas: %s',
+                anamnese.user_id, self._format_violations(violations),
+            )
+            raise RestrictionViolation(
+                'O plano gerado contém alimentos incompatíveis com as restrições '
+                f'alimentares declaradas ({self._format_violations(violations)}). '
+                'Tente gerar novamente.'
+            )
+
+    @staticmethod
+    def _find_violations(diet_data: dict, matcher) -> list[tuple[str, str, str]]:
+        """Lista (refeição, alimento, termo violado) para cada alimento bloqueado."""
         violations: list[tuple[str, str, str]] = []
         for meal in diet_data.get('meals', []):
             meal_name = meal.get('name', '?')
             for food in meal.get('foods', []):
                 food_name = food.get('name', '')
-                matched = _food_contains_allergen(food_name, allergens)
+                matched = matcher(food_name)
                 if matched:
                     violations.append((meal_name, food_name, matched))
+        return violations
 
-        if violations:
-            details = '; '.join(
-                f'"{food}" em "{meal}" (alergeno: {a})'
-                for meal, food, a in violations
-            )
-            logger.error(
-                '[ALLERGY_VIOLATION] Plano para usuário %s viola alergias declaradas: %s',
-                anamnese.user_id, details,
-            )
-            raise AllergenViolation(
-                f'O plano gerado contém alimentos que violam alergias declaradas: '
-                f'{details}. Tente gerar novamente.'
-            )
+    @staticmethod
+    def _format_violations(violations: list[tuple[str, str, str]]) -> str:
+        return '; '.join(
+            f'"{food}" em "{meal}" ({term})' for meal, food, term in violations[:5]
+        )
 
     # ──────────────────────────────────────────────────────────────────────────
     #  DICAS PERSONALIZADAS (chamada separada, falha silenciosamente)
@@ -1029,8 +1073,9 @@ class AIService:
         if 'meals' not in diet_data or not diet_data['meals']:
             raise TransientAIError('A IA não retornou refeições válidas. Tente novamente.')
 
-        # ── Enforcement de alergias (fail-fast antes do trabalho caro) ────────
+        # ── Enforcement de alergias e restrições (fail-fast) ──────────────────
         self._enforce_allergies(diet_data, anamnese)
+        self._enforce_restrictions(diet_data, anamnese)
 
         # ── Backend: enriquece com macros do banco nutricional ────────────────
         logger.info('Calculando macros via banco nutricional para usuário %s...', anamnese.user_id)
@@ -1053,9 +1098,8 @@ class AIService:
         self._validate_macro_ratios(diet_data, anamnese, target_calories)
 
         # ── Substituições inteligentes (determinístico — backend, sem IA) ──────
-        allergens_list = _parse_allergens(anamnese.allergies or '')
-        diet_data['substitutions'] = generate_meal_substitutions(
-            diet_data.get('meals', []), allergens_list
+        diet_data['substitutions'] = substitutions_for_plan(
+            diet_data.get('meals', []), anamnese
         )
         logger.info(
             '[SUBSTITUTIONS] %d substituições geradas para usuário %s.',
@@ -1209,8 +1253,9 @@ class AIService:
         new_meal_data.setdefault('name', current_meal.get('name', f'Refeição {meal_index + 1}'))
         new_meal_data.setdefault('time_suggestion', current_meal.get('time_suggestion', ''))
 
-        # Enforcement de alergias antes de enriquecer (fail-fast)
+        # Enforcement de alergias e restrições antes de enriquecer (fail-fast)
         self._enforce_allergies({'meals': [new_meal_data]}, diet_plan.anamnese)
+        self._enforce_restrictions({'meals': [new_meal_data]}, diet_plan.anamnese)
 
         # Enriquece com macros do banco nutricional (determinístico)
         enriched, db_stats = self._enrich_foods_with_macros({'meals': [new_meal_data]})

@@ -11,7 +11,8 @@ Não repete as mesmas sugestões em todas as refeições.
 """
 
 import unicodedata
-import re
+
+from .allergens import food_contains_allergen, food_violates_restriction
 
 
 def _norm(text: str) -> str:
@@ -165,23 +166,17 @@ def _find_rule(food_name: str) -> tuple[str, list[tuple[str, float]]] | None:
 
 
 def _food_contains_allergen(food_name: str, allergens: list[str]) -> bool:
-    """Retorna True se o alimento contém algum alergeno da lista."""
-    if not food_name or not allergens:
-        return False
-    normalized = _norm(food_name)
-    for allergen in allergens:
-        if ' ' in allergen:
-            if allergen in normalized:
-                return True
-        else:
-            if re.search(rf'\b{re.escape(allergen)}\b', normalized):
-                return True
-    return False
+    """
+    Retorna True se o alimento contém algum alergeno da lista — incluindo a
+    família do alérgeno (ex: 'leite' bloqueia "Iogurte natural").
+    """
+    return food_contains_allergen(food_name, allergens) is not None
 
 
 def generate_meal_substitutions(
     meals: list[dict],
     allergens: list[str] | None = None,
+    restrictions: list[str] | None = None,
 ) -> list[dict]:
     """
     Gera substituições contextuais para cada alimento relevante do plano.
@@ -192,11 +187,15 @@ def generate_meal_substitutions(
     Regras aplicadas:
     - Apenas alimentos com substituições no banco de regras recebem sugestões
     - Substituições são filtradas por tipo de refeição (não sugere arroz no café)
-    - Alternativas que violam alergias são omitidas
+    - Alternativas que violam alergias (inclusive a família do alérgeno) são omitidas
+    - Alternativas que violam restrições (allergens.parse_restrictions:
+      vegetariano, vegano, sem lactose...) são omitidas
     - Cada alimento aparece no máximo uma vez (sem duplicatas entre refeições)
     """
     if allergens is None:
         allergens = []
+    if restrictions is None:
+        restrictions = []
 
     result: list[dict] = []
     seen_foods: set[str] = set()
@@ -228,6 +227,8 @@ def generate_meal_substitutions(
             alt_strs: list[str] = []
             for alt_name, ratio in alternatives:
                 if allergens and _food_contains_allergen(alt_name, allergens):
+                    continue
+                if restrictions and food_violates_restriction(alt_name, restrictions):
                     continue
                 alt_qty = max(10, round(qty_g * ratio))
                 alt_strs.append(f"{alt_name} ({alt_qty}g)")
