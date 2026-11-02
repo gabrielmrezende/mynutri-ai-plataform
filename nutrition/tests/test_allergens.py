@@ -7,7 +7,6 @@ Cobre os casos da auditoria: alérgeno declarado em termo "família"
 derivados (queijo, pão, camarão, castanha-do-pará...).
 """
 
-from unittest.mock import patch
 
 import pytest
 

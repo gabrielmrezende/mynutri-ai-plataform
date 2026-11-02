@@ -238,9 +238,9 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
 if not GOOGLE_CLIENT_ID:
     if not DEBUG:
         raise ValueError(
-            f'\n❌ Variável "GOOGLE_CLIENT_ID" não configurada.\n'
-            f'   Client ID OAuth do Google (console.cloud.google.com → Credenciais).\n'
-            f'   Configure em .env (local) ou nas Environment Variables do Render.\n'
+            '\n❌ Variável "GOOGLE_CLIENT_ID" não configurada.\n'
+            '   Client ID OAuth do Google (console.cloud.google.com → Credenciais).\n'
+            '   Configure em .env (local) ou nas Environment Variables do Render.\n'
         )
     GOOGLE_CLIENT_ID = '806980657199-js2h4t4o9cq8577c7geulvgosdt777t2.apps.googleusercontent.com'
 

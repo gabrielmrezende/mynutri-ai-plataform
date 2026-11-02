@@ -145,6 +145,9 @@ class DietPlan(models.Model):
         verbose_name = 'Plano Alimentar'
         verbose_name_plural = 'Planos Alimentares'
         ordering = ['-created_at']
+        indexes = [
+            Index(fields=['user', '-created_at'], name='dietplan_user_created_idx'),
+        ]
 
     def __str__(self):
         return f'Plano de {self.user} — {self.created_at.strftime("%d/%m/%Y")} ({self.total_calories} kcal)'
@@ -214,6 +217,9 @@ class DietJob(models.Model):
         verbose_name = 'Job de Geração'
         verbose_name_plural = 'Jobs de Geração'
         ordering = ['-created_at']
+        indexes = [
+            Index(fields=['user', 'status'], name='dietjob_user_status_idx'),
+        ]
 
     def __str__(self):
         return f'DietJob#{self.pk} [{self.status}] — usuário {self.user_id}'

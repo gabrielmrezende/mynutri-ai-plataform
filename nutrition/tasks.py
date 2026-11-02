@@ -44,6 +44,11 @@ _USER_MESSAGES = {
         'várias tentativas. Verifique se o campo de alergias está claro '
         '(ex: "amendoim, leite, frutos do mar") ou contate o suporte.'
     ),
+    'RestrictionViolation': (
+        'Não foi possível gerar um plano respeitando suas restrições alimentares '
+        '(ex: vegetariano, sem lactose) após várias tentativas. Revise as '
+        'restrições informadas no questionário ou contate o suporte.'
+    ),
     'NutritionDataGap': (
         'Não conseguimos gerar um plano com cálculos calóricos confiáveis '
         'após várias tentativas. Tente reformular suas preferências '

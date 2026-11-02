@@ -664,8 +664,7 @@ class MealRegenerateAPIView(APIView):
             )
 
         # ── Fase 3: aplica sob lock, relendo o estado atual ──────────────────
-        from .substitutions import generate_meal_substitutions
-        from .services import _parse_allergens
+        from .services import substitutions_for_plan
 
         with transaction.atomic():
             try:
@@ -710,11 +709,8 @@ class MealRegenerateAPIView(APIView):
             raw_copy['meals'] = meals_copy
             total_cal = _recalculate_plan_totals(raw_copy)
 
-            # Regenera substituições contextuais com o plano atualizado
-            allergens_list = _parse_allergens(
-                (diet_plan.anamnese.allergies or '') if diet_plan.anamnese else ''
-            )
-            raw_copy['substitutions'] = generate_meal_substitutions(meals_copy, allergens_list)
+            # Regenera substituições respeitando alergias e restrições do usuário
+            raw_copy['substitutions'] = substitutions_for_plan(meals_copy, diet_plan.anamnese)
 
             diet_plan.raw_response   = raw_copy
             diet_plan.total_calories = total_cal

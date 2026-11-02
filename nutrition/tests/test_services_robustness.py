@@ -285,7 +285,8 @@ class TestNutritionDbMatching:
         assert r['_source'] in _GAP_SOURCES, (name, r)
 
     def test_batata_frita_nao_herda_kcal_da_batata_cozida(self):
-        assert lookup_food_nutrition('Batata frita', 100)['calories'] != lookup_food_nutrition('Batata', 100)['calories']
+        frita = lookup_food_nutrition('Batata frita', 100)['calories']
+        assert frita != lookup_food_nutrition('Batata', 100)['calories']
 
     @pytest.mark.parametrize('name', ['Tilápia assada', 'Frango grelhado com ervas', 'Arroz branco',
                                       'Peito de frango desfiado', 'Banana prata madura', 'Ovos mexidos'])

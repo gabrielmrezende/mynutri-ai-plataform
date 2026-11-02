@@ -20,6 +20,7 @@ select = ["E", "F"]
 # Dívida existente em código legado — exceções pontuais por arquivo/regra para o
 # CI passar sem mascarar regras novas. Remova a entrada ao limpar o arquivo.
 "nutrition/services.py" = ["E402", "E501", "E701"]
+"nutrition/portions.py" = ["E701"]  # tabelas de arredondamento extraídas de services.py
 "nutrition/substitutions.py" = ["E501"]
 "nutrition/prompts/*.py" = ["E501", "F401"]
 "nutrition/tests/test_calculations.py" = ["E741", "F401"]
