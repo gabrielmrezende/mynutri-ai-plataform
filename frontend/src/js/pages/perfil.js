@@ -1,6 +1,10 @@
 (function () {
   const setLoading = setLoadingById;
-  let userData = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+  let userData = null;
+  try { userData = JSON.parse(localStorage.getItem('mynutri_user') || 'null'); } catch { userData = null; }
+
+  // Contas criadas via Google não têm senha utilizável (contrato C1: has_password)
+  let _hasPassword = true;
 
   // --- User menu + sidebar avatar ---
   initUserMenu({
@@ -45,7 +49,9 @@
     item.addEventListener('click', function () {
       document.querySelectorAll('.sidebar-nav-item').forEach(function (i) { i.classList.remove('active'); });
       document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      document.querySelectorAll('.sidebar-nav-item').forEach(function (i) { i.removeAttribute('aria-current'); });
       item.classList.add('active');
+      item.setAttribute('aria-current', 'true');
       document.getElementById('panel-' + item.dataset.panel).classList.add('active');
 
       if (item.dataset.panel === 'nutricional') loadNutricional();
@@ -73,6 +79,9 @@
       document.getElementById('inputDob').value       = data.date_of_birth || '';
 
       originalDados = { firstName, lastName, phone: data.phone || '', dob: data.date_of_birth || '' };
+
+      _hasPassword = data.has_password !== false;
+      applyPasswordMode();
 
       const nomeCompleto = data.nome || data.email;
       setNavUser(nomeCompleto, data.email);
@@ -111,10 +120,9 @@
         body: JSON.stringify({ first_name, last_name, phone, date_of_birth }),
       });
 
-      const json = await res.json();
+      const json = await safeJson(res) || {};
       if (!res.ok) {
-        const msg = Object.values(json).flat().join(' ');
-        showAlert('alertDadosErr', msg || 'Erro ao salvar.');
+        showAlert('alertDadosErr', apiErrorMessage(res.status, json, 'Não foi possível salvar. Tente novamente.'));
         return;
       }
 
@@ -127,7 +135,7 @@
       originalDados = { firstName: first_name, lastName: last_name, phone, dob: date_of_birth || '' };
       showAlert('alertDadosOk');
     } catch {
-      showAlert('alertDadosErr', 'Erro de conexão. Verifique se o servidor está rodando.');
+      showAlert('alertDadosErr', friendlyMessage('network'));
     } finally {
       setLoading('btnSaveDados', 'spinnerDados', false);
     }
@@ -184,7 +192,7 @@
       _renderAnamnese(d);
 
     } catch (err) {
-      elLoading.innerHTML = `<p style="color:var(--gray-400);font-size:.9rem;">Não foi possível carregar o dashboard.</p>`;
+      elLoading.textContent = 'Não foi possível carregar o dashboard. Tente novamente em instantes.';
     }
   }
 
@@ -279,7 +287,7 @@
         <div class="goal-banner-icon">${icons[d.objetivo] || icons.maintain}</div>
         <div>
           <div class="goal-banner-title">Seu objetivo</div>
-          <div class="goal-banner-text">${GOAL_MAP[d.objetivo] || d.objetivo}</div>
+          <div class="goal-banner-text">${escapeHtml(GOAL_MAP[d.objetivo] || d.objetivo || '—')}</div>
           <div class="goal-banner-sub">${subtitles[d.objetivo] || ''}</div>
         </div>
       </div>`;
@@ -309,24 +317,24 @@
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>',
         color: 'orange', label: 'TMB',
         numVal: tmb ? Math.round(tmb) : null, isFloat: false, unit: 'kcal/dia',
-        extra: '<div style="font-size:.68rem;color:var(--gray-400);margin-top:2px;">Taxa Metabólica Basal</div>',
+        extra: '<div class="dash-metric-extra">Taxa Metabólica Basal</div>',
       },
       {
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
         color: 'blue', label: 'Gasto Total (TDEE)',
         numVal: tdee, isFloat: false, unit: 'kcal/dia',
-        extra: '<div style="font-size:.68rem;color:var(--gray-400);margin-top:2px;">Com atividade física</div>',
+        extra: '<div class="dash-metric-extra">Com atividade física</div>',
       },
       {
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
         color: 'purple', label: 'Meta Calórica',
         numVal: meta, isFloat: false, unit: 'kcal/dia',
-        extra: '<div style="font-size:.68rem;color:var(--gray-400);margin-top:2px;">Ajustada ao objetivo</div>',
+        extra: '<div class="dash-metric-extra">Ajustada ao objetivo</div>',
       },
       {
         icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
         color: 'teal', label: 'Refeições/dia',
-        numVal: d.meals_per_day ? parseInt(d.meals_per_day) : null, isFloat: false, unit: 'refeições',
+        numVal: d.meals_per_day ? (parseInt(d.meals_per_day, 10) || null) : null, isFloat: false, unit: 'refeições',
         extra: '',
       },
     ];
@@ -455,18 +463,20 @@
     const items = diets.results.slice(0, 5).map(function (plan) {
       const date = new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
       const goal = plan.goal_description || '—';
-      const kcal = plan.calorias_totais ? plan.calorias_totais.toLocaleString('pt-BR') + ' kcal' : '—';
+      const kcalNum = toNumber(plan.calorias_totais, 0);
+      const kcal = kcalNum ? kcalNum.toLocaleString('pt-BR') + ' kcal' : '—';
+      // Link para a dieta específica (não a mais recente)
       return `
-        <a href="/dieta/" class="diet-history-item">
-          <div class="diet-history-dot"></div>
-          <div class="diet-history-date">${date}</div>
-          <div class="diet-history-kcal">${kcal}</div>
-          <div class="diet-history-goal">${goal}</div>
+        <a href="/dieta/?id=${toNumber(plan.id, 0)}" class="diet-history-item">
+          <div class="diet-history-dot" aria-hidden="true"></div>
+          <div class="diet-history-date">${escapeHtml(date)}</div>
+          <div class="diet-history-kcal">${escapeHtml(kcal)}</div>
+          <div class="diet-history-goal">${escapeHtml(goal)}</div>
           ${arrowSvg}
         </a>`;
     }).join('');
 
-    const total  = diets.count;
+    const total  = toNumber(diets.count, 0);
     const footer = total > 5
       ? `<div style="text-align:center;margin-top:14px;">
            <a href="/historico/" style="font-size:.82rem;color:var(--green-600);font-weight:700;text-decoration:none;">
@@ -496,8 +506,8 @@
       .map(function (f, i) {
         return `
           <div class="anam-item" style="animation-delay:${i * 0.05}s">
-            <div class="anam-label">${f.label}</div>
-            <div class="anam-value">${f.value}</div>
+            <div class="anam-label">${escapeHtml(f.label)}</div>
+            <div class="anam-value">${escapeHtml(f.value)}</div>
           </div>`;
       }).join('');
   }
@@ -525,11 +535,31 @@
     label.textContent     = configs[strength].text;
   });
 
+  // --- Modo sem senha (conta Google) ---
+  function applyPasswordMode() {
+    const formSenha   = document.getElementById('formSenha');
+    const notice      = document.getElementById('senhaSemSenha');
+    const senhaGroup  = document.getElementById('excluirSenhaGroup');
+    const confirmGrp  = document.getElementById('excluirConfirmGroup');
+    if (formSenha) formSenha.hidden = !_hasPassword;
+    if (notice) {
+      notice.hidden = _hasPassword;
+      notice.classList.toggle('show', !_hasPassword);
+    }
+    if (senhaGroup) senhaGroup.hidden = !_hasPassword;
+    if (confirmGrp) confirmGrp.hidden = _hasPassword;
+  }
+
   // --- Save password ---
   document.getElementById('formSenha').addEventListener('submit', async function (e) {
     e.preventDefault();
     hideAlert('alertSenhaOk');
     hideAlert('alertSenhaErr');
+
+    if (!_hasPassword) {
+      showAlert('alertSenhaErr', 'Sua conta usa login com Google e não possui senha para alterar.');
+      return;
+    }
 
     const atual     = document.getElementById('inputSenhaAtual').value;
     const nova      = document.getElementById('inputNovaSenha').value;
@@ -557,15 +587,9 @@
         body: JSON.stringify({ current_password: atual, new_password: nova }),
       });
 
-      if (res.status === 404) {
-        showAlert('alertSenhaErr', 'Endpoint de alteração de senha ainda não disponível.');
-        return;
-      }
-
-      const json = await res.json();
+      const json = await safeJson(res);
       if (!res.ok) {
-        const msg = Object.values(json).flat().join(' ');
-        showAlert('alertSenhaErr', msg || 'Erro ao alterar senha.');
+        showAlert('alertSenhaErr', apiErrorMessage(res.status, json, 'Não foi possível alterar a senha.'));
         return;
       }
 
@@ -574,7 +598,7 @@
       document.getElementById('strengthFill').style.width = '0';
       document.getElementById('strengthLabel').textContent = '';
     } catch {
-      showAlert('alertSenhaErr', 'Erro de conexão.');
+      showAlert('alertSenhaErr', friendlyMessage('network'));
     } finally {
       setLoading('btnSaveSenha', 'spinnerSenha', false);
     }
@@ -582,72 +606,95 @@
 
   // --- Delete account ---
   (function () {
-    let modalOverlay = null;
+    const CONFIRM_WORD = 'EXCLUIR';
+    let _trigger = null;      // elemento que abriu o modal (recebe o foco de volta)
+    let _onConfirm = null;
 
     function buildModal() {
       if (document.getElementById('deleteModalOverlay')) return;
       const overlay = document.createElement('div');
       overlay.className = 'delete-modal-overlay';
       overlay.id = 'deleteModalOverlay';
+      overlay.inert = true;
       overlay.innerHTML = `
-        <div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
-          <div class="delete-modal-icon">
+        <div class="delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="deleteModalTitle" aria-describedby="deleteModalBody">
+          <div class="delete-modal-icon" aria-hidden="true">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </div>
-          <div class="delete-modal-title" id="deleteModalTitle">Tem certeza absoluta?</div>
-          <div class="delete-modal-body">
+          <h2 class="delete-modal-title" id="deleteModalTitle" tabindex="-1">Tem certeza absoluta?</h2>
+          <div class="delete-modal-body" id="deleteModalBody">
             Você está prestes a excluir permanentemente sua conta e <strong>todos os seus dados</strong>, incluindo dietas, histórico e informações pessoais.<br><br>
             <strong>Esta ação não pode ser desfeita.</strong>
           </div>
           <div class="delete-modal-actions">
-            <button class="btn-cancel-modal" id="btnCancelDeleteModal">Cancelar</button>
-            <button class="btn-confirm-delete" id="btnConfirmDelete">Sim, excluir minha conta</button>
+            <button type="button" class="btn-cancel-modal" id="btnCancelDeleteModal">Cancelar</button>
+            <button type="button" class="btn-confirm-delete" id="btnConfirmDelete">Sim, excluir minha conta</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
-      modalOverlay = overlay;
 
       document.getElementById('btnCancelDeleteModal').addEventListener('click', closeModal);
+      document.getElementById('btnConfirmDelete').addEventListener('click', function () {
+        if (_onConfirm) _onConfirm();
+      });
       overlay.addEventListener('click', function (e) {
         if (e.target === overlay) closeModal();
       });
-      document.addEventListener('keydown', function onKey(e) {
-        if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', onKey); }
+      // ESC fecha sempre (listener permanente, não removido após o 1º uso) + focus trap
+      document.addEventListener('keydown', function (e) {
+        if (!overlay.classList.contains('show')) return;
+        if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+        trapFocus(e, overlay.querySelector('.delete-modal'));
       });
     }
 
-    function openModal() {
+    function openModal(onConfirm) {
       buildModal();
+      _onConfirm = onConfirm;
+      _trigger = document.activeElement;
+      const overlay = document.getElementById('deleteModalOverlay');
+      overlay.inert = false;
       requestAnimationFrame(function () {
-        document.getElementById('deleteModalOverlay').classList.add('show');
+        overlay.classList.add('show');
+        // Foco inicial no botão seguro (Cancelar)
+        document.getElementById('btnCancelDeleteModal').focus();
       });
     }
 
     function closeModal() {
       const overlay = document.getElementById('deleteModalOverlay');
-      if (overlay) {
-        overlay.classList.remove('show');
-      }
+      if (!overlay) return;
+      overlay.classList.remove('show');
+      overlay.inert = true;
+      _onConfirm = null;
+      if (_trigger && document.contains(_trigger)) _trigger.focus();
+      _trigger = null;
     }
 
     document.getElementById('formExcluir').addEventListener('submit', function (e) {
       e.preventDefault();
       hideAlert('alertExcluirErr');
 
-      const senha = document.getElementById('inputSenhaExcluir').value.trim();
-      if (!senha) {
-        showAlert('alertExcluirErr', 'Digite sua senha para confirmar.');
-        return;
+      let body;
+      if (_hasPassword) {
+        const senha = document.getElementById('inputSenhaExcluir').value;
+        if (!senha) {
+          showAlert('alertExcluirErr', 'Digite sua senha para confirmar.');
+          document.getElementById('inputSenhaExcluir').focus();
+          return;
+        }
+        body = { password: senha };
+      } else {
+        const typed = document.getElementById('inputConfirmExcluir').value.trim().toUpperCase();
+        if (typed !== CONFIRM_WORD) {
+          showAlert('alertExcluirErr', `Digite ${CONFIRM_WORD} para confirmar a exclusão.`);
+          document.getElementById('inputConfirmExcluir').focus();
+          return;
+        }
+        body = { confirm: CONFIRM_WORD };
       }
 
-      openModal();
-
-      // Bind confirm button fresh each open to avoid duplicate listeners
-      const btnConfirm = document.getElementById('btnConfirmDelete');
-      const btnConfirmClone = btnConfirm.cloneNode(true);
-      btnConfirm.parentNode.replaceChild(btnConfirmClone, btnConfirm);
-
-      btnConfirmClone.addEventListener('click', async function () {
+      openModal(async function () {
         closeModal();
         setLoading('btnExcluirConta', 'spinnerExcluir', true);
 
@@ -655,23 +702,21 @@
           const res = await apiFetch(`${API_BASE}/user/delete-account`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: senha }),
+            body: JSON.stringify(body),
+            redirectOn401: false,
           });
 
-          const json = await res.json();
-
           if (!res.ok) {
-            const msg = json.error || Object.values(json).flat().join(' ');
-            showAlert('alertExcluirErr', msg || 'Erro ao excluir conta.');
+            const json = await safeJson(res);
+            showAlert('alertExcluirErr', apiErrorMessage(res.status, json, 'Não foi possível excluir a conta.'));
             return;
           }
 
-          // Limpar dados locais e redirecionar
-          localStorage.clear();
-          sessionStorage.clear();
+          // Remove só os dados do app (preserva preferências como o tema)
+          clearAppStorage();
           window.location.href = '/?conta_excluida=1';
         } catch {
-          showAlert('alertExcluirErr', 'Erro de conexão. Tente novamente.');
+          showAlert('alertExcluirErr', friendlyMessage('network'));
         } finally {
           setLoading('btnExcluirConta', 'spinnerExcluir', false);
         }

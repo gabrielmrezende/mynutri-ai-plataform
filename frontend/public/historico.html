@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Histórico de Dietas — MyNutri AI</title>
   <meta name="description" content="Veja todas as dietas geradas para você pelo MyNutri AI." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
-  <link rel="stylesheet" href="/static/src/styles/index.css" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/historico.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- ===================== HEADER ===================== -->
   <header class="header scrolled" id="header">
@@ -17,7 +24,7 @@
       <a href="/" class="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
@@ -71,7 +78,7 @@
   </header>
 
   <!-- ===================== MAIN ===================== -->
-  <main class="history-page">
+  <main class="history-page" id="main-content">
     <div class="container" style="max-width: 820px;">
 
       <!-- Page header -->
@@ -87,8 +94,8 @@
       </div>
 
       <!-- Loading -->
-      <div class="state-center" id="stateLoading">
-        <div class="spinner"></div>
+      <div class="state-center" id="stateLoading" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
         <p class="state-title">Carregando histórico…</p>
       </div>
 
@@ -101,11 +108,11 @@
       </div>
 
       <!-- Error -->
-      <div class="state-center" id="stateError" style="display:none;">
+      <div class="state-center" id="stateError" role="alert" style="display:none;">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#f87171"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <p class="state-title">Não foi possível carregar</p>
         <p class="state-subtitle" id="errorMsg">Tente novamente em alguns instantes.</p>
-        <button onclick="loadHistory()" class="btn-new-diet" style="margin-top:8px;">Tentar novamente</button>
+        <button type="button" id="btnRetry" class="btn-new-diet" style="margin-top:8px;">Tentar novamente</button>
       </div>
 
       <!-- List -->
@@ -115,15 +122,18 @@
           <span id="countText">— dietas</span>
         </div>
         <div class="history-list" id="historyList"></div>
+        <div class="load-more-wrap">
+          <button type="button" id="btnLoadMore" class="btn-load-more" hidden>Carregar mais</button>
+        </div>
       </div>
 
     </div>
   </main>
 
-  <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
   <script src="/static/src/js/utils/helpers.js" defer></script>
   <script src="/static/src/js/components/user-menu.js" defer></script>
   <script src="/static/src/js/pages/historico.js" defer></script>
+  <div class="sub-toast" id="sub-toast" role="status" aria-live="polite"></div>
 </body>
 </html>

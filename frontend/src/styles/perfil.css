@@ -47,6 +47,8 @@ body { background: var(--gray-50); min-height: 100vh; }
 
 .sidebar-nav { padding: 8px 0; }
 .sidebar-nav-item {
+  width: 100%; background: none; border: 0; border-left: 3px solid transparent;
+  font-family: inherit; text-align: left;
   display: flex; align-items: center; gap: 12px;
   padding: 13px 20px;
   font-size: .9rem; color: var(--gray-600);
@@ -113,7 +115,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   background: var(--gray-50); color: var(--gray-500);
   cursor: not-allowed;
 }
-.form-hint { font-size: .8rem; color: var(--gray-400); }
+.form-hint { font-size: .8rem; color: var(--gray-500); }
 
 .form-actions {
   display: flex; align-items: center; gap: 12px;
@@ -152,7 +154,8 @@ body { background: var(--gray-50); min-height: 100vh; }
 }
 .alert.show { display: flex; }
 .alert-success { background: var(--green-50); color: var(--green-700); border: 1px solid var(--green-200); }
-.alert-error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.alert-error   { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+.alert-info    { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
 
 /* ── Nutritional info grid ── */
 .info-grid {
@@ -178,7 +181,7 @@ body { background: var(--gray-50); min-height: 100vh; }
 .badge-purple { background: #f3e8ff; color: #7c3aed; }
 
 .empty-state {
-  text-align: center; padding: 40px 20px; color: var(--gray-400);
+  text-align: center; padding: 40px 20px; color: var(--gray-500);
 }
 .empty-state svg { margin-bottom: 12px; opacity: .5; }
 .empty-state p { font-size: .9rem; margin-bottom: 16px; }
@@ -189,16 +192,7 @@ body { background: var(--gray-50); min-height: 100vh; }
 .strength-fill { height: 100%; border-radius: 2px; transition: width .3s ease, background .3s ease; width: 0; }
 .strength-label { font-size: .75rem; color: var(--gray-500); margin-top: 4px; }
 
-/* ── Spinner ── */
-.spinner-sm {
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,.4);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin .6s linear infinite;
-  display: none;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* .spinner-sm e @keyframes spin: ver base.css */
 
 /* ══════════════════════════════════════════
    DASHBOARD NUTRICIONAL
@@ -307,7 +301,7 @@ html.dark .dash-metric-icon.teal   { background: rgba(13,148,136,.12); color: #5
 
 .dash-metric-label {
   font-size: .7rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--gray-400);
+  letter-spacing: .06em; color: var(--gray-500);
 }
 .dash-metric-value {
   font-family: 'Outfit', sans-serif;
@@ -328,7 +322,7 @@ html.dark .dash-metric-card:hover.orange .dash-metric-value { color: #fdba74; }
 html.dark .dash-metric-card:hover.teal   .dash-metric-value { color: #5eead4; }
 
 .dash-metric-unit {
-  font-size: .72rem; font-weight: 500; color: var(--gray-400);
+  font-size: .72rem; font-weight: 500; color: var(--gray-500);
 }
 
 /* ── IMC badge ── */
@@ -353,7 +347,7 @@ html.dark .imc-obese  { background: rgba(220,38,38,.2);   color: #fca5a5; }
   font-family: 'Outfit', sans-serif;
   font-size: .75rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .07em;
-  color: var(--gray-400);
+  color: var(--gray-500);
   margin: 24px 0 12px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -452,7 +446,7 @@ html.dark .goal-banner-sub { color: var(--green-400); }
   border-color: var(--green-200);
 }
 .progress-step.pending {
-  background: var(--gray-50); color: var(--gray-400);
+  background: var(--gray-50); color: var(--gray-500);
   border-color: var(--gray-100);
 }
 html.dark .progress-step.done {
@@ -460,7 +454,7 @@ html.dark .progress-step.done {
   border-color: rgba(34,197,94,.25);
 }
 html.dark .progress-step.pending {
-  background: rgba(255,255,255,.04); color: var(--gray-400);
+  background: rgba(255,255,255,.04); color: var(--gray-500);
   border-color: rgba(255,255,255,.08);
 }
 
@@ -490,7 +484,7 @@ html.dark .progress-step.pending {
   color: var(--gray-800); line-height: 1;
 }
 .macro-donut-sub {
-  font-size: .62rem; color: var(--gray-400); margin-top: 3px; font-weight: 500;
+  font-size: .62rem; color: var(--gray-500); margin-top: 3px; font-weight: 500;
 }
 .macro-legend { display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 150px; }
 .macro-legend-item {
@@ -508,7 +502,7 @@ html.dark .macro-legend-item:hover { background: rgba(255,255,255,.04); }
 .macro-legend-item:hover .macro-legend-dot { transform: scale(1.3); }
 .macro-legend-name { font-size: .82rem; color: var(--gray-600); flex: 1; }
 .macro-legend-val  { font-size: .82rem; font-weight: 700; color: var(--gray-800); }
-.macro-legend-pct  { font-size: .72rem; color: var(--gray-400); margin-left: 3px; }
+.macro-legend-pct  { font-size: .72rem; color: var(--gray-500); margin-left: 3px; }
 
 /* ── Diet history ── */
 .diet-history-list { display: flex; flex-direction: column; gap: 8px; }
@@ -584,7 +578,7 @@ html.dark .diet-history-goal {
 html.dark .anam-item:hover { border-color: rgba(255,255,255,.12); }
 .anam-label {
   font-size: .68rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--gray-400); margin-bottom: 5px;
+  letter-spacing: .06em; color: var(--gray-500); margin-bottom: 5px;
 }
 .anam-value { font-size: .9375rem; font-weight: 600; color: var(--gray-800); }
 
@@ -640,7 +634,9 @@ html.dark .delete-account-warning strong { color: #f87171; }
   opacity: 0; pointer-events: none;
   transition: opacity .2s ease;
 }
-.delete-modal-overlay.show { opacity: 1; pointer-events: auto; }
+.delete-modal-overlay.show { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity .2s ease, visibility 0s; }
+/* Fechado: invisível também para teclado/leitores de tela */
+.delete-modal-overlay:not(.show) { visibility: hidden; transition: opacity .2s ease, visibility 0s linear .2s; }
 .delete-modal {
   background: var(--white);
   border-radius: var(--radius-lg);
@@ -652,7 +648,7 @@ html.dark .delete-account-warning strong { color: #f87171; }
   text-align: center;
 }
 .delete-modal-overlay.show .delete-modal { transform: scale(1); }
-html.dark .delete-modal { background: var(--gray-900); }
+html.dark .delete-modal { background: var(--surface); }
 .delete-modal-icon {
   width: 56px; height: 56px;
   background: #fef2f2; border-radius: 50%;
@@ -661,9 +657,9 @@ html.dark .delete-modal { background: var(--gray-900); }
   color: #dc2626;
 }
 html.dark .delete-modal-icon { background: rgba(220,38,38,.15); }
-.delete-modal-title { font-size: 1.125rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
-html.dark .delete-modal-title { color: var(--gray-50); }
-.delete-modal-body { font-size: .9rem; color: var(--gray-500); line-height: 1.6; margin-bottom: 24px; }
+.delete-modal-title { font-size: 1.125rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+
+.delete-modal-body { font-size: .9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
 .delete-modal-actions { display: flex; gap: 10px; justify-content: center; }
 .delete-modal-actions .btn-cancel-modal {
   padding: 10px 22px;
@@ -673,8 +669,8 @@ html.dark .delete-modal-title { color: var(--gray-50); }
   transition: background .2s ease;
 }
 .delete-modal-actions .btn-cancel-modal:hover { background: var(--gray-200); }
-html.dark .delete-modal-actions .btn-cancel-modal { background: var(--gray-800); color: var(--gray-200); }
-html.dark .delete-modal-actions .btn-cancel-modal:hover { background: var(--gray-700); }
+html.dark .delete-modal-actions .btn-cancel-modal { background: var(--surface-2); color: var(--text); }
+html.dark .delete-modal-actions .btn-cancel-modal:hover { background: var(--border); }
 .delete-modal-actions .btn-confirm-delete {
   padding: 10px 22px;
   background: linear-gradient(135deg, #dc2626, #b91c1c);
@@ -691,3 +687,9 @@ html.dark .delete-modal-actions .btn-cancel-modal:hover { background: var(--gray
   .macro-donut  { width: 110px; height: 110px; }
   .macro-chart-wrap { gap: 16px; }
 }
+
+
+/* ── Modal de exclusão: confirmação por texto (contas sem senha) ── */
+.delete-modal .delete-modal-actions .btn-confirm-delete:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+.delete-modal-title:focus { outline: none; }
+.dash-metric-extra { font-size: .68rem; color: var(--gray-500); margin-top: 2px; }
