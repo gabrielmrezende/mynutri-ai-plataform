@@ -10,342 +10,51 @@ Arquitetura de geração de dietas em passos:
 Isso elimina a variabilidade de macros causada por delegar aritmética ao modelo.
 """
 
-import json
 import logging
-import math
-import os
-import random
-import re
-import time
-import unicodedata
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from django.conf import settings
 
 from .models import Anamnese, DietPlan, Meal
 
-from .allergens import (
+# ── Módulos extraídos de services.py ─────────────────────────────────────────
+#   ai_client.py  — HTTP da API de IA (retry, parse da resposta)
+#   errors.py     — hierarquia de exceções
+#   allergens.py  — alergias e restrições alimentares
+#   portions.py   — palavras-chave, arredondamento e medidas caseiras
+#   validators.py — estrutura do JSON do LLM e proporções de macros
+# Os nomes abaixo são re-exportados para manter os imports existentes
+# (views, tasks, testes e patches com caminho 'nutrition.services.X').
+from .ai_client import AIClient
+from .allergens import (  # noqa: F401
+    declared_allergens as _declared_allergens,
+    declared_restrictions as _declared_restrictions,
     food_contains_allergen,
     food_violates_restriction,
-    is_allergen_term,
     parse_allergens,
     parse_restrictions,
 )
+from .errors import (  # noqa: F401
+    AllergenViolation,
+    DietGenerationError,
+    MacroImbalanceError,
+    NutritionDataGap,
+    PermanentAIError,
+    RestrictionViolation,
+    TransientAIError,
+)
 from .nutrition_db import lookup_food_nutrition
-from .textnorm import canonical, contains_phrase
-
-# Palavras-chave que identificam fontes proteicas primárias.
-# Usadas em _adjust_to_calorie_target para preservar porções de proteína.
-_PROTEIN_KEYWORDS = frozenset([
-    'frango', 'carne', 'peixe', 'atum', 'salmao', 'tilapia', 'merluza',
-    'bacalhau', 'sardinha', 'camarao', 'robalo', 'ovo', 'ovos', 'clara',
-    'whey', 'proteina', 'feijao', 'lentilha', 'tofu', 'soja',
-    'patinho', 'alcatra', 'picanha', 'file', 'musculo', 'contrafile',
-    'acem', 'lagarto', 'peru', 'presunto', 'queijo', 'iogurte', 'cottage',
-])
-
-# Palavras-chave que identificam alimentos densos em gordura.
-# Usadas em _adjust_to_calorie_target para evitar que escalas grandes
-# multipliquem óleos/castanhas/manteiga a porções absurdas.
-_FAT_KEYWORDS = frozenset([
-    'azeite', 'oleo', 'manteiga', 'margarina', 'creme',
-    'castanha', 'nozes', 'amendoim', 'amendoa', 'pasta amendoim',
-    'abacate', 'coco', 'bacon', 'banha', 'toucinho',
-])
-
-# Bebidas de calorias zero ou negligenciáveis — nunca devem ser escaladas
-# para compensar déficit calórico de outros alimentos.
-_ZERO_CALORIE_KEYWORDS = frozenset([
-    'refrigerante zero', 'refrigerante diet', 'refrigerante light',
-    'coca zero', 'coca cola zero', 'pepsi zero', 'guarana zero',
-    'bebida zero', 'agua', 'cha verde', 'cha', 'cafe preto', 'cafe',
-])
-
-
-def _has(name_canon: str, *keywords: str) -> bool:
-    """
-    True se alguma palavra-chave aparece no nome como PALAVRA INTEIRA.
-    `name_canon` deve vir de textnorm.canonical(); as palavras-chave são
-    canonicalizadas aqui (singular, sem acento) — 'cha' não casa "Salsicha",
-    'maca' não casa "Macarrão", 'nozes' casa "Noz".
-    """
-    return any(contains_phrase(name_canon, canonical(kw)) for kw in keywords)
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  ARREDONDAMENTO DE PORÇÕES — medidas práticas de consumo
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# Regras: (frozenset de palavras-chave, múltiplo de arredondamento, mínimo)
-#
-# A ordem importa: a primeira regra que casar é usada.
-# Palavras-chave são testadas por palavra inteira no nome canônico (ver _has).
-
-_ROUNDING_RULES: list[tuple[frozenset, int, int]] = [
-    # Óleos e gorduras puras: colher de chá = 5g
-    (frozenset(['azeite', 'oleo', 'manteiga', 'margarina', 'banha']),        5,   5),
-    # Proteína em pó, aveia, farinha, granola: colher de sopa ≈ 10g
-    (frozenset(['aveia', 'whey', 'farinha', 'granola', 'cereal']),          10,  10),
-    # Castanhas e oleaginosas: porção = 10g
-    (frozenset(['castanha', 'amendoa', 'nozes', 'pasta amendoim']),         10,  10),
-    # Amendoim (inteiro): punhado ≈ 15g
-    (frozenset(['amendoim torrado', 'amendoim']),                            15,  15),
-    # Tapioca: meia tapioca ≈ 40g, inteira ≈ 80g → múltiplo de 20
-    (frozenset(['tapioca']),                                                 20,  20),
-    # Queijo e laticínios sólidos: fatia ≈ 30g
-    (frozenset(['queijo', 'requeijao', 'cottage']),                         30,  30),
-    # Ovos: 1 ovo médio ≈ 50g (para arredondar 1, 2, 3 ovos)
-    (frozenset(['ovo', 'ovos', 'clara', 'omelete']),                        50,  50),
-    # Embutidos e pão: fatia/unidade ≈ 25g
-    (frozenset(['pao', 'presunto', 'peito peru', 'salsicha', 'linguica']),  25,  25),
-    # Carnes, aves e peixes: filé/bife ≈ 25g de precisão, mínimo 50g
-    (frozenset(['frango', 'carne', 'peixe', 'tilapia', 'salmao', 'atum',
-                'sardinha', 'camarao', 'file', 'patinho', 'alcatra',
-                'picanha', 'musculo', 'contrafile', 'acem', 'lagarto',
-                'bacalhau', 'merluza', 'robalo', 'peru', 'carne moida',
-                'carne seca', 'paio']),                                     25,  50),
-    # Arroz, massas, tubérculos, leguminosas: medida de colher/concha ≈ 50g
-    (frozenset(['arroz', 'macarrao', 'esparguete', 'massa', 'batata',
-                'mandioca', 'aipim', 'macaxeira', 'cuscuz', 'feijao',
-                'lentilha', 'grao', 'ervilha', 'milho', 'soja']),           50,  50),
-    # Leite e iogurte: copo/pote ≈ 50g de precisão, mínimo 100g
-    (frozenset(['leite', 'iogurte']),                                        50, 100),
-    # Frutas: unidade ≈ 50g de precisão, mínimo 50g
-    (frozenset(['banana', 'maca', 'laranja', 'mamao', 'manga', 'uva',
-                'morango', 'melancia', 'kiwi', 'pera', 'abacaxi', 'caju',
-                'tangerina', 'mexerica', 'pessego', 'goiaba']),              50,  50),
-]
-
-
-def _round_food_quantity(food_name: str, qty_g: float) -> int:
-    """
-    Arredonda a quantidade de um alimento para o múltiplo prático mais próximo.
-
-    Usa as regras de _ROUNDING_RULES por categoria; para alimentos sem
-    categoria específica aplica arredondamento graduado:
-      ≤ 50g  → múltiplos de 5g
-      ≤ 200g → múltiplos de 25g
-       > 200g → múltiplos de 50g
-    """
-    normalized = canonical(food_name)
-
-    for keywords, multiple, minimum in _ROUNDING_RULES:
-        if _has(normalized, *keywords):
-            rounded = round(qty_g / multiple) * multiple
-            return int(max(minimum, rounded))
-
-    # Arredondamento graduado para alimentos sem categoria específica
-    if qty_g <= 50:
-        return int(max(5, round(qty_g / 5) * 5))
-    elif qty_g <= 200:
-        return int(round(qty_g / 25) * 25)
-    else:
-        return int(round(qty_g / 50) * 50)
-
-
-def _household_measure(food_name: str, qty_g: int) -> str:
-    """
-    Retorna a medida caseira aproximada para exibição ao usuário.
-
-    Exemplos: '300g' → '≈ 8 col. de sopa' (arroz), '150g' → '≈ 1 filé médio' (frango).
-    Retorna string vazia se não houver medida conhecida para o alimento.
-    """
-    n = canonical(food_name)
-    q = qty_g
-
-    # ── Ovos ─────────────────────────────────────────────────────────────────
-    if _has(n, 'clara'):
-        count = max(1, round(q / 33))
-        return f'{count} {"clara" if count == 1 else "claras"}'
-    if _has(n, *('ovo', 'ovos', 'omelete')):
-        count = max(1, round(q / 50))
-        return f'{count} {"unidade" if count == 1 else "unidades"}'
-
-    # ── Óleos e gorduras ─────────────────────────────────────────────────────
-    if _has(n, *('azeite', 'oleo', 'manteiga', 'margarina')):
-        if q <= 5:   return '1 col. de chá'
-        if q <= 10:  return '1 col. de sopa'
-        if q <= 15:  return '1 col. de sopa cheia'
-        return f'{round(q / 15)} col. de sopa'
-
-    # ── Cereais e tubérculos ─────────────────────────────────────────────────
-    if _has(n, 'arroz'):
-        col = max(1, round(q / 35))
-        return f'{col} col. de sopa'
-    if _has(n, *('macarrao', 'esparguete', 'massa', 'penne')):
-        xic = round(q / 100)
-        return f'{max(1, xic)} {"xícara" if xic <= 1 else "xícaras"}'
-    if _has(n, 'batata doce') or _has(n, 'batata-doce'):
-        if q <= 100: return '½ unid. média'
-        if q <= 180: return '1 unid. média'
-        return '1 unid. grande'
-    if _has(n, 'batata'):
-        if q <= 100: return '1 batata pequena'
-        if q <= 180: return '1 batata média'
-        return '1 batata grande'
-    if _has(n, 'mandioca') or _has(n, 'aipim') or _has(n, 'macaxeira'):
-        if q <= 100: return '1 pedaço pequeno'
-        return f'{round(q / 100)} pedaços'
-    if _has(n, 'cuscuz'):
-        col = max(1, round(q / 40))
-        return f'{col} col. de sopa'
-
-    # ── Leguminosas ───────────────────────────────────────────────────────────
-    if _has(n, *('feijao', 'lentilha', 'grao', 'ervilha')):
-        conchas = max(1, round(q / 80))
-        return f'{conchas} {"concha" if conchas == 1 else "conchas"}'
-
-    # ── Pão e tapioca ─────────────────────────────────────────────────────────
-    if _has(n, 'tapioca'):
-        if q <= 45:  return '½ tapioca'
-        if q <= 90:  return '1 tapioca'
-        if q <= 130: return '1½ tapioca'
-        return f'{round(q / 80)} tapiocas'
-    if _has(n, 'pao'):
-        if q <= 35:  return '½ unidade'
-        if q <= 65:  return '1 unidade'
-        return f'{round(q / 50)} unidades'
-
-    # ── Cereais e sementes ────────────────────────────────────────────────────
-    if _has(n, *('aveia', 'granola')):
-        col = max(1, round(q / 10))
-        return f'{col} col. de sopa'
-    if _has(n, *('whey', 'farinha')):
-        col = max(1, round(q / 10))
-        return f'{col} col. de sopa'
-
-    # ── Laticínios ────────────────────────────────────────────────────────────
-    if _has(n, 'leite'):
-        if q <= 100: return '½ copo'
-        if q <= 200: return '1 copo'
-        return f'{round(q / 200)} copos'
-    if _has(n, 'iogurte'):
-        if q <= 120: return '½ pote'
-        if q <= 220: return '1 pote'
-        return f'{round(q / 180)} potes'
-    if _has(n, *('queijo', 'requeijao')):
-        fatias = max(1, round(q / 25))
-        return f'{fatias} {"fatia" if fatias == 1 else "fatias"}'
-
-    # ── Oleaginosas ───────────────────────────────────────────────────────────
-    if _has(n, *('castanha', 'amendoa', 'nozes')):
-        unid = max(1, round(q / 5))
-        return f'{unid} unidades'
-    if _has(n, 'amendoim') and not _has(n, 'pasta'):
-        if q <= 15: return '1 punhado'
-        return f'{round(q / 15)} punhados'
-    if _has(n, 'pasta') and _has(n, 'amendoim'):
-        col = max(1, round(q / 15))
-        return f'{col} col. de sopa'
-
-    # ── Carnes, aves e peixes ─────────────────────────────────────────────────
-    if _has(n, *('frango', 'tilapia', 'salmao', 'peixe',
-                             'file', 'merluza', 'bacalhau', 'robalo')):
-        if q <= 100: return '1 filé pequeno'
-        if q <= 160: return '1 filé médio'
-        if q <= 220: return '1 filé grande'
-        return f'{round(q / 150)} filés'
-    if _has(n, *('patinho', 'alcatra', 'picanha', 'contrafile',
-                             'carne bovina', 'carne moida', 'musculo', 'acem')):
-        if q <= 120: return '1 bife pequeno'
-        if q <= 180: return '1 bife médio'
-        return '1 bife grande'
-    if _has(n, 'atum'):
-        latas = max(1, round(q / 85))
-        return f'{latas} {"lata" if latas == 1 else "latas"}'
-    if _has(n, 'sardinha'):
-        return '1 lata' if q <= 100 else '2 latas'
-
-    # ── Frutas ────────────────────────────────────────────────────────────────
-    if _has(n, *('banana',)):
-        if q <= 80: return '½ banana'
-        if q <= 130: return '1 banana'
-        return '1 banana grande'
-    if _has(n, *('maca', 'pera', 'pessego')):
-        if q <= 100: return '½ unidade'
-        return '1 unidade'
-    if _has(n, *('laranja', 'tangerina', 'mexerica')):
-        if q <= 80: return '½ unidade'
-        return '1 unidade'
-    if _has(n, *('mamao', 'manga')):
-        if q <= 100: return '1 fatia'
-        if q <= 200: return '2 fatias'
-        return '3 fatias'
-
-    # ── Legumes e folhas ──────────────────────────────────────────────────────
-    if _has(n, *('alface', 'rucula', 'espinafre', 'acelga', 'salada')):
-        if q <= 40: return '½ prato'
-        return '1 prato'
-    if _has(n, *('brocolis', 'couve', 'cenoura', 'abobrinha', 'chuchu')):
-        if q <= 80: return '½ xícara'
-        return '1 xícara'
-
-    return ''
-
-
-def _strip_accents(text: str) -> str:
-    text = unicodedata.normalize('NFD', text)
-    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-
-
-class DietGenerationError(Exception):
-    """Base para todos os erros de geração de dieta."""
-    pass
-
-
-class TransientAIError(DietGenerationError):
-    """
-    Erro transitório — a task Celery deve fazer retry.
-
-    Indica que a falha pode ser resolvida tentando novamente:
-    resposta mal formatada da IA, cobertura nutricional insuficiente,
-    alérgeno detectado (a IA pode escolher outros alimentos), ou
-    desequilíbrio de macros (a IA pode montar um plano melhor).
-    """
-    pass
-
-
-class PermanentAIError(DietGenerationError):
-    """
-    Erro permanente — retry não resolve, falha deve ser reportada ao usuário.
-
-    Indica problema de configuração ou dado inválido:
-    chave de API ausente, anamnese corrompida, etc.
-    """
-    pass
-
-
-class AllergenViolation(TransientAIError):
-    """Plano gerado contém alimento que viola alergias declaradas."""
-    pass
-
-
-class NutritionDataGap(TransientAIError):
-    """
-    Muitos alimentos do plano caem no fallback genérico do nutrition_db
-    (150 kcal/100g) — o cálculo calórico fica pouco confiável.
-    """
-    pass
-
-
-class MacroImbalanceError(TransientAIError):
-    """
-    Proporções de macronutrientes fora dos limites fisiologicamente razoáveis.
-
-    Exemplos: carboidratos > 65% das calorias, proteína < 65% da meta,
-    gordura < 15% das calorias.
-    """
-    pass
-
-
-class RestrictionViolation(AllergenViolation):
-    """
-    Plano gerado contém alimento que viola restrição alimentar declarada
-    (vegetariano, vegano, sem lactose, sem glúten...). Subclasse de
-    AllergenViolation para herdar o mesmo tratamento de retry.
-    """
-    pass
+from .portions import (  # noqa: F401
+    MAX_QUANTITY_G,
+    MIN_QUANTITY_G,
+    _FAT_KEYWORDS,
+    _PROTEIN_KEYWORDS,
+    _ZERO_CALORIE_KEYWORDS,
+    _coerce_quantity_g,
+    _has,
+    _household_measure,
+    _round_food_quantity,
+)
+from .textnorm import canonical
+from .validators import _validate_plan_structure, macro_ratio_violations
 
 
 # Parsing e matching de alergias/restrições vivem em allergens.py; os nomes
@@ -353,24 +62,6 @@ class RestrictionViolation(AllergenViolation):
 _parse_allergens = parse_allergens
 _food_contains_allergen = food_contains_allergen
 _parse_restrictions = parse_restrictions
-
-
-def _declared_allergens(anamnese) -> list[str]:
-    """
-    Alérgenos efetivos do usuário: campo de alergias + alérgenos declarados
-    no campo de restrições (o questionário envia os checkboxes de alergia
-    — gluten, lactose, ovo... — junto com as restrições).
-    """
-    allergens = parse_allergens(getattr(anamnese, 'allergies', '') or '')
-    for restriction in parse_restrictions(getattr(anamnese, 'food_restrictions', '') or ''):
-        if is_allergen_term(restriction) and restriction not in allergens:
-            allergens.append(restriction)
-    return allergens
-
-
-def _declared_restrictions(anamnese) -> list[str]:
-    """Restrições de dieta reconhecidas no campo food_restrictions."""
-    return parse_restrictions(getattr(anamnese, 'food_restrictions', '') or '')
 
 
 from .prompts import (
@@ -405,238 +96,11 @@ def substitutions_for_plan(meals: list[dict], anamnese) -> list[dict]:
     )
 
 
-# Limites de quantidade aceitos do LLM (gramas por alimento)
-MIN_QUANTITY_G = 5
-MAX_QUANTITY_G = 1000
-
-# Retry da API de IA
-RETRY_AFTER_MAX_S = 30      # teto para o header Retry-After
-RETRY_JITTER_MAX_S = 1.0    # jitter aleatório somado ao backoff
-
-_QUANTITY_RE = re.compile(r'^\s*(\d+(?:[.,]\d+)?)\s*(?:g|gr|grs|grama|gramas|ml)?\s*$', re.IGNORECASE)
-
-
-def _setting(name: str, default: str = '') -> str:
-    """Lê configuração de settings (preferencial) com fallback para variável de ambiente."""
-    return getattr(settings, name, None) or os.getenv(name, default)
-
-
-def _coerce_quantity_g(value) -> float | None:
-    """
-    Converte quantity_g vindo do LLM em gramas dentro de [5, 1000].
-
-    Aceita número ou texto simples como "150", "150g", "150,5 g".
-    Retorna None para quantidade ausente, ≤ 0, NaN ou infinita (o alimento
-    conta como lacuna de cobertura). Levanta TransientAIError para valores
-    que não são quantidades (ex: "um pouco", listas) — o LLM errou o formato.
-    """
-    if value is None or value == '':
-        return None
-    if isinstance(value, bool):
-        raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
-    if isinstance(value, (int, float)):
-        qty = float(value)
-    elif isinstance(value, str):
-        match = _QUANTITY_RE.match(value)
-        if not match:
-            raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
-        qty = float(match.group(1).replace(',', '.'))
-    else:
-        raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
-    if math.isnan(qty) or math.isinf(qty) or qty <= 0:
-        return None
-    return float(min(MAX_QUANTITY_G, max(MIN_QUANTITY_G, qty)))
-
-
-def _validate_plan_structure(diet_data, *, single_meal: bool = False) -> None:
-    """
-    Valida a estrutura mínima do JSON do LLM antes do processamento
-    determinístico. Estrutura inválida → TransientAIError (retry).
-    """
-    meals = [diet_data] if single_meal else (diet_data or {}).get('meals') if isinstance(diet_data, dict) else None
-    if not isinstance(meals, list) or not meals:
-        raise TransientAIError('A IA não retornou refeições válidas. Tente novamente.')
-    for meal in meals:
-        if not isinstance(meal, dict):
-            raise TransientAIError('A IA retornou refeições em formato inválido. Tente novamente.')
-        foods = meal.get('foods')
-        if not isinstance(foods, list) or not foods:
-            raise TransientAIError('A IA retornou refeições sem alimentos válidos. Tente novamente.')
-        for food in foods:
-            if not isinstance(food, dict) or not isinstance(food.get('name'), str) or not food['name'].strip():
-                raise TransientAIError('A IA retornou alimentos em formato inválido. Tente novamente.')
-            if 'quantity_text' in food and not isinstance(food['quantity_text'], str):
-                food['quantity_text'] = str(food['quantity_text'])
-
-
-class AIService:
+class AIService(AIClient):
     """
     Orquestra a geração de dieta via API compatível com OpenAI.
-
-    Configuração (settings do Django, com fallback para variável de ambiente):
-        AI_API_KEY  → chave de autenticação
-        AI_API_URL  → endpoint (ex: https://api.openai.com/v1/chat/completions)
-        AI_MODEL    → modelo (padrão: gpt-4o-mini)
+    A comunicação HTTP (_call_api, _parse_response) vem de ai_client.AIClient.
     """
-
-    def __init__(self):
-        self.api_key = _setting('AI_API_KEY')
-        self.api_url = _setting('AI_API_URL')
-        self.model   = _setting('AI_MODEL', 'gpt-4o-mini')
-
-    # ──────────────────────────────────────────────────────────────────────────
-    #  HTTP
-    # ──────────────────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _retry_wait(attempt: int, retry_after=None) -> float:
-        """
-        Tempo de espera antes da próxima tentativa: Retry-After (segundos, com
-        teto) quando informado pela API; senão backoff exponencial. Sempre
-        soma jitter aleatório para não sincronizar workers concorrentes.
-        """
-        base = None
-        if retry_after is not None:
-            try:
-                base = min(float(retry_after), RETRY_AFTER_MAX_S)
-            except (TypeError, ValueError):
-                base = None  # Retry-After em formato de data — usa backoff
-            if base is not None and base < 0:
-                base = None
-        if base is None:
-            base = float(2 ** attempt)
-        return base + random.uniform(0, RETRY_JITTER_MAX_S)
-
-    def _log_usage(self, api_response: dict) -> None:
-        """Registra o consumo de tokens informado pela API (sem conteúdo)."""
-        usage = api_response.get('usage') if isinstance(api_response, dict) else None
-        if isinstance(usage, dict):
-            logger.info(
-                '[AI_USAGE] modelo=%s tokens: prompt=%s completion=%s total=%s',
-                self.model, usage.get('prompt_tokens'), usage.get('completion_tokens'),
-                usage.get('total_tokens'),
-            )
-
-    def _call_api(
-        self,
-        user_prompt: str,
-        system_prompt: str,
-        temperature: float = 0.3,
-        json_mode: bool = True,
-        max_retries: int = 3,
-        max_tokens: int | None = None,
-    ) -> dict:
-        """
-        Realiza chamada à API de IA com retry em erros transitórios.
-
-        - HTTP 4xx (exceto 429): PermanentAIError, sem retry
-        - HTTP 429/5xx, erro de rede, resposta não-JSON: retry com Retry-After
-          ou backoff exponencial + jitter; esgotado → TransientAIError
-        Mensagens das exceções não contêm URL, chave nem corpo da resposta.
-        """
-        if not self.api_key or not self.api_url:
-            logger.error('[AI_CONFIG] AI_API_KEY/AI_API_URL não configurados.')
-            raise PermanentAIError('O serviço de IA não está configurado. Contate o suporte.')
-
-        body: dict = {
-            'model':       self.model,
-            'messages':    [
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user',   'content': user_prompt},
-            ],
-            'temperature': temperature,
-        }
-        if max_tokens is not None:
-            body['max_tokens'] = max_tokens
-        if json_mode:
-            body['response_format'] = {'type': 'json_object'}
-
-        payload = json.dumps(body).encode('utf-8')
-        req = urllib.request.Request(
-            self.api_url,
-            data=payload,
-            headers={
-                'Content-Type':  'application/json',
-                'Authorization': f'Bearer {self.api_key}',
-            },
-            method='POST',
-        )
-
-        for attempt in range(max_retries):
-            retry_after = None
-            try:
-                with urllib.request.urlopen(req, timeout=120) as response:
-                    raw = response.read()
-                try:
-                    data = json.loads(raw.decode('utf-8'))
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    reason = 'resposta não-JSON'
-                else:
-                    self._log_usage(data)
-                    return data
-            except urllib.error.HTTPError as e:
-                if e.code == 429 or e.code >= 500:
-                    reason = f'HTTP {e.code}'
-                    retry_after = e.headers.get('Retry-After') if e.headers else None
-                else:
-                    logger.error('[AI_HTTP] API de IA recusou a requisição: HTTP %s (sem retry).', e.code)
-                    raise PermanentAIError(
-                        'O serviço de IA recusou a requisição. Tente novamente mais tarde '
-                        'ou contate o suporte.'
-                    ) from None
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
-                reason = type(e).__name__
-
-            if attempt < max_retries - 1:
-                wait = self._retry_wait(attempt, retry_after)
-                logger.warning(
-                    '[AI_RETRY] Falha transitória (%s) na tentativa %d/%d — aguardando %.1fs',
-                    reason, attempt + 1, max_retries, wait,
-                )
-                time.sleep(wait)
-            else:
-                logger.error('[AI_RETRY] Falha transitória (%s) — tentativas esgotadas (%d).', reason, max_retries)
-
-        raise TransientAIError(
-            'O serviço de IA está temporariamente indisponível. Tente novamente em alguns minutos.'
-        )
-
-    def _parse_response(self, api_response: dict) -> dict:
-        """
-        Extrai e parseia o JSON gerado pela IA. Nunca loga o conteúdo
-        (pode conter dados do usuário) — apenas tamanho e tipo do erro.
-        """
-        try:
-            content = api_response['choices'][0]['message']['content']
-        except (KeyError, IndexError, TypeError) as e:
-            logger.error('[AI_FORMAT] Formato inesperado da API de IA (%s).', type(e).__name__)
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
-
-        if not isinstance(content, str):
-            logger.error('[AI_FORMAT] Conteúdo da IA não é texto (%s).', type(content).__name__)
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
-
-        stripped = content.strip()
-        # Remove markdown code fences caso a API não suporte json_mode
-        if stripped.startswith('```'):
-            lines = stripped.split('\n')
-            inner = lines[1:]
-            if inner and inner[-1].strip() == '```':
-                inner = inner[:-1]
-            stripped = '\n'.join(inner)
-
-        try:
-            parsed = json.loads(stripped)
-        except json.JSONDecodeError as e:
-            logger.error(
-                '[AI_FORMAT] JSON inválido da IA (%s, posição %d, %d caracteres).',
-                e.msg, e.pos, len(content),
-            )
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
-        if not isinstance(parsed, dict):
-            logger.error('[AI_FORMAT] JSON da IA não é objeto (%s).', type(parsed).__name__)
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
-        return parsed
 
     # ──────────────────────────────────────────────────────────────────────────
     #  ENRIQUECIMENTO NUTRICIONAL (backend — determinístico)
@@ -935,93 +399,14 @@ class AIService:
                 actual, target, ratio * 100, anamnese.user_id,
             )
 
-    # Limites usados por _macro_ratio_violations
-    MACRO_CARBS_MAX_PCT       = 0.65
-    MACRO_PROTEIN_MIN_PCT     = 0.15
-    MACRO_FAT_MIN_PCT         = 0.15
-    MACRO_FAT_MAX_PER_KG      = 1.2
-    MACRO_FAT_TARGET_TOLERANCE = 1.3
-    MACRO_PROTEIN_MIN_RATIO   = 0.65
-
     def _macro_ratio_violations(
         self,
         diet_data: dict,
         anamnese: Anamnese,
         target_calories: int,
     ) -> list[str]:
-        """
-        Retorna a lista de violações de proporção de macros (vazia se ok).
-
-        Limites absolutos por % de calorias:
-          - Carboidratos: máximo 65% das calorias
-          - Proteína:     mínimo 15% das calorias
-          - Gordura:      mínimo 15% das calorias
-
-        Teto de gordura: o maior entre 1.2g/kg de peso corporal e 130% da meta
-        de gordura calculada pelo backend (a meta pode passar de 1.2g/kg em
-        pessoas leves com gasto alto, quando o carboidrato é limitado a 60%).
-
-        Aderência à meta calculada:
-          - Proteína: mínimo 65% da meta calculada pelo backend
-        """
-        macros    = diet_data.get('macros', {})
-        total_cal = diet_data.get('calories', 0)
-        if not total_cal:
-            return []
-
-        protein_g = macros.get('protein_g', 0)
-        carbs_g   = macros.get('carbs_g', 0)
-        fat_g     = macros.get('fat_g', 0)
-        w         = float(anamnese.weight_kg) if anamnese.weight_kg else 1.0
-
-        protein_pct = (protein_g * 4) / total_cal
-        carbs_pct   = (carbs_g   * 4) / total_cal
-        fat_pct     = (fat_g     * 9) / total_cal
-        fat_per_kg  = fat_g / w
-
-        targets = calculate_macros(anamnese, target_calories)
-        fat_ceiling_g = max(
-            self.MACRO_FAT_MAX_PER_KG * w,
-            self.MACRO_FAT_TARGET_TOLERANCE * targets['fat_g'],
-        )
-
-        violations = []
-
-        if carbs_pct > self.MACRO_CARBS_MAX_PCT:
-            violations.append(
-                f'carboidratos em {carbs_pct * 100:.0f}% das calorias (teto: 65%) — '
-                f'excesso de alimentos ricos em amido/açúcar'
-            )
-        if protein_pct < self.MACRO_PROTEIN_MIN_PCT:
-            violations.append(
-                f'proteína em {protein_pct * 100:.0f}% das calorias (mínimo: 15%) — '
-                f'fontes proteicas insuficientes no plano'
-            )
-        if fat_pct < self.MACRO_FAT_MIN_PCT:
-            violations.append(
-                f'gordura em {fat_pct * 100:.0f}% das calorias (mínimo: 15%) — '
-                f'risco de deficiência de vitaminas lipossolúveis'
-            )
-        # Teto de gordura — detecta excesso de óleos/castanhas mesmo em %
-        # aceitável (ex: 37% numa dieta de 3000 kcal parece ok em %, mas 126g para
-        # 95kg = 1.33g/kg excede claramente o limite fisiológico de 1.0g/kg)
-        if fat_g > fat_ceiling_g:
-            violations.append(
-                f'gordura {fat_g}g ({fat_per_kg:.1f}g/kg) excede o teto de '
-                f'{fat_ceiling_g:.0f}g para {w:.0f}kg — desbalanceamento por excesso '
-                f'de alimentos gordurosos (óleos, castanhas, queijo, manteiga)'
-            )
-
-        # Aderência à meta de proteína calculada
-        protein_target = targets['protein_g']
-        if protein_target > 0:
-            protein_ratio = protein_g / protein_target
-            if protein_ratio < self.MACRO_PROTEIN_MIN_RATIO:
-                violations.append(
-                    f'proteína {protein_g}g é apenas {protein_ratio * 100:.0f}% da meta '
-                    f'({protein_target}g) — desbalanceamento de macros proteicos'
-                )
-        return violations
+        """Lista de violações de proporção de macros (ver validators.macro_ratio_violations)."""
+        return macro_ratio_violations(diet_data, anamnese, target_calories)
 
     def _validate_macro_ratios(
         self,

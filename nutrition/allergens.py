@@ -400,3 +400,21 @@ def food_is_blocked(
         food_contains_allergen(food_name, allergens or [])
         or food_violates_restriction(food_name, restrictions or [])
     )
+
+
+def declared_allergens(anamnese) -> list[str]:
+    """
+    Alérgenos efetivos do usuário: campo de alergias + alérgenos declarados
+    no campo de restrições (o questionário envia os checkboxes de alergia
+    — gluten, lactose, ovo... — junto com as restrições).
+    """
+    allergens = parse_allergens(getattr(anamnese, 'allergies', '') or '')
+    for restriction in parse_restrictions(getattr(anamnese, 'food_restrictions', '') or ''):
+        if is_allergen_term(restriction) and restriction not in allergens:
+            allergens.append(restriction)
+    return allergens
+
+
+def declared_restrictions(anamnese) -> list[str]:
+    """Restrições de dieta reconhecidas no campo food_restrictions."""
+    return parse_restrictions(getattr(anamnese, 'food_restrictions', '') or '')

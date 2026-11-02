@@ -8,7 +8,6 @@ Temperature recomendada: 0.7 (texto explicativo, tom amigável).
 max_tokens recomendado: 1200.
 """
 
-from ._calculations import calculate_calories as _calculate_calories
 from ._calculations import calculate_energy_plan
 from ._constants import ACTIVITY_FACTORS
 
