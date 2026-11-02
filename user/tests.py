@@ -3,13 +3,21 @@ Testes de autenticação e perfil de usuário — MyNutri AI
 Cobre: cadastro, login, refresh de token, perfil GET/PATCH, validações.
 """
 
+from unittest.mock import patch
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from user.email_validation import EmailValidationResult
+
 User = get_user_model()
+
+# Header anti-CSRF exigido por login/registro/refresh/logout e por requisições
+# não seguras autenticadas por cookie (ver user/authentication.py)
+XHR = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
 
 
 # ---------------------------------------------------------------------------
@@ -18,7 +26,18 @@ User = get_user_model()
 
 @pytest.fixture
 def api_client():
-    return APIClient()
+    """Cliente que se comporta como o frontend: envia X-Requested-With em tudo."""
+    return APIClient(**XHR)
+
+
+@pytest.fixture(autouse=True)
+def email_validation_ok():
+    """Evita DNS/rede real na validação de e-mail do cadastro."""
+    with patch(
+        'user.serializers.validate_email_full',
+        return_value=EmailValidationResult(is_valid=True, layer='all'),
+    ) as mocked:
+        yield mocked
 
 
 @pytest.fixture
@@ -27,6 +46,7 @@ def user_data():
         'nome': 'Gabriel Rezende',
         'email': 'gabriel@teste.com',
         'senha': 'senhaSegura123',
+        'accepted_terms': True,
     }
 
 
@@ -63,8 +83,12 @@ class TestRegister:
     def test_registro_sucesso(self, api_client, user_data):
         response = api_client.post('/api/v1/auth/register', user_data, format='json')
         assert response.status_code == 201
-        assert 'token' in response.data
-        assert 'refresh' in response.data
+        # Tokens só em cookies HttpOnly, nunca no JSON (contrato C2)
+        assert 'token' not in response.data
+        assert 'refresh' not in response.data
+        assert 'access' not in response.data
+        assert response.cookies['mynutri_access']['httponly']
+        assert response.cookies['mynutri_refresh']['httponly']
         assert response.data['user']['email'] == user_data['email']
         assert response.data['user']['nome'] == user_data['nome']
 
@@ -79,29 +103,29 @@ class TestRegister:
         assert 'email' in response.data
 
     def test_registro_senha_curta(self, api_client):
-        data = {'nome': 'Teste', 'email': 'teste@email.com', 'senha': '123'}
+        data = {'nome': 'Teste', 'email': 'teste@email.com', 'senha': '123', 'accepted_terms': True}
         response = api_client.post('/api/v1/auth/register', data, format='json')
         assert response.status_code == 400
 
     def test_registro_email_obrigatorio(self, api_client):
-        data = {'nome': 'Teste', 'senha': 'senhaSegura123'}
+        data = {'nome': 'Teste', 'senha': 'senhaSegura123', 'accepted_terms': True}
         response = api_client.post('/api/v1/auth/register', data, format='json')
         assert response.status_code == 400
 
     def test_registro_nome_obrigatorio(self, api_client):
-        data = {'email': 'teste@email.com', 'senha': 'senhaSegura123'}
+        data = {'email': 'teste@email.com', 'senha': 'senhaSegura123', 'accepted_terms': True}
         response = api_client.post('/api/v1/auth/register', data, format='json')
         assert response.status_code == 400
 
     def test_registro_email_normalizado_lowercase(self, api_client):
-        data = {'nome': 'Teste', 'email': 'UPPER@EMAIL.COM', 'senha': 'senhaSegura123'}
+        data = {'nome': 'Teste', 'email': 'UPPER@EMAIL.COM', 'senha': 'senhaSegura123', 'accepted_terms': True}
         api_client.post('/api/v1/auth/register', data, format='json')
         assert User.objects.filter(email='upper@email.com').exists()
 
     def test_registro_retorna_token_valido(self, api_client, user_data):
         response = api_client.post('/api/v1/auth/register', user_data, format='json')
-        token = response.data.get('token')
-        assert token is not None
+        token = response.cookies['mynutri_access'].value
+        assert token
         assert len(token) > 20  # JWT tem pelo menos 3 partes separadas por ponto
         assert token.count('.') == 2
 
@@ -121,8 +145,10 @@ class TestLogin:
             format='json',
         )
         assert response.status_code == 200
-        assert 'token' in response.data
-        assert 'refresh' in response.data
+        assert 'token' not in response.data
+        assert 'refresh' not in response.data
+        assert response.cookies['mynutri_access'].value
+        assert response.cookies['mynutri_refresh'].value
 
     def test_login_retorna_dados_do_usuario(self, api_client, create_user):
         user, senha = create_user(email='login2@teste.com', nome='Carlos')
@@ -160,16 +186,16 @@ class TestLogin:
         )
         assert response.status_code == 400
 
-    def test_login_campo_token_renomeado(self, api_client, create_user):
-        """Garante que o campo 'access' foi renomeado para 'token' (padrão da API)."""
+    def test_login_nao_expoe_tokens_no_json(self, api_client, create_user):
+        """Contrato C2: tokens só em cookies HttpOnly — nenhum campo de token no JSON."""
         user, senha = create_user(email='token@teste.com')
         response = api_client.post(
             '/api/v1/auth/login',
             {'email': 'token@teste.com', 'password': senha},
             format='json',
         )
-        assert 'token' in response.data
-        assert 'access' not in response.data
+        assert response.status_code == 200
+        assert set(response.data.keys()) == {'user'}
 
 
 # ---------------------------------------------------------------------------
@@ -182,20 +208,16 @@ class TestTokenRefresh:
     def test_refresh_token_valido(self, api_client, create_user):
         user, _ = create_user(email='refresh@teste.com')
         refresh = RefreshToken.for_user(user)
-        response = api_client.post(
-            '/api/v1/auth/token/refresh',
-            {'refresh': str(refresh)},
-            format='json',
-        )
+        api_client.cookies['mynutri_refresh'] = str(refresh)
+        response = api_client.post('/api/v1/auth/token/refresh', format='json')
         assert response.status_code == 200
-        assert 'token' in response.data  # renomeado de 'access' para consistência com /auth/login
+        assert 'token' not in response.data
+        assert response.cookies['mynutri_access'].value
+        assert response.cookies['mynutri_refresh'].value != str(refresh)  # rotacionado
 
     def test_refresh_token_invalido(self, api_client):
-        response = api_client.post(
-            '/api/v1/auth/token/refresh',
-            {'refresh': 'token.invalido.aqui'},
-            format='json',
-        )
+        api_client.cookies['mynutri_refresh'] = 'token.invalido.aqui'
+        response = api_client.post('/api/v1/auth/token/refresh', format='json')
         assert response.status_code == 401
 
 

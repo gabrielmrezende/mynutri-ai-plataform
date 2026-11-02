@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
 from django.contrib.auth.models import AbstractUser
 
 
@@ -11,6 +13,16 @@ class CustomUser(AbstractUser):
     class Meta:
         verbose_name = 'Usuário'
         verbose_name_plural = 'Usuários'
+        constraints = [
+            # E-mail é o identificador de login: 'Fulano@X.com' e 'fulano@x.com'
+            # não podem coexistir (evita contas duplicadas/sequestro por variação de caixa).
+            # E-mail vazio fica de fora (superusuários criados sem e-mail).
+            models.UniqueConstraint(
+                Lower('email'),
+                name='user_email_ci_unique',
+                condition=~Q(email=''),
+            ),
+        ]
 
     def __str__(self):
         return self.email or self.username
@@ -62,6 +74,9 @@ class Profile(models.Model):
     food_restrictions = models.TextField('Restrições Alimentares', blank=True)
     food_preferences = models.TextField('Preferências Alimentares', blank=True)
     meals_per_day = models.PositiveIntegerField('Refeições por dia', default=4)
+    terms_accepted_at = models.DateTimeField(
+        'Aceite dos Termos de Uso', null=True, blank=True
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

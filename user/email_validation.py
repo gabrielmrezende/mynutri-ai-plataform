@@ -21,6 +21,7 @@ Estratégia para produção:
     + EMAIL_VALIDATION_PROVIDER no .env. A camada DNS sempre roda como fallback.
 """
 
+import ipaddress
 import logging
 import smtplib
 import socket
@@ -29,6 +30,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
 
+import requests
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
@@ -163,22 +165,34 @@ def validate_smtp(email: str) -> EmailValidationResult:
             details={'skipped': True, 'reason': 'SMTP disabled'},
         )
 
+    domain = email.split('@')[-1].lower()
     try:
         import dns.resolver  # type: ignore
-        domain = email.split('@')[-1].lower()
         mx_records = dns.resolver.resolve(domain, 'MX', lifetime=_DNS_TIMEOUT)
         mx_host = sorted(mx_records, key=lambda r: r.preference)[0].exchange.to_text().rstrip('.')
     except Exception as exc:  # noqa: BLE001
-        logger.warning('SMTP: falha ao obter MX para validação: %s', exc)
+        logger.warning('SMTP: falha ao obter MX para validação: %s', type(exc).__name__)
         return EmailValidationResult(
             is_valid=True,
             layer='smtp',
-            details={'graceful': True, 'reason': str(exc)},
+            details={'graceful': True, 'reason': type(exc).__name__},
+        )
+
+    # Resolve o MX e recusa endereços internos: um domínio controlado pelo
+    # usuário poderia apontar o MX para a rede privada do servidor (SSRF).
+    mx_ip = _resolve_public_ip(mx_host)
+    if mx_ip is None:
+        logger.warning('SMTP: MX do domínio %s resolve para IP não público — check ignorado', domain)
+        return EmailValidationResult(
+            is_valid=True,
+            layer='smtp',
+            details={'skipped': True, 'reason': 'MX resolves to non-public address'},
         )
 
     try:
         with smtplib.SMTP(timeout=_SMTP_TIMEOUT) as smtp:
-            smtp.connect(mx_host, 25)
+            # Conecta no IP já validado (evita nova resolução DNS — rebinding)
+            smtp.connect(mx_ip, 25)
             smtp.helo(socket.getfqdn())
             smtp.mail('noreply@mynutri.ai')
             code, _ = smtp.rcpt(email)
@@ -191,13 +205,40 @@ def validate_smtp(email: str) -> EmailValidationResult:
                 details={'smtp_code': code},
             )
     except (smtplib.SMTPException, OSError, socket.error) as exc:
-        logger.warning('SMTP check falhou para %s: %s', email, exc)
+        logger.warning('SMTP check falhou para o domínio %s: %s', domain, type(exc).__name__)
         # Falha graciosa — não bloqueia o cadastro
         return EmailValidationResult(
             is_valid=True,
             layer='smtp',
-            details={'graceful': True, 'reason': str(exc)},
+            details={'graceful': True, 'reason': type(exc).__name__},
         )
+
+
+def _is_public_ip(ip: str) -> bool:
+    """True apenas para IPs roteáveis na internet (nada de privado/loopback/link-local)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return not (
+        addr.is_private or addr.is_loopback or addr.is_link_local
+        or addr.is_multicast or addr.is_reserved or addr.is_unspecified
+    )
+
+
+def _resolve_public_ip(host: str) -> Optional[str]:
+    """
+    Resolve o host e retorna o primeiro IP, desde que TODOS os endereços
+    resolvidos sejam públicos. Retorna None se algum for interno ou se falhar.
+    """
+    try:
+        infos = socket.getaddrinfo(host, 25, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, OSError):
+        return None
+    ips = [info[4][0] for info in infos]
+    if not ips or not all(_is_public_ip(ip) for ip in ips):
+        return None
+    return ips[0]
 
 
 # ---------------------------------------------------------------------------
@@ -205,13 +246,15 @@ def validate_smtp(email: str) -> EmailValidationResult:
 # ---------------------------------------------------------------------------
 def _validate_via_zerobounce(email: str, api_key: str) -> EmailValidationResult:
     """Integração com ZeroBounce API v2."""
-    import urllib.request
-    import json
-
-    url = f'https://api.zerobounce.net/v2/validate?api_key={api_key}&email={email}'
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        # params= faz o URL-encoding correto (sem interpolar email/api_key na URL)
+        response = requests.get(
+            'https://api.zerobounce.net/v2/validate',
+            params={'api_key': api_key, 'email': email},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
 
         status = data.get('status', '').lower()
         sub_status = data.get('sub_status', '')
@@ -236,11 +279,12 @@ def _validate_via_zerobounce(email: str, api_key: str) -> EmailValidationResult:
             details={'provider': 'zerobounce', 'status': status, 'graceful': True},
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning('ZeroBounce API falhou: %s', exc)
+        # Só o tipo da exceção: a mensagem do requests inclui a URL com a api_key
+        logger.warning('ZeroBounce API falhou: %s', type(exc).__name__)
         return EmailValidationResult(
             is_valid=True,
             layer='api',
-            details={'graceful': True, 'reason': str(exc)},
+            details={'graceful': True, 'reason': type(exc).__name__},
         )
 
 
@@ -256,13 +300,15 @@ def _zerobounce_message(status: str, sub_status: str) -> str:
 
 def _validate_via_hunter(email: str, api_key: str) -> EmailValidationResult:
     """Integração com Hunter.io Email Verifier API."""
-    import urllib.request
-    import json
-
-    url = f'https://api.hunter.io/v2/email-verifier?email={email}&api_key={api_key}'
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        # params= faz o URL-encoding correto (sem interpolar email/api_key na URL)
+        response = requests.get(
+            'https://api.hunter.io/v2/email-verifier',
+            params={'email': email, 'api_key': api_key},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
 
         result = data.get('data', {})
         status = result.get('status', '').lower()
@@ -287,11 +333,12 @@ def _validate_via_hunter(email: str, api_key: str) -> EmailValidationResult:
             details={'provider': 'hunter', 'status': status, 'graceful': True},
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning('Hunter.io API falhou: %s', exc)
+        # Só o tipo da exceção: a mensagem do requests inclui a URL com a api_key
+        logger.warning('Hunter.io API falhou: %s', type(exc).__name__)
         return EmailValidationResult(
             is_valid=True,
             layer='api',
-            details={'graceful': True, 'reason': str(exc)},
+            details={'graceful': True, 'reason': type(exc).__name__},
         )
 
 
@@ -353,7 +400,7 @@ def validate_email_full(email: str) -> EmailValidationResult:
 
     cached = cache.get(cache_key)
     if cached is not None:
-        logger.debug('Cache hit para validação de e-mail: %s', email)
+        logger.debug('Cache hit para validação de e-mail (domínio %s)', email.rsplit('@', 1)[-1])
         return cached
 
     # — Camada 1: Formato

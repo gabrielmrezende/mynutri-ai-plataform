@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # revogação de refresh tokens (logout, troca de senha)
     'corsheaders',
     # Projeto
     'user',
@@ -188,6 +189,8 @@ REST_FRAMEWORK = {
         'diet_generate': '3/day',
         'contact': '5/hour',
         'login': '5/minute',
+        'change_password': '5/hour',
+        'delete_account': '5/hour',
     },
 }
 
@@ -198,8 +201,23 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,  # refresh antigo não pode ser reutilizado após rotação
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# =============================================================================
+# Google OAuth — client ID usado para validar o 'aud' do id_token
+# Obrigatório em produção; em dev cai no client ID público do frontend.
+# =============================================================================
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+if not GOOGLE_CLIENT_ID:
+    if not DEBUG:
+        raise ValueError(
+            f'\n❌ Variável "GOOGLE_CLIENT_ID" não configurada.\n'
+            f'   Client ID OAuth do Google (console.cloud.google.com → Credenciais).\n'
+            f'   Configure em .env (local) ou nas Environment Variables do Render.\n'
+        )
+    GOOGLE_CLIENT_ID = '806980657199-js2h4t4o9cq8577c7geulvgosdt777t2.apps.googleusercontent.com'
 
 # =============================================================================
 # CORS
@@ -345,7 +363,7 @@ LOGGING = {
         },
         'user': {
             'handlers': ['console'],
-            'level': 'DEBUG',  # captura erros de envio de e-mail e outros
+            'level': 'INFO',  # erros de envio de e-mail e eventos de conta (sem dados pessoais)
             'propagate': False,
         },
     },
