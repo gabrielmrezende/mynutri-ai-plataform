@@ -3,29 +3,45 @@
 export const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8000';
 export const API      = `${BASE_URL}/api/v1`;
 
+/** Header anti-CSRF exigido em POST/PUT/PATCH/DELETE autenticados por cookie. */
+export const XHR_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
+/**
+ * Extrai o access token do cookie HttpOnly da resposta. A API não devolve mais
+ * tokens no JSON; o mesmo JWT do cookie funciona como Bearer (e requisições
+ * Bearer não exigem X-Requested-With).
+ */
+export function accessTokenFrom(res) {
+  const cookie = res.cookies && res.cookies['mynutri_access'];
+  return cookie && cookie.length ? cookie[0].value : null;
+}
+
 /** Cria um usuário e retorna { token, userId, email }. */
 export function registerUser(http, email, password = 'LoadTest@123') {
   const res = http.post(
     `${API}/auth/register`,
-    JSON.stringify({ nome: 'Load Test', email, senha: password }),
-    { headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ nome: 'Load Test', email, senha: password, accepted_terms: true }),
+    { headers: XHR_HEADERS },
   );
   if (res.status !== 201) {
     return null;
   }
   const body = JSON.parse(res.body);
-  return { token: body.token, userId: body.user?.id, email };
+  return { token: accessTokenFrom(res), userId: body.user?.id, email };
 }
 
-/** Faz login e retorna o token. */
+/** Faz login e retorna o token (lido do cookie). */
 export function loginUser(http, email, password = 'LoadTest@123') {
   const res = http.post(
     `${API}/auth/login`,
     JSON.stringify({ email, password }),
-    { headers: { 'Content-Type': 'application/json' } },
+    { headers: XHR_HEADERS },
   );
   if (res.status !== 200) return null;
-  return JSON.parse(res.body).token;
+  return accessTokenFrom(res);
 }
 
 /** Headers com Bearer token. */
@@ -36,10 +52,12 @@ export function authHeaders(token) {
   };
 }
 
-/** Payload de anamnese padrão para testes. */
+/**
+ * Payload de anamnese padrão para testes (campos reais do AnamneseSerializer).
+ * Atenção: POST /anamnese tem throttle próprio (20/hora por usuário em produção).
+ */
 export const ANAMNESE_PAYLOAD = JSON.stringify({
-  age: 28, gender: 'M', weight_kg: 75.0, height_cm: 178.0,
-  activity_level: 'moderate', goal: 'lose', meals_per_day: 4,
-  dietary_restrictions: '', allergies: '', food_preferences: '',
-  goal_description: 'Teste de carga',
+  idade: 28, sexo: 'M', peso: 75.0, altura: 178.0,
+  nivel_atividade: 'moderate', objetivo: 'lose', meals_per_day: 4,
+  restricoes: '', allergies: '', food_preferences: '',
 });

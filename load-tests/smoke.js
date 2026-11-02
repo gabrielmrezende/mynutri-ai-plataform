@@ -9,7 +9,9 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
-import { BASE_URL, API, registerUser, authHeaders, ANAMNESE_PAYLOAD } from './config.js';
+import {
+  BASE_URL, API, XHR_HEADERS, accessTokenFrom, authHeaders, ANAMNESE_PAYLOAD,
+} from './config.js';
 
 export const options = {
   vus: 1,
@@ -26,16 +28,16 @@ export default function () {
   // 1. Cadastro
   const registerRes = http.post(
     `${API}/auth/register`,
-    JSON.stringify({ nome: 'Smoke Test', email, senha: 'LoadTest@123' }),
-    { headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ nome: 'Smoke Test', email, senha: 'LoadTest@123', accepted_terms: true }),
+    { headers: XHR_HEADERS },
   );
   check(registerRes, {
     'register: status 201':      (r) => r.status === 201,
-    'register: tem token':       (r) => !!JSON.parse(r.body).token,
-    'register: seta cookie':     (r) => r.headers['Set-Cookie']?.includes('mynutri_access'),
+    'register: sem token no JSON': (r) => !JSON.parse(r.body).token,
+    'register: seta cookie':     (r) => !!accessTokenFrom(r),
   });
 
-  const token = JSON.parse(registerRes.body).token;
+  const token = accessTokenFrom(registerRes);
   const headers = authHeaders(token);
 
   sleep(0.5);
@@ -73,7 +75,7 @@ export default function () {
   });
 
   // 6. Logout
-  const logoutRes = http.post(`${API}/auth/logout`, null, { headers });
+  const logoutRes = http.post(`${API}/auth/logout`, null, { headers: { ...headers, ...XHR_HEADERS } });
   check(logoutRes, {
     'logout: status 200': (r) => r.status === 200,
   });
