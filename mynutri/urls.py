@@ -51,7 +51,11 @@ urlpatterns = [
     path('auth/', _CACHE_1H(TemplateView.as_view(template_name='auth.html')), name='auth'),
     path('dieta/', _CACHE_NO_STORE(TemplateView.as_view(template_name='dieta.html')), name='dieta'),
     path('perfil/', _CACHE_NO_STORE(TemplateView.as_view(template_name='perfil.html')), name='perfil'),
-    path('questionario/', _CACHE_NO_STORE(TemplateView.as_view(template_name='questionario.html')), name='questionario'),
+    path(
+        'questionario/',
+        _CACHE_NO_STORE(TemplateView.as_view(template_name='questionario.html')),
+        name='questionario',
+    ),
     path('historico/', _CACHE_NO_STORE(TemplateView.as_view(template_name='historico.html')), name='historico'),
     path('contato/', _CACHE_1H(TemplateView.as_view(template_name='contato.html')), name='contato'),
     path('privacidade/', _CACHE_1H(TemplateView.as_view(template_name='privacidade.html')), name='privacidade'),

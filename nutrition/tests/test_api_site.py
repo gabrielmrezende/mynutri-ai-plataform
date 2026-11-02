@@ -79,6 +79,30 @@ class TestSecurityHeaders:
         assert 'geolocation=()' in r['Permissions-Policy']
         assert r['Referrer-Policy'] == 'strict-origin-when-cross-origin'
 
+    def test_no_cache_in_dev_middleware(self, rf):
+        from django.http import HttpResponse
+        from mynutri.middleware import NoCacheInDevMiddleware
+        response = NoCacheInDevMiddleware(lambda request: HttpResponse('ok'))(rf.get('/'))
+        assert 'no-store' in response['Cache-Control']
+        assert response['Pragma'] == 'no-cache'
+
+    def test_view_pode_definir_csp_propria(self, rf):
+        from django.http import HttpResponse
+        from mynutri.middleware import SecurityHeadersMiddleware
+
+        def view(request):
+            r = HttpResponse('ok')
+            r['Content-Security-Policy'] = "default-src 'none'"
+            return r
+        response = SecurityHeadersMiddleware(view)(rf.get('/'))
+        assert response['Content-Security-Policy'] == "default-src 'none'"
+
+    def test_health_banco_fora_retorna_503(self, client):
+        from unittest.mock import patch
+        with patch('mynutri.urls.connection.ensure_connection', side_effect=Exception('db down')):
+            r = client.get('/health/')
+        assert r.status_code == 503
+
     def test_health_sem_auth(self, client):
         r = client.get('/health/')
         assert r.status_code == 200

@@ -4,7 +4,6 @@ Funciona tanto em desenvolvimento (SQLite + DEBUG=True) quanto em produção (Po
 """
 
 import os
-import logging
 from pathlib import Path
 from datetime import timedelta
 
@@ -20,7 +19,10 @@ load_dotenv(BASE_DIR / '.env')
 # Validação de variáveis obrigatórias
 # =============================================================================
 _REQUIRED_VARS = {
-    'SECRET_KEY': 'Django secret key (gere com: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")',
+    'SECRET_KEY': (
+        'Django secret key (gere com: python -c "from django.core.management.utils '
+        'import get_random_secret_key; print(get_random_secret_key())")'
+    ),
     'AI_API_KEY': 'Chave da API de IA (OpenAI, Gemini, etc.)',
     'AI_API_URL': 'URL do endpoint da API de IA',
 }
