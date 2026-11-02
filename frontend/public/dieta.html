@@ -5,14 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Minha Dieta — MyNutri AI</title>
   <meta name="description" content="Seu plano alimentar personalizado gerado por inteligência artificial." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
-  <link rel="stylesheet" href="/static/src/styles/index.css" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/dieta.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- Floating macro tooltip -->
-  <div class="mb-tooltip" id="mb-tooltip"></div>
+  <div class="mb-tooltip" id="mb-tooltip" aria-hidden="true"></div>
 
   <!-- ═══════════════ HEADER ═══════════════ -->
   <header class="header scrolled" id="header">
@@ -20,7 +27,7 @@
       <a href="/" class="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
@@ -85,10 +92,10 @@
         <button class="modal-close" id="modalClose" aria-label="Fechar modal">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-        <div class="modal-header-emoji" id="modal-emoji">🍽️</div>
+        <div class="modal-header-emoji" id="modal-emoji" aria-hidden="true">🍽️</div>
         <div class="modal-header-info">
           <p class="modal-header-order" id="modal-order">Refeição 1</p>
-          <p class="modal-header-name" id="modal-title">—</p>
+          <h2 class="modal-header-name" id="modal-title">—</h2>
           <div class="modal-header-meta">
             <span class="modal-time-tag" id="modal-time" style="display:none;">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -148,7 +155,7 @@
       <div class="chat-dock">
 
         <!-- Cabeçalho colapsável -->
-        <button class="chat-dock-toggle" id="chat-dock-toggle" aria-expanded="false">
+        <button class="chat-dock-toggle" id="chat-dock-toggle" type="button" aria-expanded="false" aria-controls="chat-dock-panel">
           <div class="chat-dock-toggle-left">
             <div class="chat-dock-icon">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -162,10 +169,10 @@
         </button>
 
         <!-- Painel expansível -->
-        <div class="chat-dock-panel" id="chat-dock-panel">
+        <div class="chat-dock-panel" id="chat-dock-panel" role="region" aria-label="Assistente de refeição">
 
           <!-- Mensagens -->
-          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-messages" id="chat-messages" role="log" aria-live="polite"></div>
 
           <!-- Typing -->
           <div id="regen-loading-state" style="display:none;">
@@ -178,22 +185,23 @@
           <!-- Diff antes/depois -->
           <div id="regen-diff-state" style="display:none;">
             <div class="regen-diff-wrap">
+              <p class="regen-diff-applied">A troca já foi aplicada e salva no seu plano.</p>
               <div class="regen-diff-cols">
                 <div class="regen-diff-col before">
-                  <div class="regen-diff-col-title">Antes</div>
+                  <div class="regen-diff-col-title">Anterior</div>
                   <div id="regen-diff-before"></div>
                 </div>
                 <div class="regen-diff-col after">
-                  <div class="regen-diff-col-title">✓ Nova versão</div>
+                  <div class="regen-diff-col-title">✓ Aplicada agora</div>
                   <div id="regen-diff-after"></div>
                 </div>
               </div>
               <div class="regen-diff-actions">
                 <button id="btn-diff-keep" class="btn-regen-primary" type="button">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Manter nova versão
+                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Ok, manter
                 </button>
-                <button id="btn-diff-undo" class="btn-regen-undo" type="button">↩ Desfazer</button>
+                <button id="btn-diff-undo" class="btn-regen-undo" type="button"><span aria-hidden="true">↩</span> Desfazer troca</button>
               </div>
               <p class="regen-diff-remaining" id="regen-diff-remaining"></p>
             </div>
@@ -210,15 +218,16 @@
             </div>
             <div class="chat-input-row">
               <textarea class="chat-input" id="regen-reason" rows="1" maxlength="300"
+                        aria-label="Motivo para trocar a refeição"
                         placeholder="Ou escreva seu motivo..."></textarea>
-              <button id="btn-regen-meal" class="chat-send-btn" title="Gerar nova sugestão">
+              <button id="btn-regen-meal" class="chat-send-btn" type="button" title="Gerar nova sugestão" aria-label="Gerar nova sugestão de refeição">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-5.52"/></svg>
               </button>
-              <button id="btn-undo-meal" class="chat-undo-btn" style="display:none;" title="Desfazer">
+              <button id="btn-undo-meal" class="chat-undo-btn" type="button" style="display:none;" title="Desfazer troca" aria-label="Desfazer a última troca desta refeição">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
               </button>
             </div>
-            <p class="regen-remaining" id="regen-remaining-text"></p>
+            <p class="regen-remaining" id="regen-remaining-text" aria-live="polite"></p>
           </div>
 
         </div><!-- /chat-dock-panel -->
@@ -228,7 +237,7 @@
   </div><!-- /modal-overlay (refeição) -->
 
   <!-- ═══════════════ MODAL DE TRANSPARÊNCIA ═══════════════ -->
-  <div class="modal-overlay" id="modal-explain" role="dialog" aria-modal="true" aria-label="Como a IA montou sua dieta">
+  <div class="modal-overlay" id="modal-explain" role="dialog" aria-modal="true" aria-labelledby="modal-explain-title">
     <div class="modal-box" id="modalExplainBox">
 
       <!-- Header -->
@@ -236,9 +245,9 @@
         <div class="modal-header-emoji">🧠</div>
         <div class="modal-header-info">
           <p class="modal-header-order">INTELIGÊNCIA ARTIFICIAL</p>
-          <h2 class="modal-header-name">Como sua dieta foi montada</h2>
+          <h2 class="modal-header-name" id="modal-explain-title">Como sua dieta foi montada</h2>
           <div class="modal-header-meta">
-            <span class="modal-time-tag" style="background:var(--green-50);color:var(--green-700);border:1px solid var(--green-100);padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:600;">
+            <span class="modal-time-tag modal-tag-transparency">
               Transparência total
             </span>
           </div>
@@ -257,29 +266,36 @@
   </div><!-- /modal-explain -->
 
   <!-- ═══════════════ MAIN ═══════════════ -->
-  <main class="diet-page">
+  <main class="diet-page" id="main-content">
     <div class="container">
 
       <!-- Loading -->
-      <div class="state-center" id="state-loading">
-        <div class="spinner"></div>
+      <div class="state-center" id="state-loading" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
         <p class="state-title" id="loading-msg">Carregando sua dieta...</p>
         <p class="state-subtitle" id="loading-subtitle">Aguarde um momento.</p>
+        <ol class="gen-progress" id="gen-progress" aria-label="Etapas da geração" hidden>
+          <li data-gen-step="sent">Respostas enviadas</li>
+          <li data-gen-step="queued">Na fila de geração</li>
+          <li data-gen-step="processing">Montando suas refeições</li>
+          <li data-gen-step="done">Finalizando o plano</li>
+        </ol>
+        <p class="gen-tip" id="loading-tip" aria-live="off"></p>
         <button id="btn-cancel-generation" class="btn-cancel-gen" style="display:none;" type="button">
-          Cancelar e voltar ao questionário
+          Sair e voltar depois
         </button>
       </div>
 
       <!-- Error -->
-      <div class="state-center" id="state-error" style="display:none;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <div class="state-center" id="state-error" role="alert" style="display:none;">
+        <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p class="state-title" id="error-msg">Nenhuma dieta encontrada.</p>
         <div class="error-actions">
           <button id="btn-retry-generation" class="btn-action btn-primary" style="display:none;" type="button">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
-            Tentar novamente
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
+            <span id="btn-retry-label">Tentar novamente</span>
           </button>
           <a href="/questionario/" id="error-cta" class="btn-action btn-primary" style="margin-top:8px;text-decoration:none;">Fazer questionário</a>
         </div>
@@ -287,6 +303,13 @@
 
       <!-- Diet Content -->
       <div id="diet-content" style="display:none;">
+
+        <!-- Aviso nutricional -->
+        <p class="health-disclaimer" role="note">
+          <strong>Importante:</strong> este plano é gerado por IA a partir das suas respostas e não substitui
+          o acompanhamento de um nutricionista ou médico. Gestantes, lactantes, menores de idade e pessoas com
+          doenças crônicas devem consultar um profissional antes de seguir qualquer dieta.
+        </p>
 
         <!-- Banner -->
         <div class="diet-header-section">
@@ -365,13 +388,13 @@
             Refeições do Dia
             <span class="meals-count-badge" id="meals-count-badge"></span>
           </h2>
-          <span class="section-title-hint">Clique para ver detalhes</span>
+          <span class="section-title-hint">Toque em uma refeição para ver detalhes</span>
         </div>
         <div class="meals-grid" id="meals-grid"></div>
 
         <!-- Notes -->
         <div class="notes-box" id="notes-box">
-          <span class="notes-box-icon">💡</span>
+          <span class="notes-box-icon" aria-hidden="true">💡</span>
           <p class="notes-box-text" id="notes-box-text"></p>
         </div>
 
@@ -383,7 +406,7 @@
             </svg>
             Gerar nova dieta
           </a>
-          <button id="btn-explain" class="btn-action btn-explain" style="display:none;">
+          <button id="btn-explain" class="btn-action btn-explain" type="button" style="display:none;" aria-haspopup="dialog">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -391,7 +414,7 @@
             </svg>
             Como a IA montou sua dieta
           </button>
-          <button id="btn-download-pdf" class="btn-action btn-outline">
+          <button id="btn-download-pdf" class="btn-action btn-outline" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -407,7 +430,6 @@
     </div>
   </main>
 
-  <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
   <script src="/static/src/js/utils/helpers.js" defer></script>
   <script src="/static/src/js/components/user-menu.js" defer></script>
