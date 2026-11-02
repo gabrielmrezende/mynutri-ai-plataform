@@ -2,10 +2,14 @@ import logging
 import unicodedata
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 
 from user.email_validation import validate_email_full
-from user.models import Testimonial
+from user.models import Profile, Testimonial
 
 logger = logging.getLogger(__name__)
 
@@ -16,49 +20,76 @@ class RegisterSerializer(serializers.ModelSerializer):
     """
     Serializer para criação de conta.
     Endpoint: POST /api/v1/auth/register
-    Campos esperados: nome (first_name), email, senha (password)
+    Campos esperados: nome (first_name), email, senha (password), accepted_terms (true)
     """
     nome = serializers.CharField(write_only=True)
     email = serializers.EmailField(write_only=True)
     senha = serializers.CharField(write_only=True, min_length=8)
+    accepted_terms = serializers.BooleanField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ('nome', 'email', 'senha')
+        fields = ('nome', 'email', 'senha', 'accepted_terms')
+
+    def validate_accepted_terms(self, value):
+        if value is not True:
+            raise serializers.ValidationError(
+                'É necessário aceitar os Termos de Uso e a Política de Privacidade.'
+            )
+        return value
 
     def validate_email(self, value):
         """
         Validação de e-mail em múltiplas camadas:
-          1. Unicidade no banco
+          1. Unicidade no banco (case-insensitive)
           2. Formato (EmailField já garante, reforçado pelo serviço)
           3. DNS/MX — verifica se o domínio aceita e-mails
           4. API externa (se configurada) — verifica existência da caixa
         """
         email = value.strip().lower()
 
-        # — Unicidade
-        if User.objects.filter(email=email).exists():
+        # — Unicidade (iexact cobre registros antigos gravados com maiúsculas)
+        if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError('Este e-mail já está em uso.')
 
         # — Validação em camadas (formato → DNS → API → SMTP)
         result = validate_email_full(email)
         if not result.is_valid:
             logger.info(
-                'Cadastro rejeitado — e-mail inválido [%s] camada=%s detalhe=%s',
-                email, result.layer, result.details,
+                'Cadastro rejeitado — e-mail inválido domínio=%s camada=%s',
+                email.rsplit('@', 1)[-1], result.layer,
             )
             raise serializers.ValidationError(result.message)
 
         return email
 
+    def validate(self, attrs):
+        # Validadores de senha do Django (AUTH_PASSWORD_VALIDATORS): tamanho,
+        # senhas comuns, só numéricas e similaridade com nome/e-mail.
+        candidate = User(
+            username=attrs.get('email', ''),
+            email=attrs.get('email', ''),
+            first_name=attrs.get('nome', ''),
+        )
+        try:
+            validate_password(attrs.get('senha', ''), user=candidate)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'senha': list(exc.messages)})
+        return attrs
+
     def create(self, validated_data):
         """Cria o usuário usando os campos mapeados da documentação."""
-        user = User.objects.create_user(
-            username=validated_data['email'],   # username = email para simplificar
-            email=validated_data['email'],
-            password=validated_data['senha'],
-            first_name=validated_data['nome'],
-        )
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=validated_data['email'],   # username = email para simplificar
+                email=validated_data['email'],
+                password=validated_data['senha'],
+                first_name=validated_data['nome'],
+            )
+            # Registra a data de aceite dos Termos de Uso (LGPD)
+            Profile.objects.update_or_create(
+                user=user, defaults={'terms_accepted_at': timezone.now()},
+            )
         return user
 
 
@@ -68,13 +99,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
     Endpoint: GET /api/v1/user/profile
     """
     nome = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'nome', 'email', 'phone', 'date_of_birth', 'date_joined')
+        fields = ('id', 'nome', 'email', 'phone', 'date_of_birth', 'date_joined', 'has_password')
 
     def get_nome(self, obj):
         return obj.get_full_name() or obj.first_name or obj.email
+
+    def get_has_password(self, obj):
+        # False para contas criadas via Google (ou cuja senha foi invalidada no login Google)
+        return obj.has_usable_password()
 
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
