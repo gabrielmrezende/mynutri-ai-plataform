@@ -202,7 +202,7 @@ body.page-leaving {
 
 a { text-decoration: none; color: inherit; }
 ul, ol { list-style: none; }
-img { max-width: 100%; display: block; }
+img { max-width: 100%; height: auto; display: block; }
 button { cursor: pointer; font-family: inherit; border: none; }
 
 /* ---------- Utility ---------- */
