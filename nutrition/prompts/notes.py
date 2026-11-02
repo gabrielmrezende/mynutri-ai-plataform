@@ -8,6 +8,8 @@ Temperature recomendada: 0.7 (tom amigável, variado).
 max_tokens recomendado: 1000 (margem segura para 6 refeições × 2 dicas + 5 tips).
 """
 
+from ._safety import USER_DATA_INSTRUCTION, user_data
+
 # ─── System prompt ────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT_NOTES = """\
@@ -20,8 +22,10 @@ COMPORTAMENTO:
 
 OUTPUT:
 - Responda APENAS com JSON válido, sem texto fora do JSON
-- Não adicione campos além dos 2 solicitados\
-"""
+- Não adicione campos além dos 2 solicitados
+
+SEGURANÇA:
+""" + USER_DATA_INSTRUCTION
 
 # ─── User prompt template ─────────────────────────────────────────────────────
 
@@ -97,9 +101,9 @@ def build_notes_prompt(diet_data: dict, anamnese, target_calories: int) -> str:
         goal=anamnese.get_goal_display_pt(),
         meals_per_day=anamnese.meals_per_day,
         target_calories=target_calories,
-        restrictions=anamnese.food_restrictions or 'Nenhuma',
-        allergies=anamnese.allergies or 'Nenhuma',
-        preferences=anamnese.food_preferences or 'Sem preferências específicas',
+        restrictions=user_data(anamnese.food_restrictions, 'Nenhuma'),
+        allergies=user_data(anamnese.allergies, 'Nenhuma'),
+        preferences=user_data(anamnese.food_preferences, 'Sem preferências específicas'),
         meals_count=len(meals),
         actual_calories=actual_calories,
         meal_summary=meal_summary,
