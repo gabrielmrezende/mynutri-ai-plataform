@@ -294,20 +294,28 @@ class TestDietGenerate:
         assert Meal.objects.filter(diet_plan=diet_plan).count() == 5
 
     @patch('nutrition.services.AIService.generate_diet')
-    def test_gerar_dieta_falha_ia_job_marcado_como_falha(self, mock_generate, auth_client, create_anamnese):
+    def test_gerar_dieta_falha_ia_job_marcado_como_falha(
+        self, mock_generate, auth_client, create_anamnese, django_capture_on_commit_callbacks,
+    ):
         from nutrition.models import DietJob
         client, user = auth_client
         create_anamnese(user=user)
         mock_generate.side_effect = Exception('Falha de conexão com a IA')
 
-        response = client.post('/api/v1/diet/generate', format='json')
+        # A task é enfileirada via transaction.on_commit
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.post('/api/v1/diet/generate', format='json')
         assert response.status_code == 202
 
         job = DietJob.objects.get(pk=response.data['job_id'])
         assert job.status == DietJob.STATUS_FAILED
+        # C6: nunca expõe str(exc) bruto ao usuário
+        assert 'Falha de conexão com a IA' not in job.error_message
 
     @patch('nutrition.services.AIService.generate_diet')
-    def test_gerar_dieta_usa_anamnese_mais_recente(self, mock_generate, auth_client, create_anamnese):
+    def test_gerar_dieta_usa_anamnese_mais_recente(
+        self, mock_generate, auth_client, create_anamnese, django_capture_on_commit_callbacks,
+    ):
         client, user = auth_client
         create_anamnese(user=user, goal='lose')
         create_anamnese(user=user, goal='gain')
@@ -320,7 +328,8 @@ class TestDietGenerate:
         )
         mock_generate.return_value = diet_plan
 
-        client.post('/api/v1/diet/generate', format='json')
+        with django_capture_on_commit_callbacks(execute=True):
+            client.post('/api/v1/diet/generate', format='json')
 
         call_args = mock_generate.call_args
         anamnese_usada = call_args[0][0]
