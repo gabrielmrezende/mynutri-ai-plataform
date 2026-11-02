@@ -38,7 +38,7 @@ python manage.py makemigrations --check --dry-run
 npm ci && npx playwright install chromium && npx playwright test
 ```
 
-> Os testes usam `mynutri/test_settings.py`, que **herda de `settings.py`** definindo env vars fake antes do import (SQLite in-memory ou arquivo via `TEST_DB_PATH`, throttle global desabilitado, Celery eager, cache local). Configurado via `pytest.ini` (`testpaths = nutrition user`). Ruff e cobertura são configurados em `pyproject.toml`.
+> Os testes usam `mynutri/test_settings.py`, que **herda de `settings.py`** definindo env vars fake antes do import (SQLite in-memory ou arquivo via `TEST_DB_PATH`, throttle global desabilitado, Celery eager, cache local). Configurado via `pytest.ini` (`testpaths = nutrition user`). Ruff é configurado em `ruff.toml` e a cobertura em `.coveragerc` (não crie `pyproject.toml`: no Vercel ele substituiria o `requirements.txt`).
 
 ## Arquitetura
 

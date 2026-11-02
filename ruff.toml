@@ -1,6 +1,6 @@
-# Configuração de ferramentas (o projeto não é um pacote instalável).
+# Configuração do ruff (fica fora do pyproject.toml: no Vercel, um pyproject.toml
+# sem [project] substitui o requirements.txt na instalação de dependências).
 
-[tool.ruff]
 target-version = "py312"
 line-length = 120
 extend-exclude = [
@@ -11,12 +11,12 @@ extend-exclude = [
     "*/migrations/*",
 ]
 
-[tool.ruff.lint]
+[lint]
 # Regras padrão (pycodestyle E + pyflakes F). O alinhamento de "=" usado no
 # código (E221 etc.) não faz parte do conjunto padrão do ruff.
 select = ["E", "F"]
 
-[tool.ruff.lint.per-file-ignores]
+[lint.per-file-ignores]
 # Dívida existente em código legado — exceções pontuais por arquivo/regra para o
 # CI passar sem mascarar regras novas. Remova a entrada ao limpar o arquivo.
 "nutrition/services.py" = ["E402", "E501", "E701"]
@@ -32,22 +32,3 @@ select = ["E", "F"]
 "nutrition/tests/test_substitutions.py" = ["F401"]
 "scripts/*.py" = ["F541"]
 "user/*.py" = ["E501", "F401"]
-
-[tool.coverage.run]
-source = ["nutrition", "user", "mynutri"]
-omit = [
-    "*/migrations/*",
-    "*/tests/*",
-    "*/tests.py",
-    "*/test_*.py",
-    "mynutri/asgi.py",
-    "mynutri/wsgi.py",
-    # Configuração dependente de variáveis de ambiente (ramos de produção/Sentry);
-    # validada por testes em subprocesso (nutrition/tests/test_api_site.py).
-    "mynutri/settings.py",
-    "mynutri/test_settings.py",
-]
-
-[tool.coverage.report]
-show_missing = false
-skip_covered = true

@@ -1,0 +1,21 @@
+# Configuração do coverage.py
+[run]
+source =
+    nutrition
+    user
+    mynutri
+omit =
+    */migrations/*
+    */tests/*
+    */tests.py
+    */test_*.py
+    mynutri/asgi.py
+    mynutri/wsgi.py
+    # Configuração dependente de variáveis de ambiente (ramos de produção/Sentry);
+    # validada por testes em subprocesso (nutrition/tests/test_api_site.py).
+    mynutri/settings.py
+    mynutri/test_settings.py
+
+[report]
+show_missing = False
+skip_covered = True
