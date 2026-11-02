@@ -1,15 +1,39 @@
 /**
  * Helpers compartilhados entre os testes E2E.
  * Usa a API diretamente para setup rápido (sem depender da UI de cadastro).
+ *
+ * Contratos da API seguidos aqui:
+ *   - Requisições não seguras exigem o header X-Requested-With (anti-CSRF);
+ *   - Registro exige accepted_terms: true;
+ *   - Login/registro NÃO devolvem tokens no JSON — só cookies HttpOnly + user.
  */
 
-const API = 'http://127.0.0.1:8000/api/v1';
+const BASE = 'http://127.0.0.1:8000';
+const API = `${BASE}/api/v1`;
+
+/** Header exigido pelo backend em POST/PUT/PATCH/DELETE autenticados por cookie. */
+const XHR_HEADERS = { 'X-Requested-With': 'XMLHttpRequest' };
 
 let _userCounter = Date.now();
 
 /** Gera um email único por execução de teste. */
 function uniqueEmail() {
   return `e2e_${_userCounter++}@test.com`;
+}
+
+/** POST na API com o header anti-CSRF. `request` pode ser context.request ou o fixture request. */
+async function apiPost(request, path, data) {
+  return request.post(`${API}${path}`, { data, headers: XHR_HEADERS });
+}
+
+/** Registra um usuário via API (cookies HttpOnly ficam no context). */
+async function registerUser(request, { nome = 'Teste E2E', email, password } = {}) {
+  return apiPost(request, '/auth/register', {
+    nome,
+    email,
+    senha: password,
+    accepted_terms: true,
+  });
 }
 
 /**
@@ -20,9 +44,7 @@ async function createAndLoginUser(context, { email, password } = {}) {
   email    = email    || uniqueEmail();
   password = password || 'SenhaE2E@123';
 
-  const res = await context.request.post(`${API}/auth/register`, {
-    data: { nome: 'Teste E2E', email, senha: password },
-  });
+  const res = await registerUser(context.request, { email, password });
 
   if (!res.ok()) {
     const body = await res.text();
@@ -31,8 +53,9 @@ async function createAndLoginUser(context, { email, password } = {}) {
 
   const data = await res.json();
   // Os cookies HttpOnly já foram definidos pelo servidor na resposta do register.
-  // O APIRequestContext do Playwright propaga os cookies automaticamente para o
-  // browser context associado, então páginas abertas neste context já estarão autenticadas.
+  // O APIRequestContext do Playwright compartilha o cookie jar com o browser
+  // context, então páginas abertas neste context já estarão autenticadas.
+  // O JSON não traz tokens — só os dados do usuário.
 
   return { email, password, user: data.user };
 }
@@ -47,4 +70,22 @@ async function setUserLocalStorage(page, user) {
   }, user);
 }
 
-module.exports = { uniqueEmail, createAndLoginUser, setUserLocalStorage, API };
+/** Marca o aceite de termos no formulário de cadastro, se existir na UI. */
+async function acceptTermsIfPresent(page) {
+  const terms = page.locator('#register-form input[type="checkbox"]');
+  if (await terms.count()) {
+    await terms.first().check();
+  }
+}
+
+module.exports = {
+  BASE,
+  API,
+  XHR_HEADERS,
+  uniqueEmail,
+  apiPost,
+  registerUser,
+  createAndLoginUser,
+  setUserLocalStorage,
+  acceptTermsIfPresent,
+};
