@@ -41,7 +41,7 @@
     </div>
   </header>
 
-  <div class="auth-container">
+  <main class="auth-container" id="main-content">
     <div class="auth-card">
       <div class="auth-header">
         <h1 class="auth-title">Boas-vindas</h1>
@@ -49,52 +49,61 @@
       </div>
 
       <div class="intent-message" id="intent-message">
-        Sua dieta está pronta! Crie uma conta ou faça login para visualizá-la e salvá-la em seu perfil.
+        Suas respostas foram guardadas! Crie uma conta ou faça login para gerarmos sua dieta e salvá-la em seu perfil.
       </div>
 
-      <div class="auth-tabs">
-        <div class="auth-tab active" data-target="login-form">Acessar</div>
-        <div class="auth-tab" data-target="register-form">Criar Conta</div>
+      <div class="auth-tabs" role="tablist" aria-label="Acessar ou criar conta">
+        <button type="button" class="auth-tab active" role="tab" id="tab-login" aria-selected="true" aria-controls="login-form" data-target="login-form">Acessar</button>
+        <button type="button" class="auth-tab" role="tab" id="tab-register" aria-selected="false" aria-controls="register-form" data-target="register-form" tabindex="-1">Criar Conta</button>
       </div>
 
       <!-- Login Form -->
-      <form class="auth-form active" id="login-form">
+      <form class="auth-form active" id="login-form" role="tabpanel" aria-labelledby="tab-login" novalidate>
         <div class="form-group">
-          <label class="form-label">E-mail</label>
-          <input type="email" class="form-input" placeholder="seu@email.com" required>
+          <label class="form-label" for="login-email">E-mail</label>
+          <input type="email" class="form-input" id="login-email" name="email" placeholder="seu@email.com" autocomplete="email" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" class="form-input" placeholder="••••••••" required>
-          <a href="#" class="forgot-password">Esqueceu a senha?</a>
+          <label class="form-label" for="login-password">Senha</label>
+          <input type="password" class="form-input" id="login-password" name="password" placeholder="••••••••" autocomplete="current-password" required>
         </div>
         <button type="submit" class="btn-submit">Entrar na Plataforma</button>
       </form>
 
       <!-- Register Form -->
-      <form class="auth-form" id="register-form">
+      <form class="auth-form" id="register-form" role="tabpanel" aria-labelledby="tab-register" novalidate hidden>
         <div class="form-group">
-          <label class="form-label">Nome Completo</label>
-          <input type="text" class="form-input" placeholder="Seu nome" required>
+          <label class="form-label" for="register-name">Nome Completo</label>
+          <input type="text" class="form-input" id="register-name" name="nome" placeholder="Seu nome" autocomplete="name" required>
         </div>
         <div class="form-group">
-          <label class="form-label">E-mail</label>
-          <input type="email" class="form-input" placeholder="seu@email.com" required>
+          <label class="form-label" for="register-email">E-mail</label>
+          <input type="email" class="form-input" id="register-email" name="email" placeholder="seu@email.com" autocomplete="email" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" class="form-input" placeholder="Crie uma senha forte" required>
+          <label class="form-label" for="register-password">Senha</label>
+          <input type="password" class="form-input" id="register-password" name="senha" placeholder="Crie uma senha forte" autocomplete="new-password" minlength="8" aria-describedby="register-password-hint" required>
+          <span class="form-hint" id="register-password-hint">Mínimo de 8 caracteres.</span>
+        </div>
+        <div class="form-group form-check">
+          <input type="checkbox" id="register-terms" name="accepted_terms" required>
+          <label for="register-terms">
+            Li e aceito os <a href="/termos/" target="_blank" rel="noopener">Termos de Uso</a>
+            e a <a href="/privacidade/" target="_blank" rel="noopener">Política de Privacidade</a>.
+          </label>
         </div>
         <button type="submit" class="btn-submit">Criar minha conta</button>
       </form>
+
+      <p class="auth-error" id="auth-error" role="alert" aria-live="assertive"></p>
 
       <div class="social-auth">
         <div class="social-auth-divider">
           <span>OU</span>
         </div>
         <div style="position:relative;display:block;">
-          <button class="btn-social" id="btn-google" type="button" style="pointer-events:none;width:100%;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <button class="btn-social" id="btn-google" type="button" tabindex="-1" aria-hidden="true" style="pointer-events:none;width:100%;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -107,7 +116,7 @@
       </div>
 
     </div>
-  </div>
+  </main>
 
   <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
