@@ -4,28 +4,67 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MyNutri AI — Dieta Personalizada com Inteligência Artificial</title>
-  <meta name="description" content="Gere sua dieta personalizada usando inteligência artificial. Responda um questionário simples e receba um plano alimentar feito sob medida para você." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
+  <meta name="description" content="Gere um plano alimentar personalizado com inteligência artificial: responda um questionário rápido sobre objetivo, rotina, alergias e preferências e receba refeições com calorias e macros calculados." />
+  <link rel="canonical" href="https://mynutri-ai.onrender.com/" />
+  <meta name="theme-color" content="#15803d" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="MyNutri AI" />
+  <meta property="og:title" content="MyNutri AI — Dieta personalizada com Inteligência Artificial" />
+  <meta property="og:description" content="Responda um questionário rápido e receba um plano alimentar personalizado, com calorias e macros calculados." />
+  <meta property="og:url" content="https://mynutri-ai.onrender.com/" />
+  <meta property="og:image" content="https://mynutri-ai.onrender.com/static/src/assets/hero-bg.png" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MyNutri AI — Dieta personalizada com Inteligência Artificial" />
+  <meta name="twitter:description" content="Responda um questionário rápido e receba um plano alimentar personalizado, com calorias e macros calculados." />
+  <meta name="twitter:image" content="https://mynutri-ai.onrender.com/static/src/assets/hero-bg.png" />
+
+  <!-- Dados estruturados (bloco de dados JSON-LD: não é executado, não conflita com a CSP) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MyNutri AI",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "pt-BR",
+    "url": "https://mynutri-ai.onrender.com/",
+    "description": "Plataforma web que gera planos alimentares personalizados com inteligência artificial a partir de um questionário nutricional.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" }
+  }
+  </script>
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/index.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- ===================== HEADER ===================== -->
   <header class="header" id="header">
     <div class="container header-inner">
-      <a href="/" class="logo" id="logo">
+      <a href="/" class="logo" id="logo" aria-label="MyNutri AI — página inicial">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
 
-      <nav class="nav" id="nav">
+      <nav class="nav" id="nav" aria-label="Navegação principal">
         <a href="#como-funciona" class="nav-link">Como Funciona</a>
         <a href="#beneficios" class="nav-link">Benefícios</a>
         <a href="#plano" class="nav-link">Plano Alimentar</a>
-        <a href="#depoimentos" class="nav-link">Depoimentos</a>
+        <a href="#depoimentos" class="nav-link" id="nav-depoimentos" hidden>Depoimentos</a>
         <div class="nav-mobile-auth" style="display: none;">
           <a href="/auth/" class="nav-link">Entrar</a>
           <a href="/auth/" class="nav-link" style="color: var(--green-600); font-weight: 600;">Criar conta</a>
@@ -88,13 +127,14 @@
         </svg>
       </button>
 
-      <button class="mobile-toggle" id="mobile-toggle" aria-label="Abrir menu">
+      <button class="mobile-toggle" id="mobile-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
         <span></span><span></span><span></span>
       </button>
     </div>
   </header>
 
   <!-- ===================== HERO ===================== -->
+  <main id="main-content">
   <section class="hero" id="hero">
     <div class="container hero-inner">
       <div class="hero-content">
@@ -112,7 +152,7 @@
 
         <p class="hero-description">
           Responda um questionário rápido sobre suas preferências, objetivos e restrições. 
-          Nossa IA analisa seus dados e gera um plano alimentar 100% personalizado em alguns segundos.
+          Nossa IA analisa seus dados e gera um plano alimentar personalizado em poucos minutos.
         </p>
 
         <div class="hero-actions">
@@ -130,30 +170,30 @@
           </a>
         </div>
 
-        <div class="hero-stats">
-          <div class="hero-stat">
-            <span class="hero-stat-number">15k+</span>
-            <span class="hero-stat-label">Dietas geradas</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-number">98%</span>
-            <span class="hero-stat-label">Satisfação</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-number">30s</span>
-            <span class="hero-stat-label">Para gerar</span>
-          </div>
-        </div>
+        <ul class="hero-stats hero-stats--text">
+          <li class="hero-stat">
+            <span class="hero-stat-number">Sob medida</span>
+            <span class="hero-stat-label">Para o seu objetivo e rotina</span>
+          </li>
+          <li class="hero-stat">
+            <span class="hero-stat-number">Seguro</span>
+            <span class="hero-stat-label">Respeita alergias e restrições</span>
+          </li>
+          <li class="hero-stat">
+            <span class="hero-stat-number">Poucos minutos</span>
+            <span class="hero-stat-label">Para gerar seu plano</span>
+          </li>
+        </ul>
       </div>
 
       <div class="hero-visual">
         <div class="hero-image-wrapper">
           <picture>
             <source srcset="/static/src/assets/hero-bg.webp" type="image/webp">
-            <img src="/static/src/assets/hero-bg.png" alt="MyNutri AI — Plataforma de dietas personalizadas com IA" />
+            <img src="/static/src/assets/hero-bg.png" alt="Ilustração de refeições saudáveis do MyNutri AI" width="1024" height="1024" fetchpriority="high" decoding="async" />
           </picture>
 
-          <div class="hero-float-card card-1">
+          <div class="hero-float-card card-1" aria-hidden="true">
             <div class="float-icon green">🥗</div>
             <div class="float-text">
               <strong>Dieta pronta!</strong>
@@ -161,7 +201,7 @@
             </div>
           </div>
 
-          <div class="hero-float-card card-2">
+          <div class="hero-float-card card-2" aria-hidden="true">
             <div class="float-icon teal">🤖</div>
             <div class="float-text">
               <strong>IA analisando…</strong>
@@ -176,7 +216,7 @@
   <!-- ===================== COMO FUNCIONA ===================== -->
   <section class="how-it-works" id="como-funciona">
     <div class="container text-center">
-      <span class="section-tag reveal">✦ Simples e rápido</span>
+      <span class="section-tag reveal"><span aria-hidden="true">✦</span> Simples e rápido</span>
       <h2 class="section-title reveal">Como funciona?</h2>
       <p class="section-subtitle mx-auto reveal">Apenas três passos para receber seu plano alimentar personalizado, feito sob medida pela nossa inteligência artificial.</p>
 
@@ -184,7 +224,7 @@
         <!-- Step 1 -->
         <div class="step-card reveal reveal-delay-1" id="step-1">
           <div class="step-number">1</div>
-          <div class="step-icon">📝</div>
+          <div class="step-icon" aria-hidden="true">📝</div>
           <h3>Responda o Questionário</h3>
           <p>Preencha um questionário rápido com informações sobre seus objetivos, preferências alimentares e restrições.</p>
         </div>
@@ -192,7 +232,7 @@
         <!-- Step 2 -->
         <div class="step-card reveal reveal-delay-2" id="step-2">
           <div class="step-number">2</div>
-          <div class="step-icon">🧠</div>
+          <div class="step-icon" aria-hidden="true">🧠</div>
           <h3>IA Analisa seus Dados</h3>
           <p>Nossa inteligência artificial processa suas respostas e calcula as melhores combinações nutricionais para você.</p>
         </div>
@@ -200,9 +240,9 @@
         <!-- Step 3 -->
         <div class="step-card reveal reveal-delay-3" id="step-3">
           <div class="step-number">3</div>
-          <div class="step-icon">🍽️</div>
+          <div class="step-icon" aria-hidden="true">🍽️</div>
           <h3>Receba sua Dieta</h3>
-          <p>Em poucos segundos, você recebe um plano alimentar completo, personalizado e pronto para seguir.</p>
+          <p>Em poucos minutos, você recebe um plano alimentar completo e personalizado. Pode sair da página: ele fica salvo na sua conta.</p>
         </div>
       </div>
     </div>
@@ -211,45 +251,45 @@
   <!-- ===================== BENEFÍCIOS ===================== -->
   <section class="benefits" id="beneficios">
     <div class="container text-center">
-      <span class="section-tag reveal">💎 Vantagens</span>
+      <span class="section-tag reveal"><span aria-hidden="true">💎</span> Vantagens</span>
       <h2 class="section-title reveal">Por que escolher o MyNutri AI?</h2>
       <p class="section-subtitle mx-auto reveal">Combinamos ciência nutricional com inteligência artificial para oferecer a melhor experiência em alimentação personalizada.</p>
 
       <div class="benefits-grid">
         <div class="benefit-card reveal reveal-delay-1" id="benefit-personalizacao">
-          <div class="benefit-icon">🎯</div>
-          <h3>100% Personalizado</h3>
+          <div class="benefit-icon" aria-hidden="true">🎯</div>
+          <h3>Personalizado</h3>
           <p>Cada dieta é única, criada com base no seu perfil, objetivos e preferências alimentares. Nada de planos genéricos.</p>
         </div>
 
         <div class="benefit-card reveal reveal-delay-2" id="benefit-rapidez">
-          <div class="benefit-icon">⚡</div>
-          <h3>Resultado em Segundos</h3>
-          <p>Esqueça a espera. Nossa IA gera seu plano alimentar completo em menos de 1 minuto, com precisão nutricional.</p>
+          <div class="benefit-icon" aria-hidden="true">⚡</div>
+          <h3>Resultado Rápido</h3>
+          <p>Seu plano fica pronto em poucos minutos, com calorias e macronutrientes calculados para cada refeição.</p>
         </div>
 
         <div class="benefit-card reveal reveal-delay-3" id="benefit-praticidade">
-          <div class="benefit-icon">📱</div>
+          <div class="benefit-icon" aria-hidden="true">📱</div>
           <h3>Praticidade Total</h3>
           <p>Acesse seu plano de qualquer lugar, a qualquer momento. Sem complicações, sem agendamento, sem papelada.</p>
         </div>
 
         <div class="benefit-card reveal reveal-delay-1" id="benefit-ciencia">
-          <div class="benefit-icon">🔬</div>
-          <h3>Base Científica</h3>
-          <p>Algoritmos treinados com dados nutricionais validados por especialistas. Sua saúde em boas mãos.</p>
+          <div class="benefit-icon" aria-hidden="true">🔬</div>
+          <h3>Cálculos Transparentes</h3>
+          <p>Calorias estimadas pela equação de Mifflin-St Jeor e macros calculados a partir de uma tabela de alimentos — e você vê como o plano foi montado.</p>
         </div>
 
         <div class="benefit-card reveal reveal-delay-2" id="benefit-adaptavel">
-          <div class="benefit-icon">🔄</div>
+          <div class="benefit-icon" aria-hidden="true">🔄</div>
           <h3>Adaptável</h3>
           <p>Vegetariano, vegano, low carb, sem glúten? A IA se adapta às suas restrições e preferências sem esforço.</p>
         </div>
 
         <div class="benefit-card reveal reveal-delay-3" id="benefit-acessibilidade">
-          <div class="benefit-icon">💰</div>
-          <h3>Acessível</h3>
-          <p>Nutrição de qualidade sem pagar caro. Tenha um plano profissional por uma fração do custo de um nutricionista.</p>
+          <div class="benefit-icon" aria-hidden="true">💰</div>
+          <h3>Um Bom Ponto de Partida</h3>
+          <p>Ajuda a organizar sua alimentação no dia a dia. Não substitui o acompanhamento de um nutricionista — use o plano como apoio e procure um profissional quando precisar.</p>
         </div>
       </div>
     </div>
@@ -267,7 +307,7 @@
         </div>
 
         <div class="meal-plan-content">
-          <span class="section-tag reveal">🍎 Exemplo real</span>
+          <span class="section-tag reveal"><span aria-hidden="true">🍎</span> Exemplo</span>
           <h2 class="section-title reveal">Veja como é seu plano alimentar</h2>
           <p class="section-subtitle reveal">
             Cada plano inclui refeições detalhadas, porções calculadas e dicas nutricionais para o seu dia a dia.
@@ -275,33 +315,33 @@
 
           <div class="meal-features">
             <div class="meal-feature reveal reveal-delay-1">
-              <div class="meal-feature-icon">🌅</div>
+              <div class="meal-feature-icon" aria-hidden="true">🌅</div>
               <div class="meal-feature-text">
-                <h4>Café da manhã equilibrado</h4>
+                <h3>Café da manhã equilibrado</h3>
                 <p>Combinações energéticas para começar o dia com disposição e foco.</p>
               </div>
             </div>
 
             <div class="meal-feature reveal reveal-delay-2">
-              <div class="meal-feature-icon">🥩</div>
+              <div class="meal-feature-icon" aria-hidden="true">🥩</div>
               <div class="meal-feature-text">
-                <h4>Almoço e jantar completos</h4>
+                <h3>Almoço e jantar completos</h3>
                 <p>Proteínas, carboidratos e gorduras na medida certa para seus objetivos.</p>
               </div>
             </div>
 
             <div class="meal-feature reveal reveal-delay-3">
-              <div class="meal-feature-icon">🥜</div>
+              <div class="meal-feature-icon" aria-hidden="true">🥜</div>
               <div class="meal-feature-text">
-                <h4>Lanches inteligentes</h4>
+                <h3>Lanches inteligentes</h3>
                 <p>Opções práticas entre as refeições para manter a energia e saciedade.</p>
               </div>
             </div>
 
             <div class="meal-feature reveal reveal-delay-3">
-              <div class="meal-feature-icon">📊</div>
+              <div class="meal-feature-icon" aria-hidden="true">📊</div>
               <div class="meal-feature-text">
-                <h4>Macros calculados</h4>
+                <h3>Macros calculados</h3>
                 <p>Calorias, proteínas, carboidratos e gorduras otimizados para você.</p>
               </div>
             </div>
@@ -312,53 +352,19 @@
   </section>
 
   <!-- ===================== DEPOIMENTOS ===================== -->
-  <section class="testimonials" id="depoimentos">
+  <section class="testimonials" id="depoimentos" hidden>
     <div class="container text-center">
-      <span class="section-tag reveal">💬 Depoimentos</span>
+      <span class="section-tag reveal"><span aria-hidden="true">💬</span> Depoimentos</span>
       <h2 class="section-title reveal">O que nossos usuários dizem</h2>
-      <p class="section-subtitle mx-auto reveal">Pessoas reais que transformaram sua alimentação com o MyNutri AI.</p>
+      <p class="section-subtitle mx-auto reveal">Opiniões enviadas por quem usa o MyNutri AI.</p>
 
       <!-- Carrossel de depoimentos -->
-      <div class="testimonials-carousel-wrapper reveal">
+      <div class="testimonials-carousel-wrapper reveal" id="testimonials-carousel">
         <button class="carousel-arrow" id="carousel-prev" aria-label="Depoimentos anteriores" disabled>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
 
-        <div class="testimonials-grid" id="testimonials-grid">
-          <!-- Depoimentos padrão exibidos enquanto a API carrega -->
-          <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-text">"Site muito intuitivo e prático! Com certeza facilita muito todo o processo de organizar uma dieta."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">TL</div>
-              <div class="testimonial-author-info">
-                <strong>Tiago Leal</strong>
-                <span>Internacionalista, 24 anos</span>
-              </div>
-            </div>
-          </div>
-          <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-text">"Sou vegetariana e sempre tive dificuldade em montar dietas equilibradas. O MyNutri AI entendeu todas as minhas restrições e criou algo perfeito."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">CM</div>
-              <div class="testimonial-author-info">
-                <strong>Camila Moreira</strong>
-                <span>Designer, 34 anos</span>
-              </div>
-            </div>
-          </div>
-          <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-text">"Perdi 8kg em 3 meses seguindo o plano que a IA gerou. O mais legal é que eu não senti fome e as receitas eram simples de fazer."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">FS</div>
-              <div class="testimonial-author-info">
-                <strong>Fernando Silva</strong>
-                <span>Engenheiro, 42 anos</span>
-              </div>
-            </div>
-          </div>
+        <div class="testimonials-grid" id="testimonials-grid" aria-live="polite">
         </div>
 
         <button class="carousel-arrow" id="carousel-next" aria-label="Próximos depoimentos" disabled>
@@ -399,6 +405,8 @@
     </div>
   </section>
 
+  </main>
+
   <!-- ===================== FOOTER ===================== -->
   <footer class="footer" id="footer">
     <div class="container">
@@ -407,7 +415,7 @@
           <a href="/" class="logo">
             <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
             MyNutri <span>AI</span>
           </a>
@@ -415,27 +423,24 @@
         </div>
 
         <div>
-          <h4>Plataforma</h4>
+          <h2 class="footer-heading">Plataforma</h2>
           <ul class="footer-links">
             <li><a href="#como-funciona">Como funciona</a></li>
             <li><a href="#beneficios">Benefícios</a></li>
             <li><a href="#plano">Plano alimentar</a></li>
-            <li><a href="#depoimentos">Depoimentos</a></li>
+            <li><a href="#depoimentos" id="footer-depoimentos" hidden>Depoimentos</a></li>
           </ul>
         </div>
 
         <div>
-          <h4>Suporte</h4>
+          <h2 class="footer-heading">Suporte</h2>
           <ul class="footer-links">
-            <li><a href="#">Central de ajuda</a></li>
-            <li><a href="#">FAQ</a></li>
-            <li><a href="/contato/">Contato</a></li>
-            <li><a href="#">Feedback</a></li>
+            <li><a href="/contato/">Contato e dúvidas frequentes</a></li>
           </ul>
         </div>
 
         <div>
-          <h4>Legal</h4>
+          <h2 class="footer-heading">Legal</h2>
           <ul class="footer-links">
             <li><a href="/termos/">Termos de uso</a></li>
             <li><a href="/privacidade/">Política de privacidade</a></li>
@@ -445,34 +450,11 @@
 
       <div class="footer-bottom">
         <p>&copy; 2026 MyNutri AI. Todos os direitos reservados.</p>
-        <div class="footer-socials">
-          <a href="#" class="footer-social-link" aria-label="Instagram">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
-            </svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="Twitter">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
-            </svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="LinkedIn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
-            </svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="YouTube">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
-            </svg>
-          </a>
-        </div>
       </div>
     </div>
   </footer>
 
   <!-- ===================== JAVASCRIPT ===================== -->
-  <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
   <script src="/static/src/js/utils/helpers.js" defer></script>
   <script src="/static/src/js/components/user-menu.js" defer></script>

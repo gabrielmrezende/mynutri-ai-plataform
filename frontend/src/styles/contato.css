@@ -240,7 +240,7 @@
 
 .contact-info-card span {
   font-size: .8125rem;
-  color: var(--gray-400);
+  color: var(--gray-500);
 }
 
 /* Socials */
@@ -341,7 +341,7 @@
   height: 20px;
   flex-shrink: 0;
   transition: transform .3s var(--ease-out);
-  color: var(--gray-400);
+  color: var(--gray-500);
 }
 
 .contact-faq .faq-item.open .faq-arrow {
@@ -399,3 +399,5 @@
 @media (max-width: 480px) {
   .contact-form-card { padding: 24px 18px; }
 }
+
+.contact-form-error { color: var(--danger-text); font-size: .875rem; margin-top: -.25rem; margin-bottom: .5rem; }

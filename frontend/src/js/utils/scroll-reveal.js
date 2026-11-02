@@ -10,6 +10,13 @@
     const elements = document.querySelectorAll('.reveal');
     if (!elements.length) return;
 
+    // Sem animação para quem pediu movimento reduzido (ou navegador sem IntersectionObserver)
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) {
+      elements.forEach(function (el) { el.classList.add('visible'); });
+      return;
+    }
+
     const observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {

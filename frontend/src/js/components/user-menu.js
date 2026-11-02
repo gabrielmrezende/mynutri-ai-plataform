@@ -19,7 +19,8 @@ async function initUserMenu(opts) {
   opts = Object.assign({ requireAuth: false, logoutRedirect: '/', onUserLoaded: null }, opts);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
-  const cached = JSON.parse(localStorage.getItem('mynutri_user') || 'null');
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('mynutri_user') || 'null'); } catch { cached = null; }
 
   if (!cached && opts.requireAuth) {
     window.location.href = '/auth/';
@@ -53,8 +54,7 @@ async function initUserMenu(opts) {
     applyUserUI(cached);
   } else {
     try {
-      const fetchFn = typeof apiFetch === 'function' ? apiFetch : fetch;
-      const res = await fetchFn(`${API_BASE}/user/profile`, { credentials: 'include', redirectOn401: false });
+      const res = await apiFetch(`${API_BASE}/user/profile`, { redirectOn401: false });
 
       if (res.status === 401) {
         localStorage.removeItem('mynutri_user');
@@ -73,20 +73,38 @@ async function initUserMenu(opts) {
     }
   }
 
-  // ── Dropdown toggle ─────────────────────────────────────────────────────────
+  // ── Dropdown toggle (acessível: aria-expanded, ESC fecha e devolve o foco) ──
   const menuBtn  = document.getElementById('userMenuBtn');
   const dropdown = document.getElementById('userDropdown');
 
   if (menuBtn && dropdown) {
+    menuBtn.setAttribute('aria-haspopup', 'true');
+    menuBtn.setAttribute('aria-controls', 'userDropdown');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    if (!menuBtn.getAttribute('aria-label')) menuBtn.setAttribute('aria-label', 'Menu da conta');
+
+    function setOpen(open) {
+      dropdown.classList.toggle('open', open);
+      menuBtn.classList.toggle('open', open);
+      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) dropdown.removeAttribute('inert'); else dropdown.setAttribute('inert', '');
+    }
+    setOpen(false);
+
     menuBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      const open = dropdown.classList.toggle('open');
-      menuBtn.classList.toggle('open', open);
+      setOpen(!dropdown.classList.contains('open'));
     });
 
-    document.addEventListener('click', function () {
-      dropdown.classList.remove('open');
-      menuBtn.classList.remove('open');
+    dropdown.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    document.addEventListener('click', function () { setOpen(false); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && dropdown.classList.contains('open')) {
+        setOpen(false);
+        menuBtn.focus();
+      }
     });
   }
 
@@ -94,8 +112,10 @@ async function initUserMenu(opts) {
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async function () {
-      await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
-      localStorage.removeItem('mynutri_user');
+      try {
+        await apiFetch(`${API_BASE}/auth/logout`, { method: 'POST', skipRefresh: true });
+      } catch { /* mesmo offline, limpa o estado local */ }
+      clearAppStorage();
       window.location.href = opts.logoutRedirect;
     });
   }

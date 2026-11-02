@@ -1,38 +1,57 @@
 /**
  * HTTP utils — MyNutri AI
  *
- * API_BASE   Prefixo de todas as chamadas à API (detecta localhost vs produção).
- * apiFetch   Wrapper sobre fetch com refresh automático de JWT em 401.
+ * API_BASE   Prefixo de todas as chamadas à API (sempre relativo: o frontend é
+ *            servido pelo próprio Django, então a API está na mesma origem).
+ * apiFetch   Wrapper sobre fetch que:
+ *              - envia sempre `X-Requested-With: XMLHttpRequest` (exigido pelo
+ *                backend em requisições autenticadas por cookie — anti-CSRF);
+ *              - usa credentials 'same-origin' (cookies HttpOnly de sessão);
+ *              - tenta renovar o JWT uma vez em caso de 401.
+ *
+ * Opções extras aceitas em `opts` (removidas antes de chamar fetch):
+ *   redirectOn401 {boolean} Redireciona para /auth/ se o refresh falhar. Default: true.
+ *   skipRefresh   {boolean} Não tenta refresh em 401 (login/registro). Default: false.
  */
 
-const API_BASE =
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://127.0.0.1:8000/api/v1'
-    : '/api/v1';
+const API_BASE = '/api/v1';
 
 let _refreshing = null;
 
+function _buildFetchOpts(opts) {
+  const headers = new Headers(opts.headers || {});
+  headers.set('X-Requested-With', 'XMLHttpRequest');
+  return Object.assign({}, opts, { headers, credentials: 'same-origin' });
+}
+
 async function apiFetch(url, opts = {}) {
   const redirectOn401 = opts.redirectOn401 !== false;
-  opts = { credentials: 'include', ...opts };
+  const skipRefresh   = opts.skipRefresh === true;
+  opts = Object.assign({}, opts);
   delete opts.redirectOn401;
+  delete opts.skipRefresh;
 
-  let res = await fetch(url, opts);
-  if (res.status !== 401) return res;
+  const fetchOpts = _buildFetchOpts(opts);
+
+  let res = await fetch(url, fetchOpts);
+  if (res.status !== 401 || skipRefresh) return res;
 
   if (!_refreshing) {
-    _refreshing = fetch(`${API_BASE}/auth/token/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    }).finally(() => { _refreshing = null; });
+    _refreshing = fetch(`${API_BASE}/auth/token/refresh`, _buildFetchOpts({ method: 'POST' }))
+      .finally(() => { _refreshing = null; });
   }
 
-  const refreshRes = await _refreshing;
+  let refreshRes;
+  try {
+    refreshRes = await _refreshing;
+  } catch {
+    return res;
+  }
   if (!refreshRes.ok) {
     localStorage.removeItem('mynutri_user');
     if (redirectOn401) window.location.href = '/auth/';
     return res;
   }
 
-  return fetch(url, opts);
+  return fetch(url, fetchOpts);
 }

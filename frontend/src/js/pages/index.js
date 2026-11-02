@@ -8,31 +8,33 @@
     header.classList.toggle('scrolled', window.scrollY > 40);
   });
 
-  // --- Mobile nav toggle ---
+  // --- Mobile nav toggle (aria-expanded + ESC fecha) ---
   const mobileToggle = document.getElementById('mobile-toggle');
   const nav = document.getElementById('nav');
-  mobileToggle.addEventListener('click', function () {
-    nav.classList.toggle('open');
+
+  function setNavOpen(open) {
+    nav.classList.toggle('open', open);
+    mobileToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    mobileToggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
     const spans = mobileToggle.querySelectorAll('span');
-    if (nav.classList.contains('open')) {
-      spans[0].style.transform = 'rotate(45deg) translate(5px, 5px)';
-      spans[1].style.opacity = '0';
-      spans[2].style.transform = 'rotate(-45deg) translate(5px, -5px)';
-    } else {
-      spans[0].style.transform = '';
-      spans[1].style.opacity = '';
-      spans[2].style.transform = '';
+    spans[0].style.transform = open ? 'rotate(45deg) translate(5px, 5px)' : '';
+    spans[1].style.opacity   = open ? '0' : '';
+    spans[2].style.transform = open ? 'rotate(-45deg) translate(5px, -5px)' : '';
+  }
+
+  mobileToggle.addEventListener('click', function () {
+    setNavOpen(!nav.classList.contains('open'));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && nav.classList.contains('open')) {
+      setNavOpen(false);
+      mobileToggle.focus();
     }
   });
 
   nav.querySelectorAll('.nav-link').forEach(function (link) {
-    link.addEventListener('click', function () {
-      nav.classList.remove('open');
-      const spans = mobileToggle.querySelectorAll('span');
-      spans[0].style.transform = '';
-      spans[1].style.opacity = '';
-      spans[2].style.transform = '';
-    });
+    link.addEventListener('click', function () { setNavOpen(false); });
   });
 
   // --- Smooth scroll for anchor links ---
@@ -42,42 +44,10 @@
       if (target) {
         e.preventDefault();
         const y = target.getBoundingClientRect().top + window.pageYOffset - 80;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+        window.scrollTo({ top: y, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
       }
     });
   });
-
-  // --- Animated counters for hero stats ---
-  function animateCounter(element, target, suffix) {
-    suffix = suffix || '';
-    const duration  = 1500;
-    const startTime = performance.now();
-
-    function update(currentTime) {
-      const elapsed  = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const easeOut  = 1 - Math.pow(1 - progress, 3);
-      const val      = Math.round(target * easeOut);
-      element.textContent = val.toLocaleString('pt-BR') + suffix;
-      if (progress < 1) requestAnimationFrame(update);
-    }
-    requestAnimationFrame(update);
-  }
-
-  const statsObserver = new IntersectionObserver(function (entries) {
-    entries.forEach(function (entry) {
-      if (entry.isIntersecting) {
-        const stats = entry.target.querySelectorAll('.hero-stat-number');
-        animateCounter(stats[0], 15, 'k+');
-        animateCounter(stats[1], 98, '%');
-        animateCounter(stats[2], 30, 's');
-        statsObserver.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.5 });
-
-  const heroStats = document.querySelector('.hero-stats');
-  if (heroStats) statsObserver.observe(heroStats);
 
   // --- Testimonials carousel ---
   const grid       = document.getElementById('testimonials-grid');
@@ -85,21 +55,34 @@
   const nextBtn    = document.getElementById('carousel-next');
   const dotsEl     = document.getElementById('carousel-dots');
   const formBox    = document.getElementById('testimonial-form-box');
-  const isLoggedIn = !!localStorage.getItem('mynutri_user');
+  const section    = document.getElementById('depoimentos');
+  let isLoggedIn = false;
+  try { isLoggedIn = !!localStorage.getItem('mynutri_user'); } catch { isLoggedIn = false; }
 
   const PER_PAGE = 3;
   let currentPage = 0;
   let allTestimonials = [];
 
-  const DEFAULTS = [
-    { id: 'd1', nome: 'Tiago Leal',     avatar: 'TL', text: 'Site muito intuitivo e prático! Com certeza facilita muito todo o processo de organizar uma dieta.', rating: 5 },
-    { id: 'd2', nome: 'Camila Moreira', avatar: 'CM', text: 'Sou vegetariana e sempre tive dificuldade em montar dietas equilibradas. O MyNutri AI entendeu todas as minhas restrições e criou algo perfeito.', rating: 5 },
-    { id: 'd3', nome: 'Fernando Silva', avatar: 'FS', text: 'Perdi 8kg em 3 meses seguindo o plano que a IA gerou. O mais legal é que eu não senti fome e as receitas eram simples de fazer.', rating: 5 },
-  ];
+  // Só exibimos depoimentos reais vindos da API; sem dados, a seção fica escondida.
+  function setSectionVisible(visible) {
+    section.hidden = !visible;
+    ['nav-depoimentos', 'footer-depoimentos'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.hidden = !visible;
+    });
+    const carousel = document.getElementById('testimonials-carousel');
+    if (carousel) carousel.hidden = allTestimonials.length === 0;
+    dotsEl.hidden = allTestimonials.length === 0;
+    // Seção revelada depois do scroll-reveal ter rodado: mostra sem animação
+    section.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('visible'); });
+  }
 
   function numPages() { return Math.max(1, Math.ceil(allTestimonials.length / PER_PAGE)); }
 
-  function starsText(rating) { return '★'.repeat(rating) + '☆'.repeat(5 - rating); }
+  function starsText(rating) {
+    const r = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+    return '★'.repeat(r) + '☆'.repeat(5 - r);
+  }
 
   function buildCard(t) {
     const card = document.createElement('div');
@@ -108,6 +91,8 @@
     const starsEl = document.createElement('div');
     starsEl.className = 'testimonial-stars';
     starsEl.textContent = starsText(t.rating);
+    starsEl.setAttribute('role', 'img');
+    starsEl.setAttribute('aria-label', `Nota ${Math.round(Number(t.rating) || 0)} de 5`);
 
     const textEl = document.createElement('p');
     textEl.className = 'testimonial-text';
@@ -115,10 +100,11 @@
 
     const avatarEl = document.createElement('div');
     avatarEl.className = 'testimonial-avatar';
-    avatarEl.textContent = t.avatar;
+    avatarEl.textContent = t.avatar || initials(t.nome);
+    avatarEl.setAttribute('aria-hidden', 'true');
 
     const nameEl = document.createElement('strong');
-    nameEl.textContent = t.nome;
+    nameEl.textContent = t.nome || 'Usuário';
 
     const authorInfo = document.createElement('div');
     authorInfo.className = 'testimonial-author-info';
@@ -143,7 +129,9 @@
       slice.forEach(function (t) { grid.appendChild(buildCard(t)); });
     }
 
-    if (direction === 0) {
+    if (prefersReducedMotion()) {
+      swap();
+    } else if (direction === 0) {
       grid.style.transition = 'opacity 0.3s ease';
       grid.style.opacity = '0';
       setTimeout(function () { swap(); grid.style.opacity = '1'; }, 250);
@@ -197,8 +185,12 @@
     if (currentPage < numPages() - 1) renderPage(currentPage + 1, 1);
   });
 
+  // ←/→ navegam no carrossel só quando o foco NÃO está num campo editável
   document.addEventListener('keydown', function (e) {
-    const section = document.getElementById('depoimentos');
+    if (section.hidden || allTestimonials.length === 0) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const rect = section.getBoundingClientRect();
     const inView = rect.top < window.innerHeight && rect.bottom > 0;
     if (!inView) return;
@@ -208,14 +200,17 @@
 
   async function loadTestimonials() {
     try {
-      const res = await fetch(`${API_BASE}/testimonials`);
-      if (!res.ok) return;
+      const res = await apiFetch(`${API_BASE}/testimonials`, { redirectOn401: false, skipRefresh: true });
+      if (!res.ok) { setSectionVisible(isLoggedIn); return; }
       const data = await res.json();
-      if (!data.length) return;
-      allTestimonials = data;
-      renderPage(0, 0);
+      const list = Array.isArray(data) ? data : (data.results || []);
+      allTestimonials = list;
+      if (list.length) renderPage(0, 0);
+      updateControls();
+      setSectionVisible(list.length > 0 || isLoggedIn);
     } catch {
-      // Servidor offline — mantém cards padrão
+      // Servidor offline — sem depoimentos para mostrar
+      setSectionVisible(isLoggedIn);
     }
   }
 
@@ -223,19 +218,22 @@
     formBox.innerHTML = '';
 
     const title = document.createElement('h3');
+    title.id = 'testimonial-form-title';
     title.textContent = 'Deixe seu depoimento';
 
     const subtitle = document.createElement('p');
     subtitle.textContent = 'Compartilhe sua experiência com o MyNutri AI.';
 
-    const ratingLabel = document.createElement('label');
+    const ratingLabel = document.createElement('p');
     ratingLabel.style.cssText = 'display:block;font-size:.875rem;font-weight:600;color:var(--text-primary);margin-bottom:8px;';
     ratingLabel.textContent = 'Sua nota';
 
-    const starRating = document.createElement('div');
+    const starRating = document.createElement('fieldset');
     starRating.className = 'star-rating';
-    starRating.setAttribute('role', 'radiogroup');
-    starRating.setAttribute('aria-label', 'Nota de 1 a 5 estrelas');
+    const legend = document.createElement('legend');
+    legend.className = 'sr-only';
+    legend.textContent = 'Nota de 1 a 5 estrelas';
+    starRating.appendChild(legend);
     for (let i = 5; i >= 1; i--) {
       const input = document.createElement('input');
       input.type = 'radio'; input.name = 'rating';
@@ -273,6 +271,7 @@
     submitRow.className = 'testimonial-submit-row';
     const feedback = document.createElement('span');
     feedback.className = 'testimonial-feedback';
+    feedback.setAttribute('role', 'status');
     const btn = document.createElement('button');
     btn.type = 'submit';
     btn.className = 'btn btn-primary';
@@ -313,35 +312,38 @@
       btn.textContent = 'Enviando…';
 
       try {
-        const res = await fetch(`${API_BASE}/testimonials`, {
+        const res = await apiFetch(`${API_BASE}/testimonials`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ text, rating }),
+          redirectOn401: false,
         });
-        const payload = await res.json();
+        const payload = await safeJson(res);
 
         if (res.status === 401) {
-          feedback.textContent = 'Sessão expirada. Faça login novamente.';
+          feedback.textContent = friendlyMessage(401);
           feedback.classList.add('error');
           return;
         }
-        if (!res.ok) {
-          const msg = payload?.text?.[0] || payload?.rating?.[0] || payload?.error || 'Erro ao enviar. Tente novamente.';
-          feedback.textContent = msg;
+        if (!res.ok || !payload) {
+          feedback.textContent = apiErrorMessage(res.status, payload, 'Não foi possível enviar. Tente novamente.');
           feedback.classList.add('error');
           return;
         }
 
-        allTestimonials.unshift(payload);
-        renderPage(0, 0);
+        // Depoimentos podem depender de aprovação: só entram no carrossel se vierem aprovados
+        if (payload.approved !== false) {
+          allTestimonials.unshift(payload);
+          renderPage(0, 0);
+          setSectionVisible(true);
+        }
 
         textarea.value = '';
         charCount.textContent = '0 / 500';
         feedback.textContent = 'Depoimento enviado! Obrigado pela sua avaliação.';
         feedback.classList.add('success');
       } catch {
-        feedback.textContent = 'Não foi possível enviar. Verifique sua conexão.';
+        feedback.textContent = friendlyMessage('network');
         feedback.classList.add('error');
       } finally {
         btn.disabled = false;
@@ -350,8 +352,7 @@
     });
   }
 
-  // Init carousel with defaults while API loads
-  allTestimonials = DEFAULTS.slice();
+  // Carrega depoimentos reais (a seção começa escondida no HTML)
   updateControls();
   loadTestimonials();
 

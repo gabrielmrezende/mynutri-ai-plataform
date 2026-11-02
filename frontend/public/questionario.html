@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Questionário — MyNutri AI</title>
   <meta name="description" content="Preencha o questionário nutricional e receba sua dieta personalizada gerada por inteligência artificial." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
-  <link rel="stylesheet" href="/static/src/styles/index.css" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/questionario.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- ===================== HEADER ===================== -->
   <header class="header" id="header">
@@ -17,7 +24,7 @@
       <a href="/" class="logo" id="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
@@ -84,18 +91,25 @@
   </header>
 
   <!-- ===================== QUESTIONNAIRE ===================== -->
-  <main class="questionnaire-page">
+  <main class="questionnaire-page" id="main-content">
     <div class="questionnaire-container">
 
       <!-- Page Header -->
       <div class="questionnaire-header">
-        <span class="section-tag">📝 Questionário Nutricional</span>
+        <span class="section-tag"><span aria-hidden="true">📝</span> Questionário Nutricional</span>
         <h1 class="section-title">Monte sua dieta ideal</h1>
-        <p class="section-subtitle">Responda as perguntas abaixo para que nossa IA crie um plano alimentar 100% personalizado para você.</p>
+        <p class="section-subtitle">Responda as perguntas abaixo para que nossa IA crie um plano alimentar personalizado para você.</p>
       </div>
 
+      <!-- Aviso nutricional -->
+      <p class="health-disclaimer" role="note">
+        <strong>Importante:</strong> o MyNutri AI gera sugestões automáticas e não substitui o acompanhamento de
+        um nutricionista ou médico. É destinado a maiores de 18 anos. Gestantes, lactantes e pessoas com doenças
+        crônicas devem consultar um profissional.
+      </p>
+
       <!-- Progress Bar -->
-      <div class="progress-wrapper">
+      <div class="progress-wrapper" aria-hidden="true">
         <div class="progress-steps">
           <div class="progress-step active" data-step="1">
             <div class="progress-step-circle">1</div>
@@ -106,27 +120,34 @@
           </div>
           <div class="progress-step" data-step="2">
             <div class="progress-step-circle">2</div>
-            <span class="progress-step-label">Objetivo</span>
+            <span class="progress-step-label">Saúde</span>
           </div>
           <div class="progress-connector" data-connector="2">
             <div class="progress-connector-fill"></div>
           </div>
           <div class="progress-step" data-step="3">
             <div class="progress-step-circle">3</div>
-            <span class="progress-step-label">Atividade</span>
+            <span class="progress-step-label">Objetivo</span>
           </div>
           <div class="progress-connector" data-connector="3">
             <div class="progress-connector-fill"></div>
           </div>
           <div class="progress-step" data-step="4">
             <div class="progress-step-circle">4</div>
-            <span class="progress-step-label">Restrições</span>
+            <span class="progress-step-label">Atividade</span>
           </div>
           <div class="progress-connector" data-connector="4">
             <div class="progress-connector-fill"></div>
           </div>
           <div class="progress-step" data-step="5">
             <div class="progress-step-circle">5</div>
+            <span class="progress-step-label">Restrições</span>
+          </div>
+          <div class="progress-connector" data-connector="5">
+            <div class="progress-connector-fill"></div>
+          </div>
+          <div class="progress-step" data-step="6">
+            <div class="progress-step-circle">6</div>
             <span class="progress-step-label">Preferências</span>
           </div>
         </div>
@@ -138,283 +159,318 @@
 
           <!-- ===== STEP 1: Dados Pessoais ===== -->
           <div class="form-step active" data-step="1">
-            <h2 class="form-step-title">
-              <span class="step-emoji">👤</span> Dados Pessoais
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">👤</span> Dados Pessoais
             </h2>
             <p class="form-step-description">Precisamos de algumas informações básicas para calcular suas necessidades nutricionais.</p>
 
             <!-- Aviso de pré-preenchimento -->
-            <div id="prefill-notice" style="display:none; background:#dcfce7; border:1px solid #86efac; color:#166534; padding:11px 16px; border-radius:10px; font-size:.875rem; margin-bottom:8px; align-items:center; gap:10px; line-height:1.5;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>Preenchemos com seus dados anteriores. Verifique e ajuste se necessário.</span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="nome">Nome <span class="required">*</span></label>
-              <input type="text" class="form-input" id="nome" name="nome" placeholder="Seu nome completo" required />
-              <span class="form-error" id="nome-error">Por favor, informe seu nome.</span>
+            <div id="prefill-notice" class="alert-box alert-box--success prefill-notice" role="status" hidden>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="prefill-notice-text">Preenchemos com seus dados anteriores. Verifique e ajuste se necessário.</span>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="idade">Idade <span class="required">*</span></label>
-                <input type="number" class="form-input" id="idade" name="idade" placeholder="Ex: 28" min="10" max="120" required />
-                <span class="form-error" id="idade-error">Informe uma idade válida (10-120).</span>
+                <label class="form-label" for="idade">Idade <span class="required" aria-hidden="true">*</span></label>
+                <input type="number" class="form-input" id="idade" name="idade" placeholder="Ex: 28" min="18" max="120" inputmode="numeric" required aria-describedby="idade-error" />
+                <span class="form-error" id="idade-error">Informe uma idade entre 18 e 120 anos. O MyNutri AI é destinado a maiores de 18 anos.</span>
               </div>
               <div class="form-group">
-                <label class="form-label" id="label-sexo">Sexo<span class="required">*</span></label>
-                <div class="custom-select-wrapper" id="custom-sexo">
-                  <div class="custom-select-trigger" tabindex="0">
-                    <span class="custom-select-label placeholder">Selecione</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </div>
-                  <div class="custom-select-dropdown">
-                    <div class="custom-select-option" data-value="masculino">Masculino</div>
-                    <div class="custom-select-option" data-value="feminino">Feminino</div>
-                  </div>
-                  <input type="hidden" id="sexo" name="sexo" value="">
-                </div>
+                <label class="form-label" for="sexo">Sexo <span class="required" aria-hidden="true">*</span></label>
+                <select class="form-input form-select" id="sexo" name="sexo" required aria-describedby="sexo-error">
+                  <option value="">Selecione</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="feminino">Feminino</option>
+                </select>
                 <span class="form-error" id="sexo-error">Selecione uma opção.</span>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="peso">Peso (kg) <span class="required">*</span></label>
-                <input type="number" class="form-input" id="peso" name="peso" placeholder="Ex: 72.5" step="0.1" min="20" max="400" required />
-                <span class="form-error" id="peso-error">Informe um peso válido.</span>
+                <label class="form-label" for="peso">Peso (kg) <span class="required" aria-hidden="true">*</span></label>
+                <input type="number" class="form-input" id="peso" name="peso" placeholder="Ex: 72.5" step="0.1" min="20" max="400" inputmode="decimal" required aria-describedby="peso-error" />
+                <span class="form-error" id="peso-error">Informe um peso válido (20 a 400 kg).</span>
               </div>
               <div class="form-group">
-                <label class="form-label" for="altura">Altura (cm) <span class="required">*</span></label>
-                <input type="number" class="form-input" id="altura" name="altura" placeholder="Ex: 175" min="100" max="250" required />
-                <span class="form-error" id="altura-error">Informe uma altura válida.</span>
+                <label class="form-label" for="altura">Altura (cm) <span class="required" aria-hidden="true">*</span></label>
+                <input type="number" class="form-input" id="altura" name="altura" placeholder="Ex: 175" min="100" max="250" inputmode="numeric" required aria-describedby="altura-error" />
+                <span class="form-error" id="altura-error">Informe uma altura válida (100 a 250 cm).</span>
               </div>
             </div>
           </div>
 
-          <!-- ===== STEP 2: Objetivo ===== -->
+          <!-- ===== STEP 2: Triagem de saúde ===== -->
           <div class="form-step" data-step="2">
-            <h2 class="form-step-title">
-              <span class="step-emoji">🎯</span> Qual é seu objetivo?
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">🩺</span> Sua saúde
+            </h2>
+            <p class="form-step-description">Algumas condições exigem um plano feito por um profissional. Marque o que se aplica a você.</p>
+
+            <fieldset class="form-group health-fieldset" aria-describedby="health_conditions-error">
+              <legend class="form-label">Alguma destas situações se aplica a você? <span class="required" aria-hidden="true">*</span></legend>
+              <div class="tags-grid">
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="gestante" />
+                  <span class="tag-option-content">Gestante</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="lactante" />
+                  <span class="tag-option-content">Amamentando (lactante)</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="doenca_renal" />
+                  <span class="tag-option-content">Doença renal</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="diabetes_insulina" />
+                  <span class="tag-option-content">Diabetes com uso de insulina</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="transtorno_alimentar" />
+                  <span class="tag-option-content">Transtorno alimentar (atual ou passado)</span>
+                </label>
+                <label class="tag-option">
+                  <input type="checkbox" name="health_conditions" value="nenhuma" />
+                  <span class="tag-option-content">Nenhuma destas</span>
+                </label>
+              </div>
+              <span class="form-error" id="health_conditions-error">Marque as situações que se aplicam ou "Nenhuma destas".</span>
+            </fieldset>
+
+            <div class="alert-box alert-box--warning health-risk-msg" id="health-risk-msg" role="alert" hidden>
+              <strong>Para a sua segurança, não vamos gerar um plano automático.</strong>
+              Nesses casos a alimentação precisa ser planejada e acompanhada por um nutricionista ou médico,
+              que pode avaliar exames e ajustar o plano às suas necessidades. Procure um profissional de saúde.
+            </div>
+          </div>
+
+          <!-- ===== STEP 3: Objetivo ===== -->
+          <div class="form-step" data-step="3">
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">🎯</span> Qual é seu objetivo?
             </h2>
             <p class="form-step-description">Escolha o objetivo principal que você deseja alcançar com sua dieta personalizada.</p>
 
-            <div class="selection-grid" id="objetivo-grid">
-              <label class="selection-card">
-                <input type="radio" name="objetivo" value="perda_peso" required />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">🏋️</span>
-                  <span class="selection-card-label">Perder peso</span>
-                  <span class="selection-card-desc">Déficit calórico saudável</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="objetivo" value="ganho_massa" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">💪</span>
-                  <span class="selection-card-label">Ganhar massa</span>
-                  <span class="selection-card-desc">Superávit calórico controlado</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="objetivo" value="manutencao" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">⚖️</span>
-                  <span class="selection-card-label">Manter peso</span>
-                  <span class="selection-card-desc">Equilíbrio calórico</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="objetivo" value="saude" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">❤️</span>
-                  <span class="selection-card-label">Melhorar saúde</span>
-                  <span class="selection-card-desc">Alimentação equilibrada</span>
-                </div>
-              </label>
-            </div>
+            <fieldset class="selection-fieldset" aria-describedby="objetivo-error">
+              <legend class="sr-only">Objetivo</legend>
+              <div class="selection-grid" id="objetivo-grid">
+                <label class="selection-card">
+                  <input type="radio" name="objetivo" value="perda_peso" required />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">🏋️</span>
+                    <span class="selection-card-label">Perder peso</span>
+                    <span class="selection-card-desc">Déficit calórico saudável</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="objetivo" value="ganho_massa" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">💪</span>
+                    <span class="selection-card-label">Ganhar massa</span>
+                    <span class="selection-card-desc">Superávit calórico controlado</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="objetivo" value="manutencao" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">⚖️</span>
+                    <span class="selection-card-label">Manter peso</span>
+                    <span class="selection-card-desc">Equilíbrio calórico</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="objetivo" value="saude" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">❤️</span>
+                    <span class="selection-card-label">Melhorar saúde</span>
+                    <span class="selection-card-desc">Alimentação equilibrada</span>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
             <span class="form-error" id="objetivo-error">Selecione um objetivo.</span>
           </div>
 
-          <!-- ===== STEP 3: Nível de Atividade ===== -->
-          <div class="form-step" data-step="3">
-            <h2 class="form-step-title">
-              <span class="step-emoji">🏃</span> Nível de Atividade Física
+          <!-- ===== STEP 4: Nível de Atividade ===== -->
+          <div class="form-step" data-step="4">
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">🏃</span> Nível de Atividade Física
             </h2>
             <p class="form-step-description">Com que frequência você pratica exercícios físicos durante a semana?</p>
 
-            <div class="selection-grid" id="atividade-grid">
-              <label class="selection-card">
-                <input type="radio" name="atividade" value="sedentario" required />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">🛋️</span>
-                  <span class="selection-card-label">Sedentário</span>
-                  <span class="selection-card-desc">Pouca ou nenhuma atividade</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="atividade" value="leve" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">🚶</span>
-                  <span class="selection-card-label">Leve</span>
-                  <span class="selection-card-desc">1-2 vezes por semana</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="atividade" value="moderado" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">🏃</span>
-                  <span class="selection-card-label">Moderado</span>
-                  <span class="selection-card-desc">3-5 vezes por semana</span>
-                </div>
-              </label>
-              <label class="selection-card">
-                <input type="radio" name="atividade" value="intenso" />
-                <div class="selection-card-content">
-                  <span class="selection-card-icon">🔥</span>
-                  <span class="selection-card-label">Intenso</span>
-                  <span class="selection-card-desc">6-7 vezes por semana</span>
-                </div>
-              </label>
-            </div>
+            <fieldset class="selection-fieldset" aria-describedby="atividade-error">
+              <legend class="sr-only">Nível de atividade física</legend>
+              <div class="selection-grid" id="atividade-grid">
+                <label class="selection-card">
+                  <input type="radio" name="atividade" value="sedentario" required />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">🛋️</span>
+                    <span class="selection-card-label">Sedentário</span>
+                    <span class="selection-card-desc">Pouca ou nenhuma atividade</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="atividade" value="leve" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">🚶</span>
+                    <span class="selection-card-label">Leve</span>
+                    <span class="selection-card-desc">1-2 vezes por semana</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="atividade" value="moderado" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">🏃</span>
+                    <span class="selection-card-label">Moderado</span>
+                    <span class="selection-card-desc">3-5 vezes por semana</span>
+                  </div>
+                </label>
+                <label class="selection-card">
+                  <input type="radio" name="atividade" value="intenso" />
+                  <div class="selection-card-content">
+                    <span class="selection-card-icon" aria-hidden="true">🔥</span>
+                    <span class="selection-card-label">Intenso</span>
+                    <span class="selection-card-desc">6-7 vezes por semana</span>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
             <span class="form-error" id="atividade-error">Selecione seu nível de atividade.</span>
           </div>
 
-          <!-- ===== STEP 4: Restrições Alimentares ===== -->
-          <div class="form-step" data-step="4">
-            <h2 class="form-step-title">
-              <span class="step-emoji">🚫</span> Restrições Alimentares
+          <!-- ===== STEP 5: Restrições Alimentares ===== -->
+          <div class="form-step" data-step="5">
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">🚫</span> Restrições Alimentares
             </h2>
             <p class="form-step-description">Selecione todas as restrições que se aplicam a você. Caso não tenha nenhuma, basta avançar.</p>
 
-            <div class="form-group">
-              <label class="form-label">Tipo de dieta</label>
+            <fieldset class="form-group">
+              <legend class="form-label">Tipo de dieta</legend>
               <div class="selection-grid cols-3" id="dieta-grid">
                 <label class="selection-card">
                   <input type="radio" name="tipo_dieta" value="onivoro" checked />
                   <div class="selection-card-content">
-                    <span class="selection-card-icon">🍖</span>
+                    <span class="selection-card-icon" aria-hidden="true">🍖</span>
                     <span class="selection-card-label">Onívoro</span>
                   </div>
                 </label>
                 <label class="selection-card">
                   <input type="radio" name="tipo_dieta" value="vegetariano" />
                   <div class="selection-card-content">
-                    <span class="selection-card-icon">🥬</span>
+                    <span class="selection-card-icon" aria-hidden="true">🥬</span>
                     <span class="selection-card-label">Vegetariano</span>
                   </div>
                 </label>
                 <label class="selection-card">
                   <input type="radio" name="tipo_dieta" value="vegano" />
                   <div class="selection-card-content">
-                    <span class="selection-card-icon">🌱</span>
+                    <span class="selection-card-icon" aria-hidden="true">🌱</span>
                     <span class="selection-card-label">Vegano</span>
                   </div>
                 </label>
               </div>
-            </div>
+            </fieldset>
 
-            <div class="form-group">
-              <label class="form-label">Alergias e intolerâncias</label>
+            <!-- Os valores destes checkboxes são reconhecidos pelo backend no campo `allergies` -->
+            <fieldset class="form-group">
+              <legend class="form-label">Alergias e intolerâncias</legend>
               <div class="tags-grid">
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="gluten" />
-                  <span class="tag-option-content">🌾 Glúten</span>
+                  <input type="checkbox" name="alergias" value="gluten" />
+                  <span class="tag-option-content"><span aria-hidden="true">🌾</span> Glúten</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="lactose" />
-                  <span class="tag-option-content">🥛 Lactose</span>
+                  <input type="checkbox" name="alergias" value="lactose" />
+                  <span class="tag-option-content"><span aria-hidden="true">🥛</span> Lactose</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="ovo" />
-                  <span class="tag-option-content">🥚 Ovo</span>
+                  <input type="checkbox" name="alergias" value="ovo" />
+                  <span class="tag-option-content"><span aria-hidden="true">🥚</span> Ovo</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="soja" />
-                  <span class="tag-option-content">🫘 Soja</span>
+                  <input type="checkbox" name="alergias" value="soja" />
+                  <span class="tag-option-content"><span aria-hidden="true">🫘</span> Soja</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="amendoim" />
-                  <span class="tag-option-content">🥜 Amendoim</span>
+                  <input type="checkbox" name="alergias" value="amendoim" />
+                  <span class="tag-option-content"><span aria-hidden="true">🥜</span> Amendoim</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="frutos_do_mar" />
-                  <span class="tag-option-content">🦐 Frutos do mar</span>
+                  <input type="checkbox" name="alergias" value="frutos_do_mar" />
+                  <span class="tag-option-content"><span aria-hidden="true">🦐</span> Frutos do mar</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="nozes" />
-                  <span class="tag-option-content">🌰 Nozes</span>
+                  <input type="checkbox" name="alergias" value="nozes" />
+                  <span class="tag-option-content"><span aria-hidden="true">🌰</span> Nozes</span>
                 </label>
                 <label class="tag-option">
-                  <input type="checkbox" name="restricoes" value="peixe" />
-                  <span class="tag-option-content">🐟 Peixes</span>
+                  <input type="checkbox" name="alergias" value="peixe" />
+                  <span class="tag-option-content"><span aria-hidden="true">🐟</span> Peixes</span>
                 </label>
               </div>
-            </div>
+              <span class="form-error" id="allergies-error"></span>
+            </fieldset>
 
             <div class="form-group">
               <label class="form-label" for="outras-restricoes">Outras restrições</label>
-              <input type="text" class="form-input" id="outras-restricoes" name="outras_restricoes" placeholder="Ex: Não como carne de porco, alérgico a camarão..." />
+              <input type="text" class="form-input" id="outras-restricoes" name="outras_restricoes" maxlength="300" placeholder="Ex: Não como carne de porco..." aria-describedby="restricoes-error" />
+              <span class="form-error" id="restricoes-error"></span>
             </div>
           </div>
 
-          <!-- ===== STEP 5: Preferências ===== -->
-          <div class="form-step" data-step="5">
-            <h2 class="form-step-title">
-              <span class="step-emoji">⭐</span> Preferências Alimentares
+          <!-- ===== STEP 6: Preferências ===== -->
+          <div class="form-step" data-step="6">
+            <h2 class="form-step-title" tabindex="-1">
+              <span class="step-emoji" aria-hidden="true">⭐</span> Preferências Alimentares
             </h2>
             <p class="form-step-description">Últimas perguntas para deixar sua dieta ainda mais personalizada e fácil de seguir.</p>
 
             <div class="form-group">
-              <label class="form-label" id="label-refeicoes">Quantidade de refeições por dia <span class="required">*</span></label>
-              <div class="custom-select-wrapper" id="custom-refeicoes">
-                <div class="custom-select-trigger" tabindex="0">
-                  <span class="custom-select-label placeholder">Selecione</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </div>
-                <div class="custom-select-dropdown">
-                  <div class="custom-select-option" data-value="3">3 refeições</div>
-                  <div class="custom-select-option" data-value="4">4 refeições</div>
-                  <div class="custom-select-option" data-value="5">5 refeições</div>
-                  <div class="custom-select-option" data-value="6">6 refeições</div>
-                </div>
-                <input type="hidden" id="refeicoes" name="refeicoes" value="">
-              </div>
+              <label class="form-label" for="refeicoes">Quantidade de refeições por dia <span class="required" aria-hidden="true">*</span></label>
+              <select class="form-input form-select" id="refeicoes" name="refeicoes" required aria-describedby="refeicoes-error">
+                <option value="">Selecione</option>
+                <option value="3">3 refeições</option>
+                <option value="4">4 refeições</option>
+                <option value="5">5 refeições</option>
+                <option value="6">6 refeições</option>
+              </select>
               <span class="form-error" id="refeicoes-error">Selecione a quantidade de refeições.</span>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="alimentos-favoritos-input">Principais alimentos que você gosta</label>
               <div class="tags-input-wrapper" id="wrapper-favoritos">
-                <input type="text" class="tags-input-inner" id="alimentos-favoritos-input" placeholder="Ex: Frango, arroz..." autocomplete="off">
+                <input type="text" class="tags-input-inner" id="alimentos-favoritos-input" placeholder="Ex: Frango, arroz..." autocomplete="off" aria-autocomplete="list" aria-controls="dropdown-favoritos" aria-describedby="favoritos-hint">
                 <input type="hidden" id="alimentos-favoritos" name="alimentos_favoritos" value="">
-                <div class="autocomplete-dropdown" id="dropdown-favoritos"></div>
+                <div class="autocomplete-dropdown" id="dropdown-favoritos" role="listbox" aria-label="Sugestões de alimentos"></div>
               </div>
+              <span class="form-hint" id="favoritos-hint">Digite e pressione Enter para adicionar.</span>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="alimentos-evitar-input">Alimentos que deseja evitar</label>
+              <label class="form-label" for="alimentos-evitar-input">Outras alergias ou alimentos que deseja evitar</label>
               <div class="tags-input-wrapper" id="wrapper-evitar">
-                <input type="text" class="tags-input-inner" id="alimentos-evitar-input" placeholder="Ex: Beterraba, fígado..." autocomplete="off">
+                <input type="text" class="tags-input-inner" id="alimentos-evitar-input" placeholder="Ex: Camarão, beterraba..." autocomplete="off" aria-autocomplete="list" aria-controls="dropdown-evitar" aria-describedby="evitar-hint">
                 <input type="hidden" id="alimentos-evitar" name="alimentos_evitar" value="">
-                <div class="autocomplete-dropdown" id="dropdown-evitar"></div>
+                <div class="autocomplete-dropdown" id="dropdown-evitar" role="listbox" aria-label="Sugestões de alimentos"></div>
               </div>
+              <span class="form-hint" id="evitar-hint">Esses itens nunca serão incluídos na sua dieta.</span>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="observacoes">Observações adicionais</label>
-              <textarea class="form-textarea" id="observacoes" name="observacoes" placeholder="Algo que devemos considerar na sua dieta? Ex: Trabalho noturno, treino pela manhã..."></textarea>
+              <textarea class="form-textarea" id="observacoes" name="observacoes" maxlength="500" placeholder="Algo que devemos considerar na sua dieta? Ex: Trabalho noturno, treino pela manhã..." aria-describedby="food_preferences-error"></textarea>
+              <span class="form-error" id="food_preferences-error"></span>
             </div>
           </div>
 
           <!-- ===== Form Actions ===== -->
           <div class="form-actions">
             <button type="button" class="btn-back hidden" id="btn-back">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
               </svg>
               Voltar
@@ -422,13 +478,13 @@
 
             <button type="button" class="btn-next" id="btn-next">
               Próximo
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
 
             <button type="submit" class="btn-submit" id="btn-submit" style="display: none;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
               Gerar minha dieta
@@ -438,21 +494,20 @@
         </form>
       </div>
 
-      <p class="step-info" id="step-info">Etapa <strong>1</strong> de <strong>5</strong></p>
+      <p class="step-info" id="step-info" aria-live="polite">Etapa <strong>1</strong> de <strong>6</strong></p>
 
       <!-- Mensagem de erro de submissão -->
-      <div id="submit-error" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:16px 20px; border-radius:12px; font-size:.9rem; margin-top:16px; line-height:1.5;"></div>
+      <div id="submit-error" class="alert-box alert-box--error submit-error" role="alert" hidden></div>
 
     </div>
 
     <!-- Footer -->
     <div class="questionnaire-footer">
-      <p>Suas informações são seguras e usadas apenas para gerar sua dieta. <a href="/">Voltar ao início</a></p>
+      <p>Suas informações são usadas apenas para gerar sua dieta. Veja a <a href="/privacidade/">Política de Privacidade</a> · <a href="/">Voltar ao início</a></p>
     </div>
   </main>
 
   <!-- ===================== JAVASCRIPT ===================== -->
-  <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
   <script src="/static/src/js/utils/helpers.js" defer></script>
   <script src="/static/src/js/components/user-menu.js" defer></script>

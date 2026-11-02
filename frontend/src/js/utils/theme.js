@@ -6,36 +6,40 @@
  *   2. Liga o toggle (#theme-toggle) se existir na página.
  *   3. Sincroniza com mudanças na preferência do sistema (se usuário não escolheu).
  *
- * Deve ser incluído no <head> ou início do <body> para evitar FOUC.
+ * Deve ser incluído no <head> SEM defer/async (arquivo externo bloqueante) para
+ * aplicar a classe `dark` antes da primeira pintura e evitar FOUC.
  */
 (function () {
   const THEME_KEY = 'mynutri_theme';
   const html = document.documentElement;
 
+  function readSaved() {
+    try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+  }
+
+  function applyTheme(theme) {
+    html.classList.toggle('dark', theme === 'dark');
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) toggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+  }
+
+  // Só persiste quando o usuário escolhe explicitamente (toggle).
   function setTheme(theme) {
-    if (theme === 'dark') {
-      html.classList.add('dark');
-      localStorage.setItem(THEME_KEY, 'dark');
-    } else {
-      html.classList.remove('dark');
-      localStorage.setItem(THEME_KEY, 'light');
-    }
+    applyTheme(theme);
+    try { localStorage.setItem(THEME_KEY, theme === 'dark' ? 'dark' : 'light'); } catch { /* ignore */ }
+  }
+
+  function systemPrefersDark() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
 
   function initializeTheme() {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved) {
-      setTheme(saved);
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-    } else {
-      setTheme('light');
-    }
+    const saved = readSaved();
+    applyTheme(saved || (systemPrefersDark() ? 'dark' : 'light'));
   }
 
   function toggleTheme() {
-    const isDark = html.classList.contains('dark');
-    setTheme(isDark ? 'light' : 'dark');
+    setTheme(html.classList.contains('dark') ? 'light' : 'dark');
   }
 
   initializeTheme();
@@ -43,15 +47,14 @@
   document.addEventListener('DOMContentLoaded', function () {
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
+      themeToggle.setAttribute('aria-pressed', html.classList.contains('dark') ? 'true' : 'false');
       themeToggle.addEventListener('click', toggleTheme);
     }
   });
 
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-      if (!localStorage.getItem(THEME_KEY)) {
-        setTheme(e.matches ? 'dark' : 'light');
-      }
+      if (!readSaved()) applyTheme(e.matches ? 'dark' : 'light');
     });
   }
 

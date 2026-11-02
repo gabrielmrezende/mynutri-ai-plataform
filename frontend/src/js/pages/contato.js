@@ -2,17 +2,22 @@
   // --- Mobile nav ---
   const mobileToggle = document.getElementById('mobile-toggle');
   const nav = document.getElementById('nav');
-  mobileToggle.addEventListener('click', function () {
-    nav.classList.toggle('open');
+  function setNavOpen(open) {
+    nav.classList.toggle('open', open);
+    mobileToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    mobileToggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
     const spans = mobileToggle.querySelectorAll('span');
-    if (nav.classList.contains('open')) {
-      spans[0].style.transform = 'rotate(45deg) translate(5px, 5px)';
-      spans[1].style.opacity = '0';
-      spans[2].style.transform = 'rotate(-45deg) translate(5px, -5px)';
-    } else {
-      spans[0].style.transform = '';
-      spans[1].style.opacity = '';
-      spans[2].style.transform = '';
+    spans[0].style.transform = open ? 'rotate(45deg) translate(5px, 5px)' : '';
+    spans[1].style.opacity   = open ? '0' : '';
+    spans[2].style.transform = open ? 'rotate(-45deg) translate(5px, -5px)' : '';
+  }
+  mobileToggle.addEventListener('click', function () {
+    setNavOpen(!nav.classList.contains('open'));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && nav.classList.contains('open')) {
+      setNavOpen(false);
+      mobileToggle.focus();
     }
   });
 
@@ -44,7 +49,8 @@
       if (!el) {
         el = document.createElement('p');
         el.id = 'contact-form-error';
-        el.style.cssText = 'color:#dc2626;font-size:.875rem;margin-top:-.25rem;margin-bottom:.5rem;';
+        el.className = 'contact-form-error';
+        el.setAttribute('role', 'alert');
         btn.parentElement.insertBefore(el, btn);
       }
       el.textContent = msg;
@@ -71,11 +77,12 @@
     btn.innerHTML = 'Enviando…';
 
     try {
-      const res = await fetch(`${API_BASE}/contact`, {
+      const res = await apiFetch(`${API_BASE}/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ nome, email, assunto, mensagem }),
+        redirectOn401: false,
+        skipRefresh: true,
       });
 
       if (res.ok) {
@@ -83,18 +90,25 @@
         form.style.display = 'none';
         document.getElementById('contact-success').style.display = 'flex';
       } else {
-        const data = await res.json().catch(() => ({}));
-        const msg = data?.error
-          || (data?.errors ? Object.values(data.errors).flat().join(' ') : null)
-          || 'Erro ao enviar. Tente novamente.';
-        showFormError(msg);
+        const data = await safeJson(res);
+        showFormError(apiErrorMessage(res.status, data, 'Não foi possível enviar. Tente novamente.'));
       }
     } catch {
-      showFormError('Sem conexão com o servidor. Verifique sua internet e tente novamente.');
+      showFormError(friendlyMessage('network'));
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalBtnHTML;
     }
+  });
+
+  // --- "Enviar nova mensagem" (antes era onclick inline — proibido pela CSP) ---
+  document.getElementById('btn-new-message').addEventListener('click', function () {
+    document.getElementById('contact-success').style.display = 'none';
+    const form = document.getElementById('contact-form');
+    form.style.display = 'flex';
+    document.getElementById('contact-form-title').style.display = 'block';
+    form.reset();
+    document.getElementById('contact-nome').focus();
   });
 
   // --- FAQ Accordion ---
@@ -102,8 +116,13 @@
     btn.addEventListener('click', function () {
       const item = btn.parentElement;
       const isOpen = item.classList.contains('open');
-      document.querySelectorAll('.faq-item').forEach(function (i) { i.classList.remove('open'); });
+      document.querySelectorAll('.faq-item').forEach(function (i) {
+        i.classList.remove('open');
+        const q = i.querySelector('.faq-question');
+        if (q) q.setAttribute('aria-expanded', 'false');
+      });
       if (!isOpen) item.classList.add('open');
+      btn.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
     });
   });
 })();

@@ -6,26 +6,44 @@
   if (googleErrorParam) {
     const googleErrorMessages = {
       csrf: 'Falha de segurança no login com Google. Tente novamente.',
-      invalid_token: 'Token Google inválido ou expirado. Tente novamente.',
+      invalid_token: 'Não foi possível validar sua conta Google. Tente novamente.',
       no_email: 'Não foi possível obter o e-mail da conta Google.',
-      service_unavailable: 'Serviço Google indisponível. Tente mais tarde.',
-      no_credential: 'Credencial Google não recebida. Tente novamente.',
+      service_unavailable: 'Login com Google indisponível no momento. Tente mais tarde.',
+      no_credential: 'Não recebemos a confirmação do Google. Tente novamente.',
     };
-    const msg = googleErrorMessages[googleErrorParam] || 'Erro ao autenticar com Google.';
+    const msg = googleErrorMessages[googleErrorParam] || 'Não foi possível entrar com Google. Tente novamente.';
     requestAnimationFrame(function () { showError(msg); });
   }
 
-  // --- Tab switching ---
-  const tabs  = document.querySelectorAll('.auth-tab');
+  // --- Tabs acessíveis (role=tab, aria-selected, setas/Home/End) ---
+  const tabs  = Array.prototype.slice.call(document.querySelectorAll('.auth-tab'));
   const forms = document.querySelectorAll('.auth-form');
 
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      tabs.forEach(function (t) { t.classList.remove('active'); });
-      forms.forEach(function (f) { f.classList.remove('active'); });
-      tab.classList.add('active');
-      document.getElementById(tab.getAttribute('data-target')).classList.add('active');
-      clearError();
+  function activateTab(tab, moveFocus) {
+    tabs.forEach(function (t) {
+      const selected = t === tab;
+      t.classList.toggle('active', selected);
+      t.setAttribute('aria-selected', selected ? 'true' : 'false');
+      t.tabIndex = selected ? 0 : -1;
+    });
+    forms.forEach(function (f) {
+      const active = f.id === tab.getAttribute('data-target');
+      f.classList.toggle('active', active);
+      f.hidden = !active;
+    });
+    clearError();
+    if (moveFocus) tab.focus();
+  }
+
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { activateTab(tab, false); });
+    tab.addEventListener('keydown', function (e) {
+      let next = null;
+      if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+      else if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+      else if (e.key === 'Home') next = tabs[0];
+      else if (e.key === 'End') next = tabs[tabs.length - 1];
+      if (next) { e.preventDefault(); activateTab(next, true); }
     });
   });
 
@@ -35,32 +53,36 @@
 
   if (intent === 'save_diet') {
     document.getElementById('intent-message').classList.add('visible');
-    tabs[1].click();
+    activateTab(tabs[1], false);
     document.querySelector('.auth-title').textContent = 'Quase lá!';
-    document.querySelector('.auth-subtitle').textContent = 'Faltam poucos segundos para ver sua dieta.';
+    document.querySelector('.auth-subtitle').textContent = 'Crie sua conta para gerarmos sua dieta.';
   }
 
   // --- Helpers ---
   function showError(msg) {
-    let el = document.getElementById('auth-error');
-    if (!el) {
-      el = document.createElement('p');
-      el.id = 'auth-error';
-      el.style.cssText = 'color:#dc2626;font-size:.875rem;margin-top:12px;text-align:center;';
-      document.querySelector('.auth-card').appendChild(el);
-    }
-    el.textContent = msg;
+    const el = document.getElementById('auth-error');
+    if (el) el.textContent = msg;
   }
 
   function clearError() {
     const el = document.getElementById('auth-error');
     if (el) el.textContent = '';
+    document.querySelectorAll('.auth-form [aria-invalid]').forEach(function (i) { i.removeAttribute('aria-invalid'); });
+  }
+
+  function markInvalid(input) {
+    if (!input) return;
+    input.setAttribute('aria-invalid', 'true');
+    const described = (input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+    if (!described.includes('auth-error')) described.push('auth-error');
+    input.setAttribute('aria-describedby', described.join(' '));
+    input.focus();
   }
 
   function saveSession(data) {
-    // Tokens são guardados em cookies HttpOnly pelo servidor.
+    // Tokens ficam apenas em cookies HttpOnly (o servidor não os devolve no JSON).
     // Só salvamos metadados do usuário no localStorage — não contém credenciais.
-    if (data.user) localStorage.setItem('mynutri_user', JSON.stringify(data.user));
+    if (data && data.user) localStorage.setItem('mynutri_user', JSON.stringify(data.user));
   }
 
   function afterAuth() {
@@ -69,37 +91,50 @@
       return;
     }
     const ref = document.referrer;
-    const refPath = ref ? new URL(ref).pathname : '';
+    let refUrl = null;
+    try { refUrl = ref ? new URL(ref) : null; } catch { refUrl = null; }
     const skip = ['/', '/auth/'];
-    if (ref && !skip.includes(refPath) && new URL(ref).origin === window.location.origin) {
-      window.location.href = ref;
+    if (refUrl && !skip.includes(refUrl.pathname) && refUrl.origin === window.location.origin) {
+      window.location.href = refUrl.href;
     } else {
       window.location.href = '/dieta/';
     }
+  }
+
+  async function postAuth(path, payload) {
+    return apiFetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      skipRefresh: true,
+      redirectOn401: false,
+    });
   }
 
   // --- Login ---
   document.getElementById('login-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     clearError();
-    const btn   = e.target.querySelector('button[type="submit"]');
-    const email = e.target.querySelector('input[type="email"]').value.trim();
-    const senha = e.target.querySelector('input[type="password"]').value;
+    const btn        = e.target.querySelector('button[type="submit"]');
+    const emailInput = document.getElementById('login-email');
+    const passInput  = document.getElementById('login-password');
+    const email      = emailInput.value.trim();
+    const senha      = passInput.value;
+
+    if (!email || !emailInput.checkValidity()) { showError('Informe um e-mail válido.'); markInvalid(emailInput); return; }
+    if (!senha) { showError('Informe sua senha.'); markInvalid(passInput); return; }
 
     setLoading(btn, true);
     btn.textContent = 'Entrando...';
 
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password: senha }),
-      });
-      const data = await res.json();
+      const res  = await postAuth('/auth/login', { email, password: senha });
+      const data = await safeJson(res);
 
       if (!res.ok) {
-        showError(data.detail || 'E-mail ou senha inválidos.');
+        showError(res.status === 401 || res.status === 400
+          ? 'E-mail ou senha inválidos.'
+          : apiErrorMessage(res.status, data));
         setLoading(btn, false);
         return;
       }
@@ -107,7 +142,7 @@
       saveSession(data);
       afterAuth();
     } catch {
-      showError('Erro de conexão. Verifique se o servidor está rodando.');
+      showError(friendlyMessage('network'));
       setLoading(btn, false);
     }
   });
@@ -116,14 +151,21 @@
   document.getElementById('register-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     clearError();
-    const btn    = e.target.querySelector('button[type="submit"]');
-    const inputs = e.target.querySelectorAll('input');
-    const nome   = inputs[0].value.trim();
-    const email  = inputs[1].value.trim();
-    const senha  = inputs[2].value;
+    const btn        = e.target.querySelector('button[type="submit"]');
+    const nameInput  = document.getElementById('register-name');
+    const emailInput = document.getElementById('register-email');
+    const passInput  = document.getElementById('register-password');
+    const termsInput = document.getElementById('register-terms');
+    const nome   = nameInput.value.trim();
+    const email  = emailInput.value.trim();
+    const senha  = passInput.value;
 
-    if (senha.length < 8) {
-      showError('A senha deve ter pelo menos 8 caracteres.');
+    if (!nome) { showError('Informe seu nome.'); markInvalid(nameInput); return; }
+    if (!email || !emailInput.checkValidity()) { showError('Informe um e-mail válido.'); markInvalid(emailInput); return; }
+    if (senha.length < 8) { showError('A senha deve ter pelo menos 8 caracteres.'); markInvalid(passInput); return; }
+    if (!termsInput.checked) {
+      showError('Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.');
+      markInvalid(termsInput);
       return;
     }
 
@@ -131,23 +173,11 @@
     btn.textContent = 'Criando conta...';
 
     try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ nome, email, senha }),
-      });
-      const data = await res.json();
+      const res  = await postAuth('/auth/register', { nome, email, senha, accepted_terms: true });
+      const data = await safeJson(res);
 
       if (!res.ok) {
-        const msg = data.email?.[0]
-          || data.senha?.[0]
-          || data.nome?.[0]
-          || data.non_field_errors?.[0]
-          || data.detail
-          || (typeof data === 'object' ? Object.values(data).flat()[0] : null)
-          || 'Erro ao criar conta.';
-        showError(msg);
+        showError(apiErrorMessage(res.status, data, 'Não foi possível criar a conta.'));
         setLoading(btn, false);
         return;
       }
@@ -155,7 +185,7 @@
       saveSession(data);
       afterAuth();
     } catch {
-      showError('Erro de conexão. Verifique se o servidor está rodando.');
+      showError(friendlyMessage('network'));
       setLoading(btn, false);
     }
   });
@@ -165,28 +195,23 @@
 
   async function handleGoogleCredential(response) {
     clearError();
-    if (!response?.credential) {
-      showError('Credencial Google inválida. Tente novamente.');
+    if (!response || !response.credential) {
+      showError('Não recebemos a confirmação do Google. Tente novamente.');
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ id_token: response.credential }),
-      });
-      const data = await res.json();
+      const res  = await postAuth('/auth/google', { id_token: response.credential });
+      const data = await safeJson(res);
 
       if (!res.ok) {
-        showError(data.error || `Erro ao autenticar com Google (${res.status}).`);
+        showError(apiErrorMessage(res.status, data, 'Não foi possível entrar com Google. Tente novamente.'));
         return;
       }
 
       saveSession(data);
       afterAuth();
-    } catch (err) {
-      showError('Erro de conexão ao autenticar com Google. Verifique se o servidor está rodando.');
+    } catch {
+      showError(friendlyMessage('network'));
     }
   }
 
@@ -201,7 +226,7 @@
     });
     const container = document.getElementById('google-btn-hidden');
     const width = Math.min(container.parentElement.offsetWidth || 400, 400);
-    google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width });
+    google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width, locale: 'pt-BR' });
   }
 
   // handleGoogleCredential precisa ser global para o callback da SDK do Google
@@ -210,7 +235,7 @@
   if (window.google) {
     initGoogleSignIn();
   } else {
-    document.querySelector('script[src*="accounts.google.com"]')
-      .addEventListener('load', initGoogleSignIn);
+    const gsiScript = document.querySelector('script[src*="accounts.google.com"]');
+    if (gsiScript) gsiScript.addEventListener('load', initGoogleSignIn);
   }
 })();
