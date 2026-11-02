@@ -1576,8 +1576,9 @@ async function loadDiet() {
 async function fetchExistingDiet(dietId) {
   const url = dietId ? `${API_BASE}/diet/${dietId}` : `${API_BASE}/diet`;
   try {
-    const res = await apiFetch(url, { redirectOn401: false });
-    if (res.status === 401) { localStorage.removeItem('mynutri_user'); showError('Faça login para ver sua dieta.', '/auth/', 'Fazer login'); return; }
+    // 401 sem refresh válido → apiFetch redireciona para /auth/ (auth guard)
+    const res = await apiFetch(url);
+    if (res.status === 401) return;
     if (res.status === 404) {
       if (dietId) showError('Não encontramos esta dieta. Ela pode ter sido removida.', '/historico/', 'Ver histórico');
       else        showError('Você ainda não possui um plano alimentar.', '/questionario/', 'Fazer questionário');

@@ -16,9 +16,12 @@ const XHR_HEADERS = { 'X-Requested-With': 'XMLHttpRequest' };
 
 let _userCounter = Date.now();
 
-/** Gera um email único por execução de teste. */
+/**
+ * Gera um email único por execução de teste. O domínio precisa ter registro MX:
+ * o cadastro valida DNS/MX (test.com e example.com não têm).
+ */
 function uniqueEmail() {
-  return `e2e_${_userCounter++}@test.com`;
+  return `e2e_${_userCounter++}@gmail.com`;
 }
 
 /** POST na API com o header anti-CSRF. `request` pode ser context.request ou o fixture request. */

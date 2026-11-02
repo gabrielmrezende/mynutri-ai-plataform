@@ -82,28 +82,30 @@ test.describe('Questionário e geração de dieta', () => {
     await page.reload();
 
     // Etapa 1 — dados pessoais
-    await page.locator('#nome').fill('Teste E2E');
     await page.locator('#idade').fill('28');
-    await page.locator('#custom-sexo .custom-select-trigger').click();
-    await page.locator('#custom-sexo .custom-select-option[data-value="masculino"]').click();
+    await page.locator('#sexo').selectOption('masculino');
     await page.locator('#peso').fill('75');
     await page.locator('#altura').fill('178');
     await page.locator('#btn-next').click();
 
-    // Etapa 2 — objetivo
-    await page.locator('input[name="objetivo"][value="perda_peso"]').check({ force: true });
+    // Etapa 2 — triagem de saúde
+    // O checkbox fica visualmente oculto dentro do .tag-option: clica no label
+    await page.locator('label.tag-option:has(input[name="health_conditions"][value="nenhuma"])').click();
     await page.locator('#btn-next').click();
 
-    // Etapa 3 — nível de atividade
-    await page.locator('input[name="atividade"][value="moderado"]').check({ force: true });
+    // Etapa 3 — objetivo
+    await page.locator('label:has(input[name="objetivo"][value="perda_peso"])').click();
     await page.locator('#btn-next').click();
 
-    // Etapa 4 — restrições (mantém padrão onívoro)
+    // Etapa 4 — nível de atividade
+    await page.locator('label:has(input[name="atividade"][value="moderado"])').click();
     await page.locator('#btn-next').click();
 
-    // Etapa 5 — refeições por dia
-    await page.locator('#custom-refeicoes .custom-select-trigger').click();
-    await page.locator('#custom-refeicoes .custom-select-option[data-value="4"]').click();
+    // Etapa 5 — restrições (mantém padrão onívoro)
+    await page.locator('#btn-next').click();
+
+    // Etapa 6 — refeições por dia
+    await page.locator('#refeicoes').selectOption('4');
 
     await page.locator('#btn-submit').click();
 

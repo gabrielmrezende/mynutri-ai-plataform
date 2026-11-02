@@ -19,13 +19,10 @@ async function initUserMenu(opts) {
   opts = Object.assign({ requireAuth: false, logoutRedirect: '/', onUserLoaded: null }, opts);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
+  // A sessão vive no cookie HttpOnly: sem cache local, consulta a API abaixo e
+  // só redireciona para /auth/ se ela responder 401.
   let cached = null;
   try { cached = JSON.parse(localStorage.getItem('mynutri_user') || 'null'); } catch { cached = null; }
-
-  if (!cached && opts.requireAuth) {
-    window.location.href = '/auth/';
-    return;
-  }
 
   // ── Aplica dados na UI ──────────────────────────────────────────────────────
   function applyUserUI(user) {
