@@ -1,5 +1,6 @@
 import io
 from datetime import datetime
+from xml.sax.saxutils import escape as _xml_escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -35,6 +36,17 @@ PAGE_W, PAGE_H = A4
 MARGIN     = 18 * mm
 BOTTOM_MGN = 22 * mm
 CONTENT_W  = PAGE_W - 2 * MARGIN
+
+
+def _esc(value, default: str = '') -> str:
+    """
+    Escapa texto dinâmico (vindo do LLM ou do usuário) antes de virar
+    Paragraph — o ReportLab interpreta marcação XML (<b>, <img>, <font>...).
+    Quebras de linha viram <br/> DEPOIS do escape, para preservar listas.
+    """
+    if value is None or value == '':
+        return default
+    return _xml_escape(str(value)).replace('\n', '<br/>')
 
 
 def _styles():
@@ -88,14 +100,14 @@ def _styles():
 
 def _header_table(diet_plan, styles):
     """Faixa verde com título, objetivo, data e calorias diárias."""
-    goal = diet_plan.goal_description or 'Plano personalizado'
+    goal = _esc(diet_plan.goal_description, 'Plano personalizado')
     kcal = diet_plan.total_calories
     date = diet_plan.created_at.strftime('%d/%m/%Y') if diet_plan.created_at else '—'
 
     if isinstance(kcal, int):
         kcal_str = f'{kcal:,}'.replace(',', '.')
     else:
-        kcal_str = str(kcal) if kcal else '—'
+        kcal_str = _esc(kcal, '—')
 
     left_col = [
         Paragraph('Seu Plano Alimentar', styles['title']),
@@ -143,7 +155,7 @@ def _macros_table(macros, total_kcal):
         return ''
 
     def _cell(label, grams, pct):
-        value = f'{grams}g' if grams not in (None, '', '—') else '—'
+        value = f'{_esc(grams)}g' if grams not in (None, '', '—') else '—'
         return [
             Paragraph(label, ParagraphStyle(
                 'm_label', fontName='Helvetica-Bold', fontSize=8,
@@ -220,16 +232,16 @@ def _meal_block(index, meal_name, calories, raw_meal, styles):
     time_text = (raw_meal.get('time_suggestion') or '') if raw_meal else ''
     meta_parts = [f'REFEIÇÃO {index + 1}']
     if time_text:
-        meta_parts.append(time_text)
+        meta_parts.append(_esc(time_text))
     meta_text = '  •  '.join(meta_parts)
 
     head_left = [
         Paragraph(meta_text, styles['meal_meta']),
         Spacer(1, 2),
-        Paragraph(meal_name, styles['meal_name']),
+        Paragraph(_esc(meal_name, '—'), styles['meal_name']),
     ]
     head = Table(
-        [[_meal_badge(index + 1), head_left, Paragraph(f'{calories} kcal', styles['meal_kcal'])]],
+        [[_meal_badge(index + 1), head_left, Paragraph(f'{_esc(calories, "—")} kcal', styles['meal_kcal'])]],
         colWidths=[12 * mm, CONTENT_W - 12 * mm - 30 * mm, 30 * mm],
     )
     head.setStyle(TableStyle([
@@ -256,11 +268,11 @@ def _meal_block(index, meal_name, calories, raw_meal, styles):
         for f in foods:
             qty = f.get('quantity') or f'{f.get("quantity_g", "—")}g'
             rows.append([
-                Paragraph(f.get('name', '—'), styles['body']),
-                Paragraph(str(qty), ParagraphStyle(
+                Paragraph(_esc(f.get('name'), '—'), styles['body']),
+                Paragraph(_esc(qty, '—'), ParagraphStyle(
                     'qty', fontName='Helvetica', fontSize=9,
                     textColor=GRAY_700, alignment=TA_CENTER)),
-                Paragraph(str(f.get('calories', '—')), ParagraphStyle(
+                Paragraph(_esc(f.get('calories'), '—'), ParagraphStyle(
                     'fk', fontName='Helvetica-Bold', fontSize=9,
                     textColor=GREEN_DARK, alignment=TA_RIGHT)),
             ])
@@ -288,7 +300,7 @@ def _meal_block(index, meal_name, calories, raw_meal, styles):
 
 def _notes_card(notes, styles):
     """Caixa verde-clara com as observações."""
-    tbl = Table([[Paragraph(notes, styles['body'])]], colWidths=[CONTENT_W])
+    tbl = Table([[Paragraph(_esc(notes), styles['body'])]], colWidths=[CONTENT_W])
     tbl.setStyle(TableStyle([
         ('BACKGROUND',     (0, 0), (-1, -1), GREEN_BG),
         ('ROUNDEDCORNERS', [6]),
@@ -375,9 +387,9 @@ def generate_diet_pdf(diet_plan) -> bytes:
         story.append(_section_title('Substituições Sugeridas', styles))
         story.append(Spacer(1, 10))
         for sub in substitutions:
-            alts = ', '.join(sub.get('alternatives', []))
+            alts = _esc(', '.join(str(a) for a in sub.get('alternatives', [])))
             story.append(Paragraph(
-                f'<font color="#15803d"><b>{sub.get("food", "")}</b></font>'
+                f'<font color="#15803d"><b>{_esc(sub.get("food"))}</b></font>'
                 f' &nbsp;→&nbsp; <font color="#374151">{alts}</font>',
                 styles['body'],
             ))
@@ -385,13 +397,14 @@ def generate_diet_pdf(diet_plan) -> bytes:
         story.append(Spacer(1, 8))
 
     # ── Disclaimer final ──────────────────────────────────────────────────────
-    generated_at = datetime.now().strftime('%d/%m/%Y às %H:%M')
+    plan_date = diet_plan.created_at.strftime('%d/%m/%Y') if diet_plan.created_at else '—'
+    exported_at = datetime.now().strftime('%d/%m/%Y às %H:%M')
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width='100%', thickness=0.5, color=GRAY_200))
     story.append(Spacer(1, 8))
     story.append(Paragraph(
-        f'Plano gerado em {generated_at}. Este documento é informativo e não '
-        f'substitui a avaliação de um profissional de saúde.',
+        f'Plano gerado em {plan_date} e exportado em {exported_at}. Este documento é '
+        f'informativo e não substitui a avaliação de um profissional de saúde.',
         styles['disclaimer'],
     ))
 
