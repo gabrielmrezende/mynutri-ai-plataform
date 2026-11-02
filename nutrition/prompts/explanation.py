@@ -9,7 +9,8 @@ max_tokens recomendado: 1200.
 """
 
 from ._calculations import calculate_calories as _calculate_calories
-from ._constants import ACTIVITY_FACTORS, GOAL_ADJUSTMENT_LABELS
+from ._calculations import calculate_energy_plan
+from ._constants import ACTIVITY_FACTORS
 
 # ─── System prompt ────────────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ def build_explanation_prompt(
     tmb_formula = f'(10×{w}) + (6,25×{h}) − (5×{a}) {constant} = {tmb} kcal'
 
     activity_factor = ACTIVITY_FACTORS.get(anamnese.activity_level, 1.375)
-    goal_adj_label  = GOAL_ADJUSTMENT_LABELS.get(anamnese.goal, 'Sem ajuste')
+    goal_adj_label  = calculate_energy_plan(anamnese)['adjustment_label']
 
     macros         = diet_data.get('macros', {})
     actual_cal     = diet_data.get('calories', target_calories)

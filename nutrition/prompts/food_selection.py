@@ -9,7 +9,7 @@ Temperature recomendada: 0.55 (variedade garantida pelo prompt, não pela entrop
 
 from ._calculations import (
     build_meal_distribution_hint,
-    calculate_calories,
+    calculate_energy_plan,
     calculate_macros,
 )
 
@@ -120,7 +120,9 @@ Crie um plano alimentar com {meals_per_day} refeições para o perfil abaixo.
 
 def build_food_selection_prompt(anamnese) -> str:
     """Monta o prompt do Passo 1 (seleção de alimentos)."""
-    tmb, tdee, target_calories = calculate_calories(anamnese)
+    energy = calculate_energy_plan(anamnese)
+    target_calories = energy['target_calories']
+    effective_goal = energy['effective_goal']
     macros = calculate_macros(anamnese, target_calories)
     meal_distribution_hint = build_meal_distribution_hint(anamnese.meals_per_day, target_calories)
 
@@ -151,7 +153,7 @@ def build_food_selection_prompt(anamnese) -> str:
         height_cm=anamnese.height_cm,
         activity=anamnese.get_activity_display_pt(),
         goal=anamnese.get_goal_display_pt(),
-        goal_context=GOAL_CONTEXT.get(anamnese.goal, ''),
+        goal_context=GOAL_CONTEXT.get(effective_goal, ''),
         target_calories=target_calories,
         preferences=anamnese.food_preferences or 'Sem preferências específicas',
         restrictions=anamnese.food_restrictions or 'Nenhuma restrição informada',

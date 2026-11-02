@@ -366,6 +366,7 @@ from .prompts import (
     build_meal_regen_prompt,
     build_notes_prompt,
     calculate_calories,
+    calculate_energy_plan,
     calculate_macros,
 )
 from .substitutions import generate_meal_substitutions
@@ -702,25 +703,31 @@ class AIService:
                 actual, target, ratio * 100, anamnese.user_id,
             )
 
-    def _validate_macro_ratios(
+    # Limites usados por _macro_ratio_violations
+    MACRO_CARBS_MAX_PCT       = 0.65
+    MACRO_PROTEIN_MIN_PCT     = 0.15
+    MACRO_FAT_MIN_PCT         = 0.15
+    MACRO_FAT_MAX_PER_KG      = 1.2
+    MACRO_FAT_TARGET_TOLERANCE = 1.3
+    MACRO_PROTEIN_MIN_RATIO   = 0.65
+
+    def _macro_ratio_violations(
         self,
         diet_data: dict,
         anamnese: Anamnese,
         target_calories: int,
-    ) -> None:
+    ) -> list[str]:
         """
-        Valida que as proporções de macronutrientes do plano estão dentro de
-        limites fisiologicamente razoáveis. Levanta MacroImbalanceError
-        (retryable) se algum limite for violado.
+        Retorna a lista de violações de proporção de macros (vazia se ok).
 
         Limites absolutos por % de calorias:
           - Carboidratos: máximo 65% das calorias
           - Proteína:     mínimo 15% das calorias
           - Gordura:      mínimo 15% das calorias
 
-        Limites por g/kg de peso corporal:
-          - Gordura: máximo 1.2g/kg (20% acima do teto recomendado de 1.0g/kg)
-            → detecta excesso de óleos, castanhas, queijo mesmo dentro do % de calorias
+        Teto de gordura: o maior entre 1.2g/kg de peso corporal e 130% da meta
+        de gordura calculada pelo backend (a meta pode passar de 1.2g/kg em
+        pessoas leves com gasto alto, quando o carboidrato é limitado a 60%).
 
         Aderência à meta calculada:
           - Proteína: mínimo 65% da meta calculada pelo backend
@@ -728,7 +735,7 @@ class AIService:
         macros    = diet_data.get('macros', {})
         total_cal = diet_data.get('calories', 0)
         if not total_cal:
-            return
+            return []
 
         protein_g = macros.get('protein_g', 0)
         carbs_g   = macros.get('carbs_g', 0)
@@ -740,43 +747,62 @@ class AIService:
         fat_pct     = (fat_g     * 9) / total_cal
         fat_per_kg  = fat_g / w
 
+        targets = calculate_macros(anamnese, target_calories)
+        fat_ceiling_g = max(
+            self.MACRO_FAT_MAX_PER_KG * w,
+            self.MACRO_FAT_TARGET_TOLERANCE * targets['fat_g'],
+        )
+
         violations = []
 
-        if carbs_pct > 0.65:
+        if carbs_pct > self.MACRO_CARBS_MAX_PCT:
             violations.append(
                 f'carboidratos em {carbs_pct * 100:.0f}% das calorias (teto: 65%) — '
                 f'excesso de alimentos ricos em amido/açúcar'
             )
-        if protein_pct < 0.15:
+        if protein_pct < self.MACRO_PROTEIN_MIN_PCT:
             violations.append(
                 f'proteína em {protein_pct * 100:.0f}% das calorias (mínimo: 15%) — '
                 f'fontes proteicas insuficientes no plano'
             )
-        if fat_pct < 0.15:
+        if fat_pct < self.MACRO_FAT_MIN_PCT:
             violations.append(
                 f'gordura em {fat_pct * 100:.0f}% das calorias (mínimo: 15%) — '
                 f'risco de deficiência de vitaminas lipossolúveis'
             )
-        # Teto de gordura por kg — detecta excesso de óleos/castanhas mesmo em %
+        # Teto de gordura — detecta excesso de óleos/castanhas mesmo em %
         # aceitável (ex: 37% numa dieta de 3000 kcal parece ok em %, mas 126g para
         # 95kg = 1.33g/kg excede claramente o limite fisiológico de 1.0g/kg)
-        if fat_per_kg > 1.2:
+        if fat_g > fat_ceiling_g:
             violations.append(
-                f'gordura {fat_g}g ({fat_per_kg:.1f}g/kg) excede 1.2g/kg para '
-                f'{w:.0f}kg — desbalanceamento por excesso de alimentos gordurosos '
-                f'(óleos, castanhas, queijo, manteiga)'
+                f'gordura {fat_g}g ({fat_per_kg:.1f}g/kg) excede o teto de '
+                f'{fat_ceiling_g:.0f}g para {w:.0f}kg — desbalanceamento por excesso '
+                f'de alimentos gordurosos (óleos, castanhas, queijo, manteiga)'
             )
 
         # Aderência à meta de proteína calculada
-        protein_target = calculate_macros(anamnese, target_calories)['protein_g']
+        protein_target = targets['protein_g']
         if protein_target > 0:
             protein_ratio = protein_g / protein_target
-            if protein_ratio < 0.65:
+            if protein_ratio < self.MACRO_PROTEIN_MIN_RATIO:
                 violations.append(
                     f'proteína {protein_g}g é apenas {protein_ratio * 100:.0f}% da meta '
                     f'({protein_target}g) — desbalanceamento de macros proteicos'
                 )
+        return violations
 
+    def _validate_macro_ratios(
+        self,
+        diet_data: dict,
+        anamnese: Anamnese,
+        target_calories: int,
+    ) -> None:
+        """
+        Valida que as proporções de macronutrientes do plano estão dentro de
+        limites fisiologicamente razoáveis (ver _macro_ratio_violations).
+        Levanta MacroImbalanceError (retryable) se algum limite for violado.
+        """
+        violations = self._macro_ratio_violations(diet_data, anamnese, target_calories)
         if violations:
             detail = '; '.join(violations)
             logger.error(
@@ -788,13 +814,12 @@ class AIService:
                 f'Tente gerar novamente.'
             )
 
+        macros = diet_data.get('macros', {})
         logger.info(
-            '[MACRO_VALID] Macros dentro dos limites — usuário %s: '
-            'P=%dg (%.0f%%) C=%dg (%.0f%%) G=%dg (%.0f%%, %.1fg/kg)',
+            '[MACRO_VALID] Macros dentro dos limites — usuário %s: P=%sg C=%sg G=%sg (%s kcal)',
             anamnese.user_id,
-            protein_g, protein_pct * 100,
-            carbs_g,   carbs_pct   * 100,
-            fat_g,     fat_pct     * 100, fat_per_kg,
+            macros.get('protein_g', 0), macros.get('carbs_g', 0), macros.get('fat_g', 0),
+            diet_data.get('calories', 0),
         )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -1043,10 +1068,11 @@ class AIService:
           5. LLM Passos 2+3 (temp=0.7) em paralelo: notas e explicação — simultâneos
           6. Persiste DietPlan + Meals no banco
         """
-        tmb, tdee, target_calories = calculate_calories(anamnese)
+        energy = calculate_energy_plan(anamnese)
+        tmb, tdee, target_calories = energy['tmb'], energy['tdee'], energy['target_calories']
         logger.info(
-            'Alvo calórico para usuário %s: TMB=%d, TDEE=%d, meta=%d kcal (objetivo: %s)',
-            anamnese.user_id, tmb, tdee, target_calories, anamnese.goal,
+            'Alvo calórico para usuário %s: TMB=%d, TDEE=%d, meta=%d kcal (objetivo: %s, efetivo: %s)',
+            anamnese.user_id, tmb, tdee, target_calories, anamnese.goal, energy['effective_goal'],
         )
 
         # ── Passo 1: seleção de alimentos ────────────────────────────────────
@@ -1139,6 +1165,16 @@ class AIService:
                 if note:
                     meal['meal_notes'] = note
         diet_data['explanation'] = explanation
+
+        # Sinaliza ajustes de segurança na meta (piso mínimo, teto, déficit anulado)
+        diet_data['energy_plan'] = {
+            'target_calories':  target_calories,
+            'tdee':             tdee,
+            'effective_goal':   energy['effective_goal'],
+            'adjustment_kcal':  energy['adjustment_kcal'],
+            'adjustment_label': energy['adjustment_label'],
+        }
+        diet_data['calorie_warnings'] = energy['warnings']
 
         # ── Persiste DietPlan ─────────────────────────────────────────────────
         diet_plan = DietPlan.objects.create(

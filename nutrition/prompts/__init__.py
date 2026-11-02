@@ -17,6 +17,7 @@ com importações existentes (services.py, test_prompts.py, test_critical.py).
 from ._calculations import (
     build_meal_distribution_hint,
     calculate_calories,
+    calculate_energy_plan,
     calculate_macros,
 )
 
@@ -53,6 +54,7 @@ __all__ = [
     # cálculos
     'build_meal_distribution_hint',
     'calculate_calories',
+    'calculate_energy_plan',
     'calculate_macros',
     # food selection
     'FOOD_SELECTION_TEMPLATE',
