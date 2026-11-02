@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'user',
     'nutrition',
@@ -81,6 +82,8 @@ REST_FRAMEWORK = {
         'login': '1000/hour',
         'contact': '1000/hour',
         'testimonial': '1000/day',
+        'change_password': '1000/hour',
+        'delete_account': '1000/hour',
     },
 }
 
@@ -88,8 +91,12 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# Google OAuth — valor fake (verify_oauth2_token é mockado nos testes)
+GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com'
 
 CORS_ALLOW_ALL_ORIGINS = True
 
