@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
 # build.sh — Script de build para deploy no Render
-# Executado automaticamente pelo Render antes de iniciar a aplicação.
+# Executado pelo Render no buildCommand. NÃO roda migrations: o banco interno
+# não é acessível durante o build — o migrate roda no startCommand
+# (ver render.yaml).
 # =============================================================================
 
 set -o errexit   # para imediatamente em qualquer erro
+set -o nounset   # erro ao usar variável não definida
+set -o pipefail  # falha se qualquer comando de um pipe falhar
 
 echo "📦 Instalando dependências..."
+pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "📁 Coletando arquivos estáticos..."
 python manage.py collectstatic --no-input
 
-echo "🗄️  Aplicando migrações do banco de dados..."
-set +e
-python manage.py migrate --no-input
-MIGRATE_EXIT=$?
-set -e
-if [ $MIGRATE_EXIT -ne 0 ]; then
-  echo "⚠️  Migração falhou no build (banco interno não acessível). Será executada no startup."
-fi
+echo "🔎 Verificando configuração de produção..."
+python manage.py check --deploy --fail-level ERROR
 
-echo "✅ Build concluído com sucesso!"
+echo "✅ Build concluído com sucesso! (migrations serão aplicadas no start)"
