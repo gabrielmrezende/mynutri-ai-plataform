@@ -67,6 +67,15 @@ class Anamnese(models.Model):
         blank=True,
         help_text='Ex: amendoim, frutos do mar',
     )
+    # Triagem clínica: lista de condições declaradas (ver
+    # serializers.HEALTH_CONDITION_CHOICES). Qualquer valor diferente de
+    # "nenhuma" é rejeitado na API — o caso exige acompanhamento profissional.
+    health_conditions = models.JSONField(
+        'Condições de saúde',
+        default=list,
+        blank=True,
+        help_text='Ex: ["nenhuma"]',
+    )
 
     answered_at = models.DateTimeField('Respondido em', auto_now_add=True)
 

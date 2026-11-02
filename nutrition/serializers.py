@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from decimal import Decimal
 
 from .models import Anamnese, DietPlan, Meal
 from rest_framework import serializers
@@ -24,6 +25,8 @@ _INJECTION_PATTERNS = [
     r'(?i)(^|\n)\s*system\s*:',
     r'(?i)(^|\n)\s*(user|assistant|human|ai|bot|gpt|claude)\s*:',
     r'(?i)<\s*(system|instruction|prompt|context|rule)\s*>',
+    # Delimitadores usados nos prompts para isolar dados do usuário
+    r'(?i)<\s*/?\s*user_data',
 
     # Delimitadores de separação de contexto (técnica de "context break")
     r'[-=_*#]{6,}',        # ex: ------  ======  ######
@@ -46,7 +49,7 @@ _COMPILED_PATTERNS = [re.compile(p) for p in _INJECTION_PATTERNS]
 
 
 def _normalize(text: str) -> str:
-    """
+    r"""
     Normaliza o texto antes da varredura de injeção:
     1. NFKC colapsa caracteres Unicode equivalentes (ex: ｉ → i, ＳＹＳＴＥＭsystem)
     2. Remove caracteres de controle invisíveis usados como bypass
@@ -58,9 +61,13 @@ def _normalize(text: str) -> str:
     return text
 
 
-def validate_free_text(value, field_name):
+def validate_free_text(value, field_name='Texto', max_length=MAX_TEXT_LENGTH):
     """
     Valida campos de texto livre contra prompt injection e tamanho excessivo.
+
+    Reutilizável fora dos serializers (ex: campo `reason` da regeneração de
+    refeição): aceita None (retorna ''), e `max_length` customizável.
+    Levanta serializers.ValidationError com mensagem em português.
 
     Proteções em camadas:
     1. Limite de comprimento
@@ -69,9 +76,13 @@ def validate_free_text(value, field_name):
     4. Varredura com 20+ padrões cobrindo inglês, português e técnicas de delimiter injection
     5. Detecção de anomalias: razão anormal de caracteres especiais
     """
-    if len(value) > MAX_TEXT_LENGTH:
+    if value is None:
+        return ''
+    if not isinstance(value, str):
+        raise serializers.ValidationError(f'{field_name} deve ser um texto.')
+    if len(value) > max_length:
         raise serializers.ValidationError(
-            f'{field_name} não pode exceder {MAX_TEXT_LENGTH} caracteres.'
+            f'{field_name} não pode exceder {max_length} caracteres.'
         )
 
     # Normaliza ANTES de checar se está vazio — evita bypass com zero-width chars
@@ -100,6 +111,26 @@ def validate_free_text(value, field_name):
     return value
 
 
+# ─── Segurança clínica (contrato C5) ─────────────────────────────────────────
+MIN_AGE = 18
+MIN_BMI = 16.0           # abaixo: magreza grave — exige acompanhamento
+MIN_BMI_FOR_LOSS = 18.5  # abaixo: emagrecimento não é indicado
+
+HEALTH_CONDITION_CHOICES = (
+    'gestante',
+    'lactante',
+    'doenca_renal',
+    'diabetes_insulina',
+    'transtorno_alimentar',
+    'nenhuma',
+)
+
+_PROFESSIONAL_CARE_MSG = (
+    'Para esta condição o plano alimentar exige acompanhamento individual de '
+    'nutricionista ou médico. O MyNutri AI não gera planos automáticos neste caso.'
+)
+
+
 class AnamneseSerializer(serializers.ModelSerializer):
     """
     Serializer para criação da Anamnese nutricional.
@@ -116,11 +147,26 @@ class AnamneseSerializer(serializers.ModelSerializer):
     objetivo = serializers.ChoiceField(
         source='goal', choices=Anamnese.GOAL_CHOICES
     )
-    idade = serializers.IntegerField(source='age', min_value=1, max_value=120)
+    idade = serializers.IntegerField(
+        source='age', min_value=MIN_AGE, max_value=120,
+        error_messages={'min_value': f'O MyNutri AI é destinado a maiores de {MIN_AGE} anos.'},
+    )
     sexo = serializers.ChoiceField(source='gender', choices=Anamnese.GENDER_CHOICES)
-    peso = serializers.DecimalField(source='weight_kg', max_digits=5, decimal_places=2, min_value=10, max_value=500)
-    altura = serializers.DecimalField(source='height_cm', max_digits=5, decimal_places=2, min_value=50, max_value=280)
+    peso = serializers.DecimalField(
+        source='weight_kg', max_digits=5, decimal_places=2,
+        min_value=Decimal('10'), max_value=Decimal('500'),
+    )
+    altura = serializers.DecimalField(
+        source='height_cm', max_digits=5, decimal_places=2,
+        min_value=Decimal('50'), max_value=Decimal('280'),
+    )
     meals_per_day = serializers.IntegerField(min_value=1, max_value=12, default=3, required=False)
+    health_conditions = serializers.ListField(
+        child=serializers.ChoiceField(choices=HEALTH_CONDITION_CHOICES),
+        required=False,
+        default=list,
+        max_length=len(HEALTH_CONDITION_CHOICES),
+    )
 
     class Meta:
         model = Anamnese
@@ -128,7 +174,7 @@ class AnamneseSerializer(serializers.ModelSerializer):
             'id', 'idade', 'sexo', 'peso', 'altura',
             'nivel_atividade', 'objetivo', 'restricoes',
             'food_preferences', 'allergies', 'meals_per_day',
-            'answered_at',
+            'health_conditions', 'answered_at',
         )
         read_only_fields = ('id', 'answered_at')
 
@@ -141,6 +187,16 @@ class AnamneseSerializer(serializers.ModelSerializer):
     def validate_allergies(self, value):
         return validate_free_text(value, 'Alergias')
 
+    def validate_health_conditions(self, value):
+        """
+        Triagem clínica: gestação, lactação, doença renal, diabetes com
+        insulina e transtornos alimentares exigem acompanhamento profissional.
+        """
+        value = list(dict.fromkeys(value or []))
+        if any(c != 'nenhuma' for c in value):
+            raise serializers.ValidationError(_PROFESSIONAL_CARE_MSG)
+        return value
+
     def validate(self, data):
         peso = data.get('weight_kg')
         altura = data.get('height_cm')
@@ -151,6 +207,20 @@ class AnamneseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'A combinação de peso e altura não é fisiologicamente plausível.'
                 )
+            if bmi < MIN_BMI:
+                raise serializers.ValidationError(
+                    f'Seu IMC ({bmi:.1f}) indica magreza acentuada. Para sua segurança, '
+                    'procure acompanhamento de nutricionista ou médico — o MyNutri AI '
+                    'não gera planos automáticos neste caso.'
+                )
+            if data.get('goal') == 'lose' and bmi < MIN_BMI_FOR_LOSS:
+                raise serializers.ValidationError({
+                    'objetivo': (
+                        f'Seu IMC ({bmi:.1f}) está abaixo de {MIN_BMI_FOR_LOSS}: emagrecimento '
+                        'não é indicado. Escolha manutenção ou ganho de massa, ou procure '
+                        'acompanhamento de nutricionista ou médico.'
+                    ),
+                })
         return data
 
 
