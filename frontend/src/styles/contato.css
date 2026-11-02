@@ -322,3 +322,10 @@ html.dark .contact-faq .faq-arrow { background: var(--gray-100); }
   .contact-faq { padding: 64px 0; }
   .contact-faq .faq-question { font-size: 1.0625rem; }
 }
+
+.contact-faq .faq-answer a {
+  color: var(--link);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
