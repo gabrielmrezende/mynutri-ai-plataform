@@ -31,7 +31,7 @@ for _var, _desc in _REQUIRED_VARS.items():
         raise ValueError(
             f'\n❌ Variável "{_var}" não configurada.\n'
             f'   {_desc}\n'
-            f'   Configure em .env (local) ou nas Environment Variables do Render.\n'
+            f'   Configure em .env (local) ou nas Environment Variables do Vercel.\n'
         )
 
 # =============================================================================
@@ -40,11 +40,16 @@ for _var, _desc in _REQUIRED_VARS.items():
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-# ALLOWED_HOSTS: lista do .env + domínio automático do Render ou Railway
+# ALLOWED_HOSTS: lista do .env + domínios automáticos do Vercel, Render ou Railway
 _allowed = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
-_render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')    # injetado automaticamente pelo Render
-_railway_host = os.getenv('RAILWAY_PUBLIC_DOMAIN')      # injetado automaticamente pelo Railway
-for _auto_host in (_render_host, _railway_host):
+_auto_hosts = (
+    os.getenv('VERCEL_URL'),                        # URL única do deploy (Vercel)
+    os.getenv('VERCEL_BRANCH_URL'),                 # URL da branch (Vercel)
+    os.getenv('VERCEL_PROJECT_PRODUCTION_URL'),     # domínio de produção (Vercel)
+    os.getenv('RENDER_EXTERNAL_HOSTNAME'),          # injetado automaticamente pelo Render
+    os.getenv('RAILWAY_PUBLIC_DOMAIN'),             # injetado automaticamente pelo Railway
+)
+for _auto_host in _auto_hosts:
     if _auto_host:
         _allowed.append(_auto_host)
 ALLOWED_HOSTS = [h.strip() for h in _allowed if h.strip()] or (['localhost', '127.0.0.1'] if DEBUG else [])
