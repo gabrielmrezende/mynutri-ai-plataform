@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Termos de Uso — MyNutri AI</title>
   <meta name="description" content="Leia os termos de uso do MyNutri AI. Conheça as condições para utilização da plataforma." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/index.css" />
   <link rel="stylesheet" href="/static/src/styles/legal.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- ===================== HEADER ===================== -->
   <header class="header scrolled" id="header">
@@ -17,7 +24,7 @@
       <a href="/" class="logo" id="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
@@ -43,7 +50,7 @@
   </header>
 
   <!-- ===================== CONTENT ===================== -->
-  <main class="legal-page">
+  <main class="legal-page" id="main-content">
     <div class="legal-container">
       <div class="legal-header">
         <span class="section-tag">📋 Termos de Uso</span>
@@ -158,7 +165,6 @@
     </div>
   </footer>
 
-  <script src="/static/src/js/utils/theme.js" defer></script>
 
 </body>
 </html>
