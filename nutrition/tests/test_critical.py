@@ -478,8 +478,9 @@ class TestAdjustToCalorieTarget:
             ]}],
         }
         result = service._adjust_to_calorie_target(data, target_calories=2000)
-        # Arroz não é fonte proteica → scale completo de 2.0 → 200g
-        assert result['meals'][0]['foods'][0]['quantity_g'] == 200
+        # Arroz não é fonte proteica → escala livre, iterada até o teto por
+        # alimento (3× a quantidade original) já que o alvo é inalcançável
+        assert result['meals'][0]['foods'][0]['quantity_g'] == 300
 
     def test_tolerancia_10_porcento_documentada(self, service):
         """9% de desvio está dentro da tolerância → não escala."""

@@ -34,6 +34,7 @@ from .allergens import (
     parse_restrictions,
 )
 from .nutrition_db import lookup_food_nutrition
+from .textnorm import canonical, contains_phrase
 
 # Palavras-chave que identificam fontes proteicas primárias.
 # Usadas em _adjust_to_calorie_target para preservar porções de proteína.
@@ -62,6 +63,16 @@ _ZERO_CALORIE_KEYWORDS = frozenset([
     'bebida zero', 'agua', 'cha verde', 'cha', 'cafe preto', 'cafe',
 ])
 
+
+def _has(name_canon: str, *keywords: str) -> bool:
+    """
+    True se alguma palavra-chave aparece no nome como PALAVRA INTEIRA.
+    `name_canon` deve vir de textnorm.canonical(); as palavras-chave são
+    canonicalizadas aqui (singular, sem acento) — 'cha' não casa "Salsicha",
+    'maca' não casa "Macarrão", 'nozes' casa "Noz".
+    """
+    return any(contains_phrase(name_canon, canonical(kw)) for kw in keywords)
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ARREDONDAMENTO DE PORÇÕES — medidas práticas de consumo
 # ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +80,7 @@ _ZERO_CALORIE_KEYWORDS = frozenset([
 # Regras: (frozenset de palavras-chave, múltiplo de arredondamento, mínimo)
 #
 # A ordem importa: a primeira regra que casar é usada.
-# Palavras-chave são testadas como substring no nome normalizado (sem acentos).
+# Palavras-chave são testadas por palavra inteira no nome canônico (ver _has).
 
 _ROUNDING_RULES: list[tuple[frozenset, int, int]] = [
     # Óleos e gorduras puras: colher de chá = 5g
@@ -77,7 +88,7 @@ _ROUNDING_RULES: list[tuple[frozenset, int, int]] = [
     # Proteína em pó, aveia, farinha, granola: colher de sopa ≈ 10g
     (frozenset(['aveia', 'whey', 'farinha', 'granola', 'cereal']),          10,  10),
     # Castanhas e oleaginosas: porção = 10g
-    (frozenset(['castanha', 'amendoa', 'noze', 'pasta amendoim']),          10,  10),
+    (frozenset(['castanha', 'amendoa', 'nozes', 'pasta amendoim']),         10,  10),
     # Amendoim (inteiro): punhado ≈ 15g
     (frozenset(['amendoim torrado', 'amendoim']),                            15,  15),
     # Tapioca: meia tapioca ≈ 40g, inteira ≈ 80g → múltiplo de 20
@@ -117,10 +128,10 @@ def _round_food_quantity(food_name: str, qty_g: float) -> int:
       ≤ 200g → múltiplos de 25g
        > 200g → múltiplos de 50g
     """
-    normalized = _strip_accents(food_name.lower())
+    normalized = canonical(food_name)
 
     for keywords, multiple, minimum in _ROUNDING_RULES:
-        if any(kw in normalized for kw in keywords):
+        if _has(normalized, *keywords):
             rounded = round(qty_g / multiple) * multiple
             return int(max(minimum, rounded))
 
@@ -140,133 +151,133 @@ def _household_measure(food_name: str, qty_g: int) -> str:
     Exemplos: '300g' → '≈ 8 col. de sopa' (arroz), '150g' → '≈ 1 filé médio' (frango).
     Retorna string vazia se não houver medida conhecida para o alimento.
     """
-    n = _strip_accents(food_name.lower())
+    n = canonical(food_name)
     q = qty_g
 
     # ── Ovos ─────────────────────────────────────────────────────────────────
-    if 'clara' in n:
+    if _has(n, 'clara'):
         count = max(1, round(q / 33))
         return f'{count} {"clara" if count == 1 else "claras"}'
-    if any(k in n for k in ('ovo', 'ovos', 'omelete')):
+    if _has(n, *('ovo', 'ovos', 'omelete')):
         count = max(1, round(q / 50))
         return f'{count} {"unidade" if count == 1 else "unidades"}'
 
     # ── Óleos e gorduras ─────────────────────────────────────────────────────
-    if any(k in n for k in ('azeite', 'oleo', 'manteiga', 'margarina')):
+    if _has(n, *('azeite', 'oleo', 'manteiga', 'margarina')):
         if q <= 5:   return '1 col. de chá'
         if q <= 10:  return '1 col. de sopa'
         if q <= 15:  return '1 col. de sopa cheia'
         return f'{round(q / 15)} col. de sopa'
 
     # ── Cereais e tubérculos ─────────────────────────────────────────────────
-    if 'arroz' in n:
+    if _has(n, 'arroz'):
         col = max(1, round(q / 35))
         return f'{col} col. de sopa'
-    if any(k in n for k in ('macarrao', 'esparguete', 'massa', 'penne')):
+    if _has(n, *('macarrao', 'esparguete', 'massa', 'penne')):
         xic = round(q / 100)
         return f'{max(1, xic)} {"xícara" if xic <= 1 else "xícaras"}'
-    if 'batata doce' in n or 'batata-doce' in n:
+    if _has(n, 'batata doce') or _has(n, 'batata-doce'):
         if q <= 100: return '½ unid. média'
         if q <= 180: return '1 unid. média'
         return '1 unid. grande'
-    if 'batata' in n:
+    if _has(n, 'batata'):
         if q <= 100: return '1 batata pequena'
         if q <= 180: return '1 batata média'
         return '1 batata grande'
-    if 'mandioca' in n or 'aipim' in n or 'macaxeira' in n:
+    if _has(n, 'mandioca') or _has(n, 'aipim') or _has(n, 'macaxeira'):
         if q <= 100: return '1 pedaço pequeno'
         return f'{round(q / 100)} pedaços'
-    if 'cuscuz' in n:
+    if _has(n, 'cuscuz'):
         col = max(1, round(q / 40))
         return f'{col} col. de sopa'
 
     # ── Leguminosas ───────────────────────────────────────────────────────────
-    if any(k in n for k in ('feijao', 'lentilha', 'grao', 'ervilha')):
+    if _has(n, *('feijao', 'lentilha', 'grao', 'ervilha')):
         conchas = max(1, round(q / 80))
         return f'{conchas} {"concha" if conchas == 1 else "conchas"}'
 
     # ── Pão e tapioca ─────────────────────────────────────────────────────────
-    if 'tapioca' in n:
+    if _has(n, 'tapioca'):
         if q <= 45:  return '½ tapioca'
         if q <= 90:  return '1 tapioca'
         if q <= 130: return '1½ tapioca'
         return f'{round(q / 80)} tapiocas'
-    if 'pao' in n:
+    if _has(n, 'pao'):
         if q <= 35:  return '½ unidade'
         if q <= 65:  return '1 unidade'
         return f'{round(q / 50)} unidades'
 
     # ── Cereais e sementes ────────────────────────────────────────────────────
-    if any(k in n for k in ('aveia', 'granola')):
+    if _has(n, *('aveia', 'granola')):
         col = max(1, round(q / 10))
         return f'{col} col. de sopa'
-    if any(k in n for k in ('whey', 'farinha')):
+    if _has(n, *('whey', 'farinha')):
         col = max(1, round(q / 10))
         return f'{col} col. de sopa'
 
     # ── Laticínios ────────────────────────────────────────────────────────────
-    if 'leite' in n:
+    if _has(n, 'leite'):
         if q <= 100: return '½ copo'
         if q <= 200: return '1 copo'
         return f'{round(q / 200)} copos'
-    if 'iogurte' in n:
+    if _has(n, 'iogurte'):
         if q <= 120: return '½ pote'
         if q <= 220: return '1 pote'
         return f'{round(q / 180)} potes'
-    if any(k in n for k in ('queijo', 'requeijao')):
+    if _has(n, *('queijo', 'requeijao')):
         fatias = max(1, round(q / 25))
         return f'{fatias} {"fatia" if fatias == 1 else "fatias"}'
 
     # ── Oleaginosas ───────────────────────────────────────────────────────────
-    if any(k in n for k in ('castanha', 'amendoa', 'noze')):
+    if _has(n, *('castanha', 'amendoa', 'nozes')):
         unid = max(1, round(q / 5))
         return f'{unid} unidades'
-    if 'amendoim' in n and 'pasta' not in n:
+    if _has(n, 'amendoim') and not _has(n, 'pasta'):
         if q <= 15: return '1 punhado'
         return f'{round(q / 15)} punhados'
-    if 'pasta' in n and 'amendoim' in n:
+    if _has(n, 'pasta') and _has(n, 'amendoim'):
         col = max(1, round(q / 15))
         return f'{col} col. de sopa'
 
     # ── Carnes, aves e peixes ─────────────────────────────────────────────────
-    if any(k in n for k in ('frango', 'tilapia', 'salmao', 'peixe',
+    if _has(n, *('frango', 'tilapia', 'salmao', 'peixe',
                              'file', 'merluza', 'bacalhau', 'robalo')):
         if q <= 100: return '1 filé pequeno'
         if q <= 160: return '1 filé médio'
         if q <= 220: return '1 filé grande'
         return f'{round(q / 150)} filés'
-    if any(k in n for k in ('patinho', 'alcatra', 'picanha', 'contrafile',
+    if _has(n, *('patinho', 'alcatra', 'picanha', 'contrafile',
                              'carne bovina', 'carne moida', 'musculo', 'acem')):
         if q <= 120: return '1 bife pequeno'
         if q <= 180: return '1 bife médio'
         return '1 bife grande'
-    if 'atum' in n:
+    if _has(n, 'atum'):
         latas = max(1, round(q / 85))
         return f'{latas} {"lata" if latas == 1 else "latas"}'
-    if 'sardinha' in n:
+    if _has(n, 'sardinha'):
         return '1 lata' if q <= 100 else '2 latas'
 
     # ── Frutas ────────────────────────────────────────────────────────────────
-    if any(k in n for k in ('banana',)):
+    if _has(n, *('banana',)):
         if q <= 80: return '½ banana'
         if q <= 130: return '1 banana'
         return '1 banana grande'
-    if any(k in n for k in ('maca', 'pera', 'pessego')):
+    if _has(n, *('maca', 'pera', 'pessego')):
         if q <= 100: return '½ unidade'
         return '1 unidade'
-    if any(k in n for k in ('laranja', 'tangerina', 'mexerica')):
+    if _has(n, *('laranja', 'tangerina', 'mexerica')):
         if q <= 80: return '½ unidade'
         return '1 unidade'
-    if any(k in n for k in ('mamao', 'manga')):
+    if _has(n, *('mamao', 'manga')):
         if q <= 100: return '1 fatia'
         if q <= 200: return '2 fatias'
         return '3 fatias'
 
     # ── Legumes e folhas ──────────────────────────────────────────────────────
-    if any(k in n for k in ('alface', 'rucula', 'espinafre', 'acelga', 'salada')):
+    if _has(n, *('alface', 'rucula', 'espinafre', 'acelga', 'salada')):
         if q <= 40: return '½ prato'
         return '1 prato'
-    if any(k in n for k in ('brocolis', 'couve', 'cenoura', 'abobrinha', 'chuchu')):
+    if _has(n, *('brocolis', 'couve', 'cenoura', 'abobrinha', 'chuchu')):
         if q <= 80: return '½ xícara'
         return '1 xícara'
 
@@ -706,8 +717,7 @@ class AIService:
     @staticmethod
     def _is_protein_food(food_name: str) -> bool:
         """Retorna True se o alimento é fonte proteica primária."""
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _PROTEIN_KEYWORDS)
+        return _has(canonical(food_name), *_PROTEIN_KEYWORDS)
 
     @staticmethod
     def _is_fat_food(food_name: str) -> bool:
@@ -716,74 +726,122 @@ class AIService:
         Usado em _adjust_to_calorie_target para evitar que escalas grandes
         multipliquem porções a valores absurdos (ex: azeite 10g → 60g).
         """
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _FAT_KEYWORDS)
+        return _has(canonical(food_name), *_FAT_KEYWORDS)
 
     @staticmethod
     def _is_zero_calorie_drink(food_name: str) -> bool:
-        """Retorna True para bebidas zero/diet que não devem ser escaladas."""
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _ZERO_CALORIE_KEYWORDS)
+        """
+        Retorna True para bebidas zero/diet que não devem ser escaladas.
+        Além da palavra-chave, exige densidade calórica desprezível no banco
+        (≤ 10 kcal/100g) — "Água de coco" e "Bolacha de água e sal" não são zero.
+        """
+        if not _has(canonical(food_name), *_ZERO_CALORIE_KEYWORDS):
+            return False
+        return lookup_food_nutrition(food_name, 100)['calories'] <= 10
+
+    # Ajuste de porções: tolerância, iterações e limites por categoria
+    # (fator mínimo, fator máximo) relativos à quantidade ORIGINAL do LLM
+    CALORIE_TOLERANCE    = 0.10
+    ADJUST_MAX_ITERATIONS = 8
+    _ADJUST_BOUNDS = {
+        'zero':    (1.00, 1.00),   # bebidas zero: porção não afeta calorias
+        'protein': (0.85, 1.15),   # preserva adequação proteica
+        'fat':     (0.80, 1.20),   # evita explosão calórica de óleo/castanha
+        'other':   (0.30, 3.00),   # carboidratos/vegetais absorvem o ajuste
+    }
+
+    def _food_adjust_category(self, name: str) -> str:
+        if self._is_zero_calorie_drink(name):
+            return 'zero'
+        if self._is_protein_food(name):
+            return 'protein'
+        if self._is_fat_food(name):
+            return 'fat'
+        return 'other'
+
+    @staticmethod
+    def _set_food_quantity(food: dict, qty: int) -> None:
+        """Atualiza quantidade, macros (via nutrition_db) e texto de exibição."""
+        name = food.get('name', '')
+        food['quantity_g'] = qty
+        nutrition = lookup_food_nutrition(name, qty)
+        food['calories']  = nutrition['calories']
+        food['protein_g'] = nutrition['protein_g']
+        food['carbs_g']   = nutrition['carbs_g']
+        food['fat_g']     = nutrition['fat_g']
+        measure = _household_measure(name, qty)
+        food['quantity_text'] = f'{qty}g'
+        food['quantity']      = f'{qty}g ({measure})' if measure else f'{qty}g'
 
     def _adjust_to_calorie_target(self, diet_data: dict, target_calories: int) -> dict:
         """
         Se o total calculado divergir mais de 10% do alvo, ajusta quantity_g
-        com escala seletiva por categoria:
+        iterativamente (até ADJUST_MAX_ITERATIONS passadas) com escala seletiva
+        por categoria e teto por alimento relativo à quantidade original:
 
-          - Proteínas (frango, peixe, ovo…):         cap ±15% — preserva adequação proteica
-          - Gorduras densas (azeite, castanhas…):     cap ±20% — evita explosão calórica de óleo
-          - Demais (arroz, batata, pão, vegetais…):   escala livre — absorvem o ajuste principal
+          - Proteínas (frango, peixe, ovo…):       0.85–1.15× — preserva adequação proteica
+          - Gorduras densas (azeite, castanhas…):  0.80–1.20× — evita explosão calórica de óleo
+          - Demais (arroz, batata, pão, vegetais…): 0.30–3.00× — absorvem o ajuste principal
+          - Bebidas zero: inalteradas
+        Toda quantidade fica em [5, 1000] g.
 
-        A hierarquia evita que correções calóricas produzam porções absurdas
-        de alimentos calórico-densos enquanto os carboidratos ficam em 30g.
+        Uma passada só não basta: os caps de proteína/gordura fazem o total
+        ficar aquém do alvo; as passadas seguintes redistribuem o restante
+        para os alimentos que ainda têm folga. Para quando entra na tolerância
+        ou quando nenhum alimento pode mais ser ajustado.
         """
         actual = diet_data.get('calories', 0)
         if not actual or not target_calories:
             return diet_data
 
         divergence = abs(actual - target_calories) / target_calories
-        if divergence <= 0.10:
+        if divergence <= self.CALORIE_TOLERANCE:
             return diet_data
 
-        scale = target_calories / actual
         logger.warning(
-            'Total calculado (%d kcal) diverge %.1f%% do alvo (%d kcal). '
-            'Ajustando porções (escala=%.4f; proteínas ±15%%, gorduras ±20%%).',
-            actual, divergence * 100, target_calories, scale,
+            'Total calculado (%d kcal) diverge %.1f%% do alvo (%d kcal). Ajustando porções.',
+            actual, divergence * 100, target_calories,
         )
 
-        for meal in diet_data.get('meals', []):
-            for food in meal.get('foods', []):
-                old_qty = float(food.get('quantity_g') or 100)
-                name    = food.get('name', '')
+        foods = [f for meal in diet_data.get('meals', []) for f in meal.get('foods', [])]
+        originals = [float(f.get('quantity_g') or 100) for f in foods]
+        categories = [self._food_adjust_category(f.get('name', '')) for f in foods]
 
-                if self._is_zero_calorie_drink(name):
-                    # Bebidas zero/diet: sem escalonamento — porção não afeta calorias
-                    applied_scale = 1.0
-                elif self._is_protein_food(name):
-                    # Proteínas: cap ±15% para preservar adequação proteica
-                    applied_scale = max(0.85, min(1.15, scale))
-                elif self._is_fat_food(name):
-                    # Gorduras densas: cap ±20% para evitar porções absurdas de óleo
-                    applied_scale = max(0.80, min(1.20, scale))
-                else:
-                    # Carboidratos e vegetais: escala livre — absorvem o ajuste
-                    applied_scale = scale
+        for _ in range(self.ADJUST_MAX_ITERATIONS):
+            actual = diet_data.get('calories', 0)
+            if not actual or abs(actual - target_calories) / target_calories <= self.CALORIE_TOLERANCE:
+                break
 
-                new_qty = max(10, round(old_qty * applied_scale))
-                food['quantity_g'] = new_qty
+            # Escala apenas a parcela ajustável: calorias dos alimentos travados
+            # (no limite na direção desejada) não respondem à escala.
+            growing = target_calories > actual
+            adjustable_kcal = 0.0
+            for food, orig, cat in zip(foods, originals, categories):
+                lo, hi = self._ADJUST_BOUNDS[cat]
+                qty = float(food.get('quantity_g') or 0)
+                limit = min(MAX_QUANTITY_G, orig * hi) if growing else max(MIN_QUANTITY_G, orig * lo)
+                if (growing and qty < limit) or (not growing and qty > limit):
+                    adjustable_kcal += food.get('calories', 0) or 0
+            if adjustable_kcal <= 0:
+                break
+            scale = max(0.0, 1 + (target_calories - actual) / adjustable_kcal)
 
-                nutrition = lookup_food_nutrition(name, new_qty)
-                food['calories']  = nutrition['calories']
-                food['protein_g'] = nutrition['protein_g']
-                food['carbs_g']   = nutrition['carbs_g']
-                food['fat_g']     = nutrition['fat_g']
+            changed = False
+            for food, orig, cat in zip(foods, originals, categories):
+                lo, hi = self._ADJUST_BOUNDS[cat]
+                qty = float(food.get('quantity_g') or 0)
+                new_qty = qty * scale
+                new_qty = min(orig * hi, max(orig * lo, new_qty))
+                new_qty = round(min(MAX_QUANTITY_G, max(MIN_QUANTITY_G, new_qty)))
+                if new_qty != round(qty):
+                    changed = True
+                self._set_food_quantity(food, new_qty)
 
-                measure = _household_measure(name, new_qty)
-                food['quantity_text'] = f'{new_qty}g'
-                food['quantity']      = f'{new_qty}g ({measure})' if measure else f'{new_qty}g'
+            diet_data = self._recalculate_totals(diet_data)
+            if not changed:
+                break
 
-        return self._recalculate_totals(diet_data)
+        return diet_data
 
     def _round_portions(self, diet_data: dict, target_calories: int | None = None) -> dict:
         """
@@ -812,8 +870,8 @@ class AIService:
                 food['quantity_text'] = f'{qty}g'
                 food['quantity'] = f'{qty}g ({measure})' if measure else f'{qty}g'
 
+        diet_data = self._recalculate_totals(diet_data)
         if changed:
-            diet_data = self._recalculate_totals(diet_data)
             if target_calories:
                 total = diet_data.get('calories', 0)
                 dev = abs(total - target_calories) / target_calories * 100
@@ -822,6 +880,31 @@ class AIService:
                     changed, total, dev, target_calories,
                 )
         return diet_data
+
+    def _fit_portions(self, diet_data: dict, target_calories: int) -> dict:
+        """
+        Ajusta porções ao alvo e arredonda para medidas práticas. O
+        arredondamento pode tirar o total da tolerância — nesse caso ajusta
+        e arredonda de novo (uma vez) e registra se ainda ficou fora.
+        """
+        diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
+        diet_data = self._round_portions(diet_data, target_calories)
+        if self._calorie_divergence(diet_data, target_calories) > self.CALORIE_TOLERANCE:
+            diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
+            diet_data = self._round_portions(diet_data, target_calories)
+            divergence = self._calorie_divergence(diet_data, target_calories)
+            if divergence > self.CALORIE_TOLERANCE:
+                logger.warning(
+                    '[PORTIONS] Total %d kcal ainda diverge %.1f%% do alvo %d kcal após arredondamento.',
+                    diet_data.get('calories', 0), divergence * 100, target_calories,
+                )
+        return diet_data
+
+    @staticmethod
+    def _calorie_divergence(diet_data: dict, target_calories: int) -> float:
+        if not target_calories:
+            return 0.0
+        return abs((diet_data.get('calories') or 0) - target_calories) / target_calories
 
     def _check_protein_adequacy(
         self,
@@ -1265,8 +1348,7 @@ class AIService:
         # Rejeita planos com cobertura insuficiente — força retry da task
         self._check_db_coverage(db_stats, anamnese)
         diet_data = self._recalculate_totals(diet_data)
-        diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
-        diet_data = self._round_portions(diet_data, target_calories)
+        diet_data = self._fit_portions(diet_data, target_calories)
 
         logger.info(
             'Macros calculados: %d kcal | P=%dg | C=%dg | G=%dg (alvo: %d kcal)',
@@ -1381,6 +1463,19 @@ class AIService:
     #  REGENERAÇÃO PONTUAL DE REFEIÇÃO
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _check_regenerated_plan_ratios(self, diet_plan: DietPlan, meal_index: int, new_meal: dict) -> None:
+        anamnese = diet_plan.anamnese
+        meals = (diet_plan.raw_response or {}).get('meals', [])
+        _, _, target_calories = calculate_calories(anamnese)
+
+        old_plan = self._recalculate_totals({'meals': list(meals)})
+        if self._macro_ratio_violations(old_plan, anamnese, target_calories):
+            return
+        new_meals = list(meals)
+        new_meals[meal_index] = new_meal
+        new_plan = self._recalculate_totals({'meals': new_meals})
+        self._validate_macro_ratios(new_plan, anamnese, target_calories)
+
     def regenerate_meal(
         self,
         diet_plan: DietPlan,
@@ -1390,11 +1485,14 @@ class AIService:
         """
         Regenera uma refeição específica sem alterar as demais do plano.
 
-        Fluxo:
+        Fluxo (mesmas salvaguardas da geração completa):
           1. Monta prompt com contexto do plano completo e perfil do usuário
-          2. Chama IA (temp=0.7 para variedade)
-          3. Enriquece os novos alimentos com macros do nutrition_db
-          4. Retorna dict com os dados da nova refeição (não persiste — a view persiste)
+          2. Chama IA (temp=0.7 para variedade, max_tokens=800)
+          3. Aplica alergias e restrições (fail-fast)
+          4. Enriquece com macros do nutrition_db e checa cobertura
+          5. Ajusta à meta calórica da refeição e DEPOIS arredonda
+          6. Valida proporções de macros do plano inteiro (quando aplicável)
+          7. Retorna dict com os dados da nova refeição (não persiste — a view persiste)
 
         Returns dict com:
           new_raw_meal     — meal dict enriquecido para raw_response['meals'][meal_index]
@@ -1448,18 +1546,22 @@ class AIService:
         enriched, db_stats = self._enrich_foods_with_macros({'meals': [new_meal_data]})
         # Rejeita refeição com cobertura insuficiente — usuário pode tentar de novo manualmente
         self._check_db_coverage(db_stats, diet_plan.anamnese)
-        enriched = self._round_portions(enriched)
+        enriched = self._recalculate_totals(enriched)
 
-        # Ajusta calorias da refeição para ficar dentro de ±10% do alvo original.
-        # Sem isso o arredondamento de porções pode tirar 150-200 kcal silenciosamente.
+        # Ajusta calorias da refeição ao alvo original (±10%) e SÓ DEPOIS
+        # arredonda — mesma ordem da geração completa (_fit_portions).
         meal_calorie_target = sum(
             f.get('calories', 0) for f in current_meal.get('foods', [])
         )
         if meal_calorie_target > 0:
-            meal_total = sum(f.get('calories', 0) for f in enriched['meals'][0].get('foods', []))
-            wrapper = {'calories': meal_total, 'meals': enriched['meals']}
-            wrapper = self._adjust_to_calorie_target(wrapper, meal_calorie_target)
-            enriched = {'meals': wrapper['meals']}
+            enriched = self._fit_portions(enriched, meal_calorie_target)
+        else:
+            enriched = self._round_portions(enriched)
+
+        # Proporções de macros do plano inteiro com a nova refeição. Só rejeita
+        # se o plano atual estava dentro dos limites ("quando aplicável") —
+        # planos antigos já fora dos limites não bloqueiam a regeneração.
+        self._check_regenerated_plan_ratios(diet_plan, meal_index, enriched['meals'][0])
 
         new_meal = enriched['meals'][0]
 

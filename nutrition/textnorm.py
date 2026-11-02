@@ -9,6 +9,7 @@ os falsos positivos de substring ('cha' casando com "Salsicha", 'ovo' com
 """
 
 import re
+from functools import lru_cache
 import unicodedata
 
 # Preposições e artigos ignorados no matching ("castanha-do-pará" ≡ "castanha para")
@@ -50,7 +51,7 @@ def singularize(word: str) -> str:
     if len(word) <= 3:
         return word
     for suffix, repl in _PLURAL_RULES:
-        if word.endswith(suffix) and len(word) > len(suffix) + 1:
+        if word.endswith(suffix) and len(word) > len(suffix):
             return word[: -len(suffix)] + repl
     if word.endswith('s') and not word.endswith('ss'):
         return word[:-1]
@@ -65,6 +66,7 @@ def tokens(text: str | None) -> list[str]:
     ]
 
 
+@lru_cache(maxsize=4096)
 def canonical(text: str | None) -> str:
     """Forma canônica para matching: tokens unidos por espaço."""
     return ' '.join(tokens(text))
