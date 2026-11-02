@@ -1,24 +1,30 @@
 """
-Arquitetura de dois passos para geração de dietas:
+Arquitetura de geração de dietas em passos:
 
-  Passo 1 — LLM (temp=0.3): seleciona alimentos e quantidades (sem macros)
-  Backend:  consulta nutrition_db.py e calcula macros deterministicamente
-  Passo 2 — LLM (temp=0.7): escreve explicação usando os valores calculados
+  Passo 1 — LLM (temp=0.55): seleciona alimentos e quantidades (sem macros)
+  Backend:  consulta nutrition_db.py e calcula macros deterministicamente;
+            aplica alergias/restrições, ajusta porções e valida macros
+  Passos 2+3 — LLM (temp=0.7, em paralelo): dicas e explicação usando os
+            valores calculados
 
 Isso elimina a variabilidade de macros causada por delegar aritmética ao modelo.
 """
 
 import json
 import logging
+import math
 import os
+import random
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from django.conf import settings
+
 from .models import Anamnese, DietPlan, Meal
-import unicodedata
 
 from .allergens import (
     food_contains_allergen,
@@ -388,24 +394,117 @@ def substitutions_for_plan(meals: list[dict], anamnese) -> list[dict]:
     )
 
 
+# Limites de quantidade aceitos do LLM (gramas por alimento)
+MIN_QUANTITY_G = 5
+MAX_QUANTITY_G = 1000
+
+# Retry da API de IA
+RETRY_AFTER_MAX_S = 30      # teto para o header Retry-After
+RETRY_JITTER_MAX_S = 1.0    # jitter aleatório somado ao backoff
+
+_QUANTITY_RE = re.compile(r'^\s*(\d+(?:[.,]\d+)?)\s*(?:g|gr|grs|grama|gramas|ml)?\s*$', re.IGNORECASE)
+
+
+def _setting(name: str, default: str = '') -> str:
+    """Lê configuração de settings (preferencial) com fallback para variável de ambiente."""
+    return getattr(settings, name, None) or os.getenv(name, default)
+
+
+def _coerce_quantity_g(value) -> float | None:
+    """
+    Converte quantity_g vindo do LLM em gramas dentro de [5, 1000].
+
+    Aceita número ou texto simples como "150", "150g", "150,5 g".
+    Retorna None para quantidade ausente, ≤ 0, NaN ou infinita (o alimento
+    conta como lacuna de cobertura). Levanta TransientAIError para valores
+    que não são quantidades (ex: "um pouco", listas) — o LLM errou o formato.
+    """
+    if value is None or value == '':
+        return None
+    if isinstance(value, bool):
+        raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
+    if isinstance(value, (int, float)):
+        qty = float(value)
+    elif isinstance(value, str):
+        match = _QUANTITY_RE.match(value)
+        if not match:
+            raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
+        qty = float(match.group(1).replace(',', '.'))
+    else:
+        raise TransientAIError('A IA retornou quantidades em formato inválido. Tente novamente.')
+    if math.isnan(qty) or math.isinf(qty) or qty <= 0:
+        return None
+    return float(min(MAX_QUANTITY_G, max(MIN_QUANTITY_G, qty)))
+
+
+def _validate_plan_structure(diet_data, *, single_meal: bool = False) -> None:
+    """
+    Valida a estrutura mínima do JSON do LLM antes do processamento
+    determinístico. Estrutura inválida → TransientAIError (retry).
+    """
+    meals = [diet_data] if single_meal else (diet_data or {}).get('meals') if isinstance(diet_data, dict) else None
+    if not isinstance(meals, list) or not meals:
+        raise TransientAIError('A IA não retornou refeições válidas. Tente novamente.')
+    for meal in meals:
+        if not isinstance(meal, dict):
+            raise TransientAIError('A IA retornou refeições em formato inválido. Tente novamente.')
+        foods = meal.get('foods')
+        if not isinstance(foods, list) or not foods:
+            raise TransientAIError('A IA retornou refeições sem alimentos válidos. Tente novamente.')
+        for food in foods:
+            if not isinstance(food, dict) or not isinstance(food.get('name'), str) or not food['name'].strip():
+                raise TransientAIError('A IA retornou alimentos em formato inválido. Tente novamente.')
+            if 'quantity_text' in food and not isinstance(food['quantity_text'], str):
+                food['quantity_text'] = str(food['quantity_text'])
+
+
 class AIService:
     """
-    Orquestra a geração de dieta em dois passos via API compatível com OpenAI.
+    Orquestra a geração de dieta via API compatível com OpenAI.
 
-    Variáveis de ambiente:
+    Configuração (settings do Django, com fallback para variável de ambiente):
         AI_API_KEY  → chave de autenticação
         AI_API_URL  → endpoint (ex: https://api.openai.com/v1/chat/completions)
         AI_MODEL    → modelo (padrão: gpt-4o-mini)
     """
 
     def __init__(self):
-        self.api_key = os.getenv('AI_API_KEY', '')
-        self.api_url = os.getenv('AI_API_URL', '')
-        self.model   = os.getenv('AI_MODEL', 'gpt-4o-mini')
+        self.api_key = _setting('AI_API_KEY')
+        self.api_url = _setting('AI_API_URL')
+        self.model   = _setting('AI_MODEL', 'gpt-4o-mini')
 
     # ──────────────────────────────────────────────────────────────────────────
     #  HTTP
     # ──────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _retry_wait(attempt: int, retry_after=None) -> float:
+        """
+        Tempo de espera antes da próxima tentativa: Retry-After (segundos, com
+        teto) quando informado pela API; senão backoff exponencial. Sempre
+        soma jitter aleatório para não sincronizar workers concorrentes.
+        """
+        base = None
+        if retry_after is not None:
+            try:
+                base = min(float(retry_after), RETRY_AFTER_MAX_S)
+            except (TypeError, ValueError):
+                base = None  # Retry-After em formato de data — usa backoff
+            if base is not None and base < 0:
+                base = None
+        if base is None:
+            base = float(2 ** attempt)
+        return base + random.uniform(0, RETRY_JITTER_MAX_S)
+
+    def _log_usage(self, api_response: dict) -> None:
+        """Registra o consumo de tokens informado pela API (sem conteúdo)."""
+        usage = api_response.get('usage') if isinstance(api_response, dict) else None
+        if isinstance(usage, dict):
+            logger.info(
+                '[AI_USAGE] modelo=%s tokens: prompt=%s completion=%s total=%s',
+                self.model, usage.get('prompt_tokens'), usage.get('completion_tokens'),
+                usage.get('total_tokens'),
+            )
 
     def _call_api(
         self,
@@ -416,9 +515,17 @@ class AIService:
         max_retries: int = 3,
         max_tokens: int | None = None,
     ) -> dict:
-        """Realiza chamada à API de IA com retry exponencial em erros transitórios."""
+        """
+        Realiza chamada à API de IA com retry em erros transitórios.
+
+        - HTTP 4xx (exceto 429): PermanentAIError, sem retry
+        - HTTP 429/5xx, erro de rede, resposta não-JSON: retry com Retry-After
+          ou backoff exponencial + jitter; esgotado → TransientAIError
+        Mensagens das exceções não contêm URL, chave nem corpo da resposta.
+        """
         if not self.api_key or not self.api_url:
-            raise PermanentAIError('AI_API_KEY e AI_API_URL devem estar configurados no .env')
+            logger.error('[AI_CONFIG] AI_API_KEY/AI_API_URL não configurados.')
+            raise PermanentAIError('O serviço de IA não está configurado. Contate o suporte.')
 
         body: dict = {
             'model':       self.model,
@@ -444,34 +551,58 @@ class AIService:
             method='POST',
         )
 
-        last_exc: Exception | None = None
         for attempt in range(max_retries):
+            retry_after = None
             try:
                 with urllib.request.urlopen(req, timeout=120) as response:
-                    return json.loads(response.read().decode('utf-8'))
-            except urllib.error.HTTPError as e:
-                # 429 Too Many Requests e 5xx são transitórios; 4xx são permanentes
-                if e.code == 429 or e.code >= 500:
-                    last_exc = e
-                    wait = 2 ** attempt
-                    logger.warning('API HTTP %s na tentativa %d/%d — aguardando %ds', e.code, attempt + 1, max_retries, wait)
-                    time.sleep(wait)
+                    raw = response.read()
+                try:
+                    data = json.loads(raw.decode('utf-8'))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    reason = 'resposta não-JSON'
                 else:
-                    raise
+                    self._log_usage(data)
+                    return data
+            except urllib.error.HTTPError as e:
+                if e.code == 429 or e.code >= 500:
+                    reason = f'HTTP {e.code}'
+                    retry_after = e.headers.get('Retry-After') if e.headers else None
+                else:
+                    logger.error('[AI_HTTP] API de IA recusou a requisição: HTTP %s (sem retry).', e.code)
+                    raise PermanentAIError(
+                        'O serviço de IA recusou a requisição. Tente novamente mais tarde '
+                        'ou contate o suporte.'
+                    ) from None
             except (urllib.error.URLError, TimeoutError, OSError) as e:
-                last_exc = e
-                wait = 2 ** attempt
-                logger.warning('Erro de rede na tentativa %d/%d — aguardando %ds: %s', attempt + 1, max_retries, wait, e)
-                time.sleep(wait)
+                reason = type(e).__name__
 
-        raise TransientAIError(f'API da IA indisponível após {max_retries} tentativas: {last_exc}')
+            if attempt < max_retries - 1:
+                wait = self._retry_wait(attempt, retry_after)
+                logger.warning(
+                    '[AI_RETRY] Falha transitória (%s) na tentativa %d/%d — aguardando %.1fs',
+                    reason, attempt + 1, max_retries, wait,
+                )
+                time.sleep(wait)
+            else:
+                logger.error('[AI_RETRY] Falha transitória (%s) — tentativas esgotadas (%d).', reason, max_retries)
+
+        raise TransientAIError(
+            'O serviço de IA está temporariamente indisponível. Tente novamente em alguns minutos.'
+        )
 
     def _parse_response(self, api_response: dict) -> dict:
-        """Extrai e parseia o JSON gerado pela IA."""
+        """
+        Extrai e parseia o JSON gerado pela IA. Nunca loga o conteúdo
+        (pode conter dados do usuário) — apenas tamanho e tipo do erro.
+        """
         try:
             content = api_response['choices'][0]['message']['content']
-        except (KeyError, IndexError) as e:
-            logger.error('Formato inesperado da API: %s | resposta: %s', e, api_response)
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error('[AI_FORMAT] Formato inesperado da API de IA (%s).', type(e).__name__)
+            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
+
+        if not isinstance(content, str):
+            logger.error('[AI_FORMAT] Conteúdo da IA não é texto (%s).', type(content).__name__)
             raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
 
         stripped = content.strip()
@@ -484,10 +615,17 @@ class AIService:
             stripped = '\n'.join(inner)
 
         try:
-            return json.loads(stripped)
+            parsed = json.loads(stripped)
         except json.JSONDecodeError as e:
-            logger.error('JSON inválido da IA: %s | conteúdo: %.200s', e, content)
+            logger.error(
+                '[AI_FORMAT] JSON inválido da IA (%s, posição %d, %d caracteres).',
+                e.msg, e.pos, len(content),
+            )
             raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
+        if not isinstance(parsed, dict):
+            logger.error('[AI_FORMAT] JSON da IA não é objeto (%s).', type(parsed).__name__)
+            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
+        return parsed
 
     # ──────────────────────────────────────────────────────────────────────────
     #  ENRIQUECIMENTO NUTRICIONAL (backend — determinístico)
@@ -498,18 +636,29 @@ class AIService:
         Consulta o nutrition_db para cada alimento e atribui calorias e macros.
         Também padroniza o campo 'quantity' para exibição no frontend.
 
+        quantity_g do LLM é limitada a [5, 1000] g. Quantidade ausente, ≤ 0
+        ou NaN conta como 'invalid' (lacuna de cobertura) e usa 100 g.
+
         Retorna (diet_data, stats), onde stats agrega contagem por camada de
         match do nutrition_db. Usado por _check_db_coverage para rejeitar planos
-        com muitos alimentos no fallback genérico (150 kcal/100g).
+        com muitos alimentos sem cobertura confiável.
         """
         stats = {
-            'total': 0, 'exact': 0, 'fuzzy': 0, 'category': 0,
+            'total': 0, 'exact': 0, 'fuzzy': 0, 'fuzzy_weak': 0, 'category': 0,
             'generic': 0, 'invalid': 0, 'generic_names': [],
         }
         for meal in diet_data.get('meals', []):
             for food in meal.get('foods', []):
-                qty_g    = float(food.get('quantity_g') or 100)
-                qty_text = food.get('quantity_text', f'{qty_g:.0f}g')
+                raw_qty = food.get('quantity_g')
+                coerced = _coerce_quantity_g(raw_qty)
+                quantity_invalid = coerced is None
+                qty_g = 100.0 if quantity_invalid else coerced
+                food['quantity_g'] = round(qty_g)
+                qty_text = food.get('quantity_text') or f'{qty_g:.0f}g'
+                if not isinstance(raw_qty, (int, float)) or isinstance(raw_qty, bool) or float(raw_qty) != qty_g:
+                    # Quantidade corrigida/limitada: o texto do LLM não vale mais
+                    qty_text = f'{qty_g:.0f}g'
+                food['quantity_text'] = qty_text
 
                 nutrition = lookup_food_nutrition(food.get('name', ''), qty_g)
                 food['calories']  = nutrition['calories']
@@ -517,10 +666,10 @@ class AIService:
                 food['carbs_g']   = nutrition['carbs_g']
                 food['fat_g']     = nutrition['fat_g']
 
-                source = nutrition.get('_source', 'unknown')
+                source = 'invalid' if quantity_invalid else nutrition.get('_source', 'unknown')
                 stats['total'] += 1
                 stats[source] = stats.get(source, 0) + 1
-                if source == 'generic':
+                if source in self.DB_GAP_SOURCES:
                     stats['generic_names'].append(food.get('name', '?'))
 
                 # Campo 'quantity' usado pelo frontend (combina texto + gramas)
@@ -832,6 +981,8 @@ class AIService:
     # pode legitimamente estar fora do TACO.
     DB_COVERAGE_MIN_GENERIC_COUNT = 2
     DB_COVERAGE_MAX_GENERIC_RATIO = 0.20
+    # Camadas do nutrition_db que contam como lacuna de cobertura
+    DB_GAP_SOURCES = ('generic', 'fuzzy_weak', 'invalid')
 
     def _check_db_coverage(self, stats: dict, anamnese: Anamnese) -> None:
         """
@@ -840,16 +991,16 @@ class AIService:
 
         O fallback genérico atribui 150 kcal/100g a qualquer alimento desconhecido,
         o que mascara erros graves: pão de queijo (~330), hambúrguer (~280),
-        coxinha (~280) — todos seriam subestimados em ~50%.
+        coxinha (~280) — todos seriam subestimados em ~50%. Matches fuzzy fracos
+        ('fuzzy_weak') e quantidades inválidas ('invalid') contam como lacuna.
 
-        Trigger de retry: a exception é ValueError com 'cobertura nutricional'
-        na mensagem, capturada por _RETRYABLE_PHRASES em tasks.py.
+        NutritionDataGap é TransientAIError — a task do Celery faz retry.
         """
         total = stats.get('total', 0)
         if total == 0:
             return
 
-        generic = stats.get('generic', 0)
+        generic = sum(stats.get(src, 0) for src in self.DB_GAP_SOURCES)
         ratio = generic / total
 
         if generic >= self.DB_COVERAGE_MIN_GENERIC_COUNT and ratio >= self.DB_COVERAGE_MAX_GENERIC_RATIO:
@@ -862,7 +1013,7 @@ class AIService:
             )
             raise NutritionDataGap(
                 f'Cobertura nutricional insuficiente: {generic} de {total} alimentos '
-                f'({ratio * 100:.0f}%) caíram no fallback genérico ({preview}). '
+                f'({ratio * 100:.0f}%) sem dados nutricionais confiáveis ({preview}). '
                 f'Tente gerar novamente.'
             )
 
@@ -1056,6 +1207,18 @@ class AIService:
     #  MÉTODO PRINCIPAL
     # ──────────────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _food_selection_max_tokens(meals_per_day) -> int:
+        """
+        max_tokens do Passo 1 proporcional ao número de refeições:
+        ~5 alimentos × ~80 tokens por refeição + overhead do JSON.
+        """
+        try:
+            meals = int(meals_per_day or 3)
+        except (TypeError, ValueError):
+            meals = 3
+        return max(1500, min(6000, 450 * meals + 500))
+
     def generate_diet(self, anamnese: Anamnese) -> DietPlan:
         """
         Gera e persiste um DietPlan completo.
@@ -1079,25 +1242,18 @@ class AIService:
         prompt = build_food_selection_prompt(anamnese)
         logger.info('Passo 1 — chamando IA para seleção de alimentos (usuário %s)...', anamnese.user_id)
 
-        try:
-            raw_response = self._call_api(
-                prompt,
-                system_prompt=SYSTEM_PROMPT_FOODS,
-                temperature=0.55,
-                json_mode=True,
-                max_tokens=2500,  # ~6 refeições × ~5 alimentos × ~80 tokens cada + overhead JSON
-            )
-        except urllib.error.HTTPError as e:
-            logger.error('Erro HTTP na chamada à IA (Passo 1): %s', e)
-            raise Exception(f'Falha ao contatar a API da IA: HTTP {e.code}')
-        except Exception as e:
-            logger.error('Erro na chamada à IA (Passo 1): %s', e)
-            raise Exception('Falha ao gerar o plano alimentar. Tente novamente.')
+        # Erros da API já chegam tipados (TransientAIError/PermanentAIError) —
+        # propagam sem embrulho para a task decidir sobre retry.
+        raw_response = self._call_api(
+            prompt,
+            system_prompt=SYSTEM_PROMPT_FOODS,
+            temperature=0.55,
+            json_mode=True,
+            max_tokens=self._food_selection_max_tokens(anamnese.meals_per_day),
+        )
 
         diet_data = self._parse_response(raw_response)
-
-        if 'meals' not in diet_data or not diet_data['meals']:
-            raise TransientAIError('A IA não retornou refeições válidas. Tente novamente.')
+        _validate_plan_structure(diet_data)
 
         # ── Enforcement de alergias e restrições (fail-fast) ──────────────────
         self._enforce_allergies(diet_data, anamnese)
@@ -1266,24 +1422,19 @@ class AIService:
             diet_plan.user_id,
         )
 
-        try:
-            raw_response = self._call_api(
-                prompt,
-                system_prompt=SYSTEM_PROMPT_MEAL_REGEN,
-                temperature=0.7,
-                json_mode=True,
-            )
-        except urllib.error.HTTPError as e:
-            logger.error('Erro HTTP na chamada à IA (regeneração): %s', e)
-            raise Exception(f'Falha ao contatar a API da IA: HTTP {e.code}')
-        except Exception as e:
-            logger.error('Erro na chamada à IA (regeneração): %s', e)
-            raise Exception('Falha ao regenerar a refeição. Tente novamente.')
+        raw_response = self._call_api(
+            prompt,
+            system_prompt=SYSTEM_PROMPT_MEAL_REGEN,
+            temperature=0.7,
+            json_mode=True,
+            max_tokens=800,  # JSON compacto de uma refeição + meal_notes
+        )
 
         new_meal_data = self._parse_response(raw_response)
 
         if not new_meal_data.get('foods'):
             raise TransientAIError('A IA não retornou alimentos válidos para a refeição.')
+        _validate_plan_structure(new_meal_data, single_meal=True)
 
         # Preserva nome e horário caso a IA omita ou altere
         new_meal_data.setdefault('name', current_meal.get('name', f'Refeição {meal_index + 1}'))

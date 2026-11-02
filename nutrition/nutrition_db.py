@@ -6,9 +6,12 @@ Usado pelo AIService para calcular macros deterministicamente, sem delegar aritm
 """
 
 import logging
+import math
 import re
 import unicodedata
 from functools import lru_cache
+
+from .textnorm import canonical, contains_phrase, singularize
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +127,10 @@ _DB: dict[str, tuple[float, float, float, float]] = {
     "leite semidesnatado":          (47,  3.1,  5.0, 1.5),
     "leite":                        (60,  3.0,  5.0, 3.0),
     "whey protein":                 (370, 80.0, 5.0, 4.0),
+    "whey protein em po":           (370, 80.0, 5.0, 4.0),
+    "whey":                         (370, 80.0, 5.0, 4.0),
+    "leite em po integral":         (497, 25.4, 39.2, 26.9),
+    "leite em po desnatado":        (362, 34.7, 53.0, 0.9),
     "proteina do soro":             (370, 80.0, 5.0, 4.0),
     "creme de leite":               (334, 2.5,  3.5, 35.0),
 
@@ -293,12 +300,51 @@ def _strip_accents(text: str) -> str:
 
 
 def _normalize(name: str) -> str:
-    """Remove acentos, lowercase e palavras irrelevantes para matching."""
+    """Remove acentos, lowercase, plural e palavras irrelevantes para matching."""
     name = _strip_accents(name).lower()
-    words = [w for w in re.split(r'[\s\-/,()]+', name.strip())
+    words = [singularize(w) for w in re.split(r'[\s\-/,()]+', name.strip())
              if w and w not in _STRIP_WORDS and len(w) > 1]
     return ' '.join(words)
 
+
+# Palavras de preparo/produto que TRANSFORMAM o alimento base: se o nome
+# pedido contém uma delas e a chave candidata não, a chave não serve.
+# Ex: "Batata frita" ≠ "batata" (cozida), "Doce de leite" ≠ "leite",
+#     "Leite de coco" ≠ "leite", "Leite em pó" ≠ "leite".
+_PREP_BLOCKERS = frozenset(singularize(w) for w in (
+    'frito', 'frita', 'empanado', 'empanada', 'doce', 'condensado', 'po',
+    'pudim', 'bolo', 'torta', 'sorvete', 'chip', 'calda', 'geleia', 'suco',
+    'molho', 'creme', 'passa', 'desidratado', 'desidratada', 'chocolate',
+    'achocolatado', 'cristalizado', 'cristalizada', 'recheado', 'recheada',
+    'farofa', 'coco', 'xarope', 'mousse', 'brigadeiro', 'biscoito', 'bolacha',
+    'barra', 'caramelizado', 'caramelizada', 'nugget', 'empada', 'pastel',
+    'coxinha', 'pizza', 'lasanha', 'hamburguer', 'milkshake', 'vitamina',
+    'conserva', 'xarope', 'cerveja', 'refrigerante', 'maionese', 'pure',
+))
+
+# Descritores que NÃO mudam o alimento de forma relevante: "Tilápia assada"
+# pode usar "tilapia" com confiança mesmo sem chave exata.
+_NEUTRAL_DESCRIPTORS = frozenset(singularize(w) for w in (
+    'grelhado', 'grelhada', 'cozido', 'cozida', 'assado', 'assada',
+    'refogado', 'refogada', 'desfiado', 'desfiada', 'natural', 'fresco',
+    'fresca', 'picado', 'picada', 'ralado', 'ralada', 'fatiado', 'fatiada',
+    'cru', 'crua', 'inteiro', 'inteira', 'magro', 'magra', 'temperado',
+    'temperada', 'vapor', 'organico', 'organica', 'caseiro', 'caseira',
+    'maduro', 'madura', 'erva', 'sal', 'descascado', 'descascada', 'picadinho',
+    'cubo', 'rodela', 'tira', 'file', 'escorrido', 'escorrida',
+))
+
+# Score mínimo para considerar o match fuzzy confiável. Entre 0.40 e 0.60
+# o match é usado, mas marcado 'fuzzy_weak' (conta como lacuna de cobertura).
+FUZZY_STRONG_SCORE = 0.60
+FUZZY_MIN_SCORE    = 0.40
+
+
+# Fallbacks de categoria com palavras-chave canônicas (matching por palavra inteira)
+_CATEGORY_FALLBACKS_CANON = [
+    (tuple(canonical(kw) for kw in keywords), macros)
+    for keywords, macros in _CATEGORY_FALLBACKS
+]
 
 # Versão do DB com chaves normalizadas pelo mesmo _normalize aplicado aos inputs.
 # Isso garante matching simétrico: "Frango Grelhado" (input) bate em
@@ -320,38 +366,50 @@ def _lookup_macros_per_100g(food_name: str) -> tuple[float, float, float, float,
     if normalized in _DB_NORMALIZED:
         return (*_DB_NORMALIZED[normalized], 'exact')
 
-    # 2. Score por sobreposição de palavras
-    food_words = set(normalized.split())
+    # 2. Score por sobreposição de palavras — com salvaguardas:
+    #    - a palavra principal da chave (1ª palavra) precisa estar no nome;
+    #    - preparos que transformam o alimento bloqueiam a chave base;
+    #    - chave contida no nome + só descritores neutros = match confiável.
+    food_words = normalized.split()
+    food_set   = set(food_words)
+    blockers   = food_set & _PREP_BLOCKERS
     best_score = 0.0
     best_key   = None
 
     for key in _DB_NORMALIZED:
-        key_words = set(key.split())
-        overlap   = len(food_words & key_words)
-        if overlap == 0:
+        key_words = key.split()
+        if not key_words or key_words[0] not in food_set:
             continue
-        score = overlap / max(len(food_words), len(key_words))
+        key_set = set(key_words)
+        if blockers - key_set:
+            continue
+        overlap = len(food_set & key_set)
+        score = overlap / max(len(food_set), len(key_set))
+        if key_set <= food_set and (food_set - key_set) <= _NEUTRAL_DESCRIPTORS:
+            score = max(score, FUZZY_STRONG_SCORE + 0.01 * len(key_set))
         if score > best_score:
             best_score = score
             best_key   = key
 
-    if best_score >= 0.40:
+    if best_score >= FUZZY_MIN_SCORE:
+        source = 'fuzzy' if best_score >= FUZZY_STRONG_SCORE else 'fuzzy_weak'
         logger.debug(
-            'Alimento "%s" → match no banco: "%s" (score=%.2f)',
-            food_name, best_key, best_score,
+            'Alimento "%s" → match no banco: "%s" (score=%.2f, %s)',
+            food_name, best_key, best_score, source,
         )
-        return (*_DB_NORMALIZED[best_key], 'fuzzy')
+        return (*_DB_NORMALIZED[best_key], source)
 
-    # 3. Fallback por categoria
-    norm_original = _strip_accents(food_name.lower())
-    for keywords, macros in _CATEGORY_FALLBACKS:
-        if any(kw in norm_original for kw in keywords):
-            logger.info(
-                '[DB_GAP] Alimento "%s" não encontrado — fallback de categoria (palavra-chave: %s).',
-                food_name,
-                next(kw for kw in keywords if kw in norm_original),
-            )
-            return (*macros, 'category')
+    # 3. Fallback por categoria (por palavra inteira, respeitando preparos)
+    if not blockers:
+        food_canon = canonical(food_name)
+        for keywords, macros in _CATEGORY_FALLBACKS_CANON:
+            matched = next((kw for kw in keywords if contains_phrase(food_canon, kw)), None)
+            if matched:
+                logger.info(
+                    '[DB_GAP] Alimento "%s" não encontrado — fallback de categoria (palavra-chave: %s).',
+                    food_name, matched,
+                )
+                return (*macros, 'category')
 
     # 4. Fallback genérico
     logger.warning(
@@ -371,15 +429,22 @@ def lookup_food_nutrition(food_name: str, quantity_g: float) -> dict:
     rejeitar planos com cobertura insuficiente.
 
       'exact'    — match exato no DB normalizado
-      'fuzzy'    — score por sobreposição ≥ 40% (camada 2)
-      'category' — palavra-chave de categoria (camada 3)
-      'generic'  — sem match — fallback 150 kcal/100g (camada 4)
-      'invalid'  — input inválido (nome vazio ou qty ≤ 0)
+      'fuzzy'      — score por sobreposição ≥ 60% (camada 2)
+      'fuzzy_weak' — score entre 40% e 60%: usado, mas conta como lacuna
+      'category'   — palavra-chave de categoria (camada 3)
+      'generic'    — sem match — fallback 150 kcal/100g (camada 4)
+      'invalid'    — input inválido (nome vazio, qty ≤ 0 ou não numérica):
+                     macros zerados — nunca gera kcal negativa
     """
-    if not food_name or quantity_g <= 0:
-        result = _scale(150, 8.0, 20.0, 4.0, quantity_g)
+    try:
+        qty = float(quantity_g)
+    except (TypeError, ValueError):
+        qty = float('nan')
+    if not food_name or math.isnan(qty) or math.isinf(qty) or qty <= 0:
+        result = _scale(0, 0.0, 0.0, 0.0, 0)
         result['_source'] = 'invalid'
         return result
+    quantity_g = qty
 
     cal, prot, carbs, fat, source = _lookup_macros_per_100g(food_name)
     result = _scale(cal, prot, carbs, fat, quantity_g)
