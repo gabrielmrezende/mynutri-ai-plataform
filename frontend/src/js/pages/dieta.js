@@ -6,23 +6,21 @@
 // ── Emojis por refeição ──
 const MEAL_EMOJIS = ['🌅', '🥗', '🍽️', '🥤', '🌙', '🍎', '🥑', '🫐'];
 
-// ── Paletas de cor por refeição (espelha data-meal-color dos cards) ──
-// No modo escuro os fundos claros (mcl/mcg/mcb) são trocados por superfícies
-// escuras — ver _applyModalPalette(). A cor de destaque (mc) é mantida.
+// ── Paletas de cor por refeição (espelha data-meal-color dos cards em dieta.css) ──
+// Cores da feira: manga, couve, acerola, jabuticaba. No modo escuro os fundos
+// claros (mcl/mcg) viram superfícies escuras e o destaque usa o tom claro (mcd)
+// — ver _applyModalPalette().
 const MODAL_PALETTE_DARK = {
-  mcl: '#1f2937',
-  mcg: 'linear-gradient(135deg,#161d2a 0%,#111827 100%)',
+  mcl: '#2e2536',
+  mcg: '#2b2233',
 };
-const MODAL_PALETTES = [
-  { mc:'#ea580c', mcl:'#fff7ed', mcb:'#fed7aa', mcg:'linear-gradient(135deg,#fff7ed,#ffedd5)' },
-  { mc:'#0d9488', mcl:'#f0fdfa', mcb:'#5eead4', mcg:'linear-gradient(135deg,#f0fdfa,#ccfbf1)' },
-  { mc:'#16a34a', mcl:'#f0fdf4', mcb:'#86efac', mcg:'linear-gradient(135deg,#f0fdf4,#dcfce7)' },
-  { mc:'#7c3aed', mcl:'#fdf4ff', mcb:'#c4b5fd', mcg:'linear-gradient(135deg,#fdf4ff,#f3e8ff)' },
-  { mc:'#1d4ed8', mcl:'#eff6ff', mcb:'#93c5fd', mcg:'linear-gradient(135deg,#eff6ff,#dbeafe)' },
-  { mc:'#be185d', mcl:'#fdf2f8', mcb:'#f9a8d4', mcg:'linear-gradient(135deg,#fdf2f8,#fce7f3)' },
-  { mc:'#0369a1', mcl:'#f0f9ff', mcb:'#7dd3fc', mcg:'linear-gradient(135deg,#f0f9ff,#e0f2fe)' },
-  { mc:'#6d28d9', mcl:'#f5f3ff', mcb:'#a78bfa', mcg:'linear-gradient(135deg,#f5f3ff,#ede9fe)' },
+const _FEIRA = [
+  { mc:'#a3520b', mcd:'#f2a93b', mcl:'#fff5e2', mcb:'#f2c77c', mcg:'#fff5e2' },
+  { mc:'#2f6b34', mcd:'#a2d283', mcl:'#eff5e7', mcb:'#a9cf86', mcg:'#eff5e7' },
+  { mc:'#b33a2a', mcd:'#f4a898', mcl:'#fcefec', mcb:'#efb9ae', mcg:'#fcefec' },
+  { mc:'#7b4e8f', mcd:'#d6bfe2', mcl:'#f6f0f9', mcb:'#d6bfe2', mcg:'#f6f0f9' },
 ];
+const MODAL_PALETTES = [..._FEIRA, ..._FEIRA];
 
 // ── Estado global ──
 let dietData = null;
@@ -55,9 +53,9 @@ function _applyModalPalette(mealIndex) {
   const pal  = MODAL_PALETTES[mealIndex % MODAL_PALETTES.length];
   const dark = document.documentElement.classList.contains('dark');
   const box  = document.getElementById('modalBox');
-  box.style.setProperty('--modal-mc',  pal.mc);
+  box.style.setProperty('--modal-mc',  dark ? pal.mcd : pal.mc);
   box.style.setProperty('--modal-mcl', dark ? MODAL_PALETTE_DARK.mcl : pal.mcl);
-  box.style.setProperty('--modal-mcb', dark ? pal.mc : pal.mcb);
+  box.style.setProperty('--modal-mcb', dark ? pal.mcd : pal.mcb);
   box.style.setProperty('--modal-mcg', dark ? MODAL_PALETTE_DARK.mcg : pal.mcg);
 }
 
@@ -1030,6 +1028,13 @@ function renderMacrosBar(macros, planKcal) {
   const cpct = Math.round(ckcal / total * 100);
   const fpct = 100 - ppct - cpct;
 
+  // O "prato" do cabeçalho desenha a mesma divisão (anel conic-gradient em base.css)
+  const plate = document.getElementById('diet-plate');
+  if (plate) {
+    plate.style.setProperty('--p', ppct);
+    plate.style.setProperty('--c', cpct);
+  }
+
   const items = [
     { cls: 'p', emoji: '🥩', name: 'Proteína',     g: pg, kcal: pkcal, pct: ppct },
     { cls: 'c', emoji: '🌾', name: 'Carboidratos', g: cg, kcal: ckcal, pct: cpct },
@@ -1057,7 +1062,7 @@ function renderMacrosBar(macros, planKcal) {
     <div class="mb-cards">
       ${items.map((m, i) => `
         <div class="mb-card ${m.cls}" data-idx="${i}" tabindex="0" aria-label="${escapeHtml(describe(m))}">
-          <p class="mb-card-name" aria-hidden="true">${m.emoji} ${m.name}</p>
+          <p class="mb-card-name" aria-hidden="true">${m.name}</p>
           <p class="mb-card-value" aria-hidden="true"><span class="mb-count-g" data-target="${m.g}">0</span><span class="mb-card-unit">g</span></p>
           <div class="mb-card-footer" aria-hidden="true">
             <span class="mb-card-kcal"><span class="mb-count-kcal" data-target="${m.kcal}">0</span> kcal</span>

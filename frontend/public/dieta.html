@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Figtree:ital,wght@0,400..800;1,400..600&amp;display=swap" />
   <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/dieta.css" />
   <script src="/static/src/js/utils/theme.js"></script>
@@ -244,7 +244,7 @@
       <div class="modal-header">
         <div class="modal-header-emoji">🧠</div>
         <div class="modal-header-info">
-          <p class="modal-header-order">INTELIGÊNCIA ARTIFICIAL</p>
+          <p class="modal-header-order">Inteligência artificial</p>
           <h2 class="modal-header-name" id="modal-explain-title">Como sua dieta foi montada</h2>
           <div class="modal-header-meta">
             <span class="modal-time-tag modal-tag-transparency">
@@ -288,7 +288,7 @@
 
       <!-- Error -->
       <div class="state-center" id="state-error" role="alert" style="display:none;">
-        <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="state-icon" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p class="state-title" id="error-msg">Nenhuma dieta encontrada.</p>
@@ -297,7 +297,7 @@
             <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.49"/></svg>
             <span id="btn-retry-label">Tentar novamente</span>
           </button>
-          <a href="/questionario/" id="error-cta" class="btn-action btn-primary" style="margin-top:8px;text-decoration:none;">Fazer questionário</a>
+          <a href="/questionario/" id="error-cta" class="btn-action btn-primary">Fazer questionário</a>
         </div>
       </div>
 
@@ -313,30 +313,6 @@
 
         <!-- Banner -->
         <div class="diet-header-section">
-          <div class="diet-header-grid" aria-hidden="true"></div>
-          <div class="diet-header-shine" aria-hidden="true"></div>
-          <div class="diet-header-sparkles" aria-hidden="true">
-            <span class="spark s1">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
-              </svg>
-            </span>
-            <span class="spark s2">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
-              </svg>
-            </span>
-            <span class="spark s3">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
-              </svg>
-            </span>
-            <span class="spark s4">
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
-              </svg>
-            </span>
-          </div>
           <div class="diet-header-left">
             <span class="diet-ai-tag">
               <svg class="ai-spark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -345,27 +321,18 @@
               Gerado por IA
               <span class="ai-dot"></span>
             </span>
-            <h1>Sua nutrição, calculada com <span class="accent">precisão</span></h1>
+            <h1>Seu plano alimentar</h1>
             <p>Calorias, macros e refeições equilibradas a partir das suas respostas e do seu objetivo.</p>
           </div>
           <div class="diet-stats">
-            <div class="stat-card">
-              <span class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-                </svg>
-              </span>
-              <span class="stat-value" id="stat-calories">—</span>
-              <span class="stat-label">kcal / dia</span>
+            <div class="diet-plate-wrap">
+              <div class="plate plate--diet" id="diet-plate" aria-hidden="true"></div>
+              <div class="stat-card stat-card--kcal">
+                <span class="stat-value" id="stat-calories">—</span>
+                <span class="stat-label">kcal por dia</span>
+              </div>
             </div>
             <div class="stat-card">
-              <span class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
-                  <path d="M7 2v20"/>
-                  <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
-                </svg>
-              </span>
               <span class="stat-value" id="stat-meals">—</span>
               <span class="stat-label">refeições</span>
             </div>
@@ -385,7 +352,7 @@
         <!-- Meals -->
         <div class="section-header">
           <h2 class="section-title">
-            Refeições do Dia
+            Refeições do dia
             <span class="meals-count-badge" id="meals-count-badge"></span>
           </h2>
           <span class="section-title-hint">Toque em uma refeição para ver detalhes</span>
@@ -400,7 +367,7 @@
 
         <!-- Actions -->
         <div class="diet-actions">
-          <a href="/questionario/" class="btn-action btn-primary" style="text-decoration:none;">
+          <a href="/questionario/" class="btn-action btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
             </svg>

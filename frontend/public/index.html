@@ -41,7 +41,7 @@
   <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Figtree:ital,wght@0,400..800;1,400..600&amp;display=swap" />
   <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/index.css" />
   <script src="/static/src/js/utils/theme.js"></script>
@@ -65,16 +65,16 @@
         <a href="#beneficios" class="nav-link">Benefícios</a>
         <a href="#plano" class="nav-link">Plano Alimentar</a>
         <a href="#depoimentos" class="nav-link" id="nav-depoimentos" hidden>Depoimentos</a>
-        <div class="nav-mobile-auth" style="display: none;">
+        <div class="nav-mobile-auth">
           <a href="/auth/" class="nav-link">Entrar</a>
-          <a href="/auth/" class="nav-link" style="color: var(--green-600); font-weight: 600;">Criar conta</a>
+          <a href="/auth/" class="nav-link nav-link--accent">Criar conta</a>
         </div>
       </nav>
 
       <!-- Guest buttons (default) -->
       <div class="header-auth" id="guestNav">
         <a href="/auth/" class="btn btn-text">Entrar</a>
-        <a href="/auth/" class="btn btn-outline" style="padding: 8px 16px; border-radius: 99px;">Criar conta</a>
+        <a href="/auth/" class="btn btn-primary">Criar conta</a>
       </div>
 
       <!-- Authenticated user menu (shown when logged in) -->
@@ -138,159 +138,167 @@
   <section class="hero" id="hero">
     <div class="container hero-inner">
       <div class="hero-content">
-        <div class="hero-badge">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-          </svg>
-          Tecnologia Nutricional de Ponta
-        </div>
-
-        <h1 class="hero-title">
-          Sua dieta ideal,<br/>
-          criada por <span class="highlight">Inteligência Artificial</span>
-        </h1>
+        <h1 class="hero-title">Sua dieta, calculada grama por grama.</h1>
 
         <p class="hero-description">
-          Responda um questionário rápido sobre suas preferências, objetivos e restrições. 
-          Nossa IA analisa seus dados e gera um plano alimentar personalizado em poucos minutos.
+          Conte seu objetivo, sua rotina e o que você não come. A IA monta as refeições
+          e o sistema calcula calorias e macros de cada alimento — em poucos minutos.
         </p>
 
         <div class="hero-actions">
           <a href="/questionario/" class="btn btn-primary btn-lg" id="hero-cta-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
             Gerar minha dieta
           </a>
-          <a href="#como-funciona" class="btn btn-secondary" id="hero-learn-btn">
-            Saiba mais
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
-            </svg>
+          <a href="#como-funciona" class="btn btn-text" id="hero-learn-btn">
+            Como funciona
           </a>
         </div>
 
         <ul class="hero-stats hero-stats--text">
           <li class="hero-stat">
             <span class="hero-stat-number">Sob medida</span>
-            <span class="hero-stat-label">Para o seu objetivo e rotina</span>
+            <span class="hero-stat-label">para o seu objetivo e rotina</span>
           </li>
           <li class="hero-stat">
             <span class="hero-stat-number">Seguro</span>
-            <span class="hero-stat-label">Respeita alergias e restrições</span>
+            <span class="hero-stat-label">respeita alergias e restrições</span>
           </li>
           <li class="hero-stat">
-            <span class="hero-stat-number">Poucos minutos</span>
-            <span class="hero-stat-label">Para gerar seu plano</span>
+            <span class="hero-stat-number">Gratuito</span>
+            <span class="hero-stat-label">sem cartão, sem agendamento</span>
           </li>
         </ul>
       </div>
 
-      <div class="hero-visual">
-        <div class="hero-image-wrapper">
-          <picture>
-            <source srcset="/static/src/assets/hero-bg.webp" type="image/webp">
-            <img src="/static/src/assets/hero-bg.png" alt="Ilustração de refeições saudáveis do MyNutri AI" width="1024" height="1024" fetchpriority="high" decoding="async" />
-          </picture>
+      <!-- Exemplo de plano: o "prato" com a divisão de macros de um dia -->
+      <figure class="hero-visual plan-preview" aria-labelledby="plan-preview-caption">
+        <figcaption class="plan-preview-head" id="plan-preview-caption">
+          <span>Exemplo de plano</span>
+          <span class="plan-preview-goal">Ganho de massa, 4 refeições</span>
+        </figcaption>
 
-          <div class="hero-float-card card-1" aria-hidden="true">
-            <div class="float-icon green">🥗</div>
-            <div class="float-text">
-              <strong>Dieta pronta!</strong>
-              <span>Plano gerado com sucesso</span>
-            </div>
-          </div>
-
-          <div class="hero-float-card card-2" aria-hidden="true">
-            <div class="float-icon teal">🤖</div>
-            <div class="float-text">
-              <strong>IA analisando…</strong>
-              <span>Dados processados</span>
-            </div>
+        <div class="plan-preview-plate">
+          <div class="plate plate--hero" aria-hidden="true"></div>
+          <div class="plate-center">
+            <strong class="tabular">2.150</strong>
+            <span>kcal no dia</span>
           </div>
         </div>
-      </div>
+
+        <dl class="macro-legend">
+          <div class="macro-legend-item macro-legend-item--protein">
+            <dt>Proteínas</dt>
+            <dd class="tabular">161 g <span>30%</span></dd>
+          </div>
+          <div class="macro-legend-item macro-legend-item--carb">
+            <dt>Carboidratos</dt>
+            <dd class="tabular">242 g <span>45%</span></dd>
+          </div>
+          <div class="macro-legend-item macro-legend-item--fat">
+            <dt>Gorduras</dt>
+            <dd class="tabular">60 g <span>25%</span></dd>
+          </div>
+        </dl>
+
+        <ol class="plan-preview-meals">
+          <li>
+            <time>07:30</time>
+            <span class="meal-name">Café da manhã<small>Aveia com frutas vermelhas e castanhas</small></span>
+            <span class="meal-kcal tabular">480 kcal</span>
+          </li>
+          <li>
+            <time>12:30</time>
+            <span class="meal-name">Almoço<small>Frango grelhado, arroz integral e salada</small></span>
+            <span class="meal-kcal tabular">690 kcal</span>
+          </li>
+          <li>
+            <time>16:00</time>
+            <span class="meal-name">Lanche<small>Iogurte natural com banana</small></span>
+            <span class="meal-kcal tabular">290 kcal</span>
+          </li>
+          <li>
+            <time>20:00</time>
+            <span class="meal-name">Jantar<small>Salmão com legumes assados</small></span>
+            <span class="meal-kcal tabular">690 kcal</span>
+          </li>
+        </ol>
+      </figure>
     </div>
   </section>
 
   <!-- ===================== COMO FUNCIONA ===================== -->
   <section class="how-it-works" id="como-funciona">
-    <div class="container text-center">
-      <span class="section-tag reveal"><span aria-hidden="true">✦</span> Simples e rápido</span>
-      <h2 class="section-title reveal">Como funciona?</h2>
-      <p class="section-subtitle mx-auto reveal">Apenas três passos para receber seu plano alimentar personalizado, feito sob medida pela nossa inteligência artificial.</p>
-
-      <div class="steps-grid">
-        <!-- Step 1 -->
-        <div class="step-card reveal reveal-delay-1" id="step-1">
-          <div class="step-number">1</div>
-          <div class="step-icon" aria-hidden="true">📝</div>
-          <h3>Responda o Questionário</h3>
-          <p>Preencha um questionário rápido com informações sobre seus objetivos, preferências alimentares e restrições.</p>
-        </div>
-
-        <!-- Step 2 -->
-        <div class="step-card reveal reveal-delay-2" id="step-2">
-          <div class="step-number">2</div>
-          <div class="step-icon" aria-hidden="true">🧠</div>
-          <h3>IA Analisa seus Dados</h3>
-          <p>Nossa inteligência artificial processa suas respostas e calcula as melhores combinações nutricionais para você.</p>
-        </div>
-
-        <!-- Step 3 -->
-        <div class="step-card reveal reveal-delay-3" id="step-3">
-          <div class="step-number">3</div>
-          <div class="step-icon" aria-hidden="true">🍽️</div>
-          <h3>Receba sua Dieta</h3>
-          <p>Em poucos minutos, você recebe um plano alimentar completo e personalizado. Pode sair da página: ele fica salvo na sua conta.</p>
-        </div>
+    <div class="container how-inner">
+      <div class="how-intro">
+        <h2 class="section-title reveal">Três passos até o seu plano</h2>
+        <p class="section-subtitle reveal">Você responde, a IA escolhe os alimentos e o sistema confere cada número antes de entregar.</p>
+        <a href="/questionario/" class="btn btn-primary reveal">Começar o questionário</a>
       </div>
+
+      <ol class="steps-grid">
+        <li class="step-card reveal" id="step-1">
+          <span class="step-number" aria-hidden="true">1</span>
+          <div>
+            <h3>Responda o questionário</h3>
+            <p>Objetivo, peso, altura, rotina, alergias e o que você gosta de comer. Leva uns cinco minutos.</p>
+          </div>
+        </li>
+        <li class="step-card reveal" id="step-2">
+          <span class="step-number" aria-hidden="true">2</span>
+          <div>
+            <h3>A IA monta as refeições</h3>
+            <p>Ela escolhe alimentos e porções. O sistema recalcula calorias e macros por uma tabela de alimentos e ajusta as porções à sua meta.</p>
+          </div>
+        </li>
+        <li class="step-card reveal" id="step-3">
+          <span class="step-number" aria-hidden="true">3</span>
+          <div>
+            <h3>Receba sua dieta</h3>
+            <p>O plano fica salvo na sua conta, com substituições para cada refeição. Pode sair da página enquanto ele é gerado.</p>
+          </div>
+        </li>
+      </ol>
     </div>
   </section>
 
   <!-- ===================== BENEFÍCIOS ===================== -->
   <section class="benefits" id="beneficios">
-    <div class="container text-center">
-      <span class="section-tag reveal"><span aria-hidden="true">💎</span> Vantagens</span>
-      <h2 class="section-title reveal">Por que escolher o MyNutri AI?</h2>
-      <p class="section-subtitle mx-auto reveal">Combinamos ciência nutricional com inteligência artificial para oferecer a melhor experiência em alimentação personalizada.</p>
+    <div class="container">
+      <div class="benefits-head">
+        <h2 class="section-title reveal">Feito para o seu prato, não para o de todo mundo</h2>
+        <p class="section-subtitle reveal">Ciência nutricional básica, bem aplicada, com a IA cuidando da parte chata: combinar alimentos que você realmente come.</p>
+      </div>
 
       <div class="benefits-grid">
-        <div class="benefit-card reveal reveal-delay-1" id="benefit-personalizacao">
-          <div class="benefit-icon" aria-hidden="true">🎯</div>
+        <article class="benefit-card reveal" id="benefit-personalizacao">
           <h3>Personalizado</h3>
-          <p>Cada dieta é única, criada com base no seu perfil, objetivos e preferências alimentares. Nada de planos genéricos.</p>
-        </div>
+          <p>Cada dieta parte do seu perfil, do seu objetivo e das suas preferências. Nada de cardápio genérico.</p>
+        </article>
 
-        <div class="benefit-card reveal reveal-delay-2" id="benefit-rapidez">
-          <div class="benefit-icon" aria-hidden="true">⚡</div>
-          <h3>Resultado Rápido</h3>
-          <p>Seu plano fica pronto em poucos minutos, com calorias e macronutrientes calculados para cada refeição.</p>
-        </div>
+        <article class="benefit-card reveal" id="benefit-rapidez">
+          <h3>Pronto em minutos</h3>
+          <p>Calorias e macronutrientes calculados para cada refeição, sem esperar consulta.</p>
+        </article>
 
-        <div class="benefit-card reveal reveal-delay-3" id="benefit-praticidade">
-          <div class="benefit-icon" aria-hidden="true">📱</div>
-          <h3>Praticidade Total</h3>
-          <p>Acesse seu plano de qualquer lugar, a qualquer momento. Sem complicações, sem agendamento, sem papelada.</p>
-        </div>
+        <article class="benefit-card reveal" id="benefit-praticidade">
+          <h3>No celular ou no computador</h3>
+          <p>Acesse o plano de qualquer lugar, baixe em PDF e troque um alimento quando faltar algo em casa.</p>
+        </article>
 
-        <div class="benefit-card reveal reveal-delay-1" id="benefit-ciencia">
-          <div class="benefit-icon" aria-hidden="true">🔬</div>
-          <h3>Cálculos Transparentes</h3>
-          <p>Calorias estimadas pela equação de Mifflin-St Jeor e macros calculados a partir de uma tabela de alimentos — e você vê como o plano foi montado.</p>
-        </div>
+        <article class="benefit-card reveal" id="benefit-ciencia">
+          <h3>Cálculos transparentes</h3>
+          <p>Calorias estimadas pela equação de Mifflin-St Jeor e macros tirados de uma tabela de alimentos — e você vê como o plano foi montado.</p>
+        </article>
 
-        <div class="benefit-card reveal reveal-delay-2" id="benefit-adaptavel">
-          <div class="benefit-icon" aria-hidden="true">🔄</div>
+        <article class="benefit-card reveal" id="benefit-adaptavel">
           <h3>Adaptável</h3>
-          <p>Vegetariano, vegano, low carb, sem glúten? A IA se adapta às suas restrições e preferências sem esforço.</p>
-        </div>
+          <p>Vegetariano, vegano, low carb, sem glúten ou sem lactose: o plano segue suas restrições e rejeita alérgenos.</p>
+        </article>
 
-        <div class="benefit-card reveal reveal-delay-3" id="benefit-acessibilidade">
-          <div class="benefit-icon" aria-hidden="true">💰</div>
-          <h3>Um Bom Ponto de Partida</h3>
-          <p>Ajuda a organizar sua alimentação no dia a dia. Não substitui o acompanhamento de um nutricionista — use o plano como apoio e procure um profissional quando precisar.</p>
-        </div>
+        <article class="benefit-card reveal" id="benefit-acessibilidade">
+          <h3>Um bom ponto de partida</h3>
+          <p>Ajuda a organizar a alimentação no dia a dia. Não substitui um nutricionista: use o plano como apoio e procure um profissional quando precisar.</p>
+        </article>
       </div>
     </div>
   </section>
@@ -302,50 +310,34 @@
         <div class="meal-plan-image reveal">
           <picture>
             <source srcset="/static/src/assets/meal-plan.webp" type="image/webp">
-            <img src="/static/src/assets/meal-plan.png" alt="Exemplo de plano alimentar gerado pelo MyNutri AI" loading="lazy" decoding="async" />
+            <img src="/static/src/assets/meal-plan.png" alt="Quatro pratos de um plano alimentar: mingau de aveia com frutas, salada com frango, frutas com castanhas e salmão com legumes" width="640" height="640" loading="lazy" decoding="async" />
           </picture>
         </div>
 
         <div class="meal-plan-content">
-          <span class="section-tag reveal"><span aria-hidden="true">🍎</span> Exemplo</span>
-          <h2 class="section-title reveal">Veja como é seu plano alimentar</h2>
+          <h2 class="section-title reveal">O que vem no seu plano</h2>
           <p class="section-subtitle reveal">
-            Cada plano inclui refeições detalhadas, porções calculadas e dicas nutricionais para o seu dia a dia.
+            Refeições detalhadas, porções em medidas de cozinha e dicas para o dia a dia.
           </p>
 
-          <div class="meal-features">
-            <div class="meal-feature reveal reveal-delay-1">
-              <div class="meal-feature-icon" aria-hidden="true">🌅</div>
-              <div class="meal-feature-text">
-                <h3>Café da manhã equilibrado</h3>
-                <p>Combinações energéticas para começar o dia com disposição e foco.</p>
-              </div>
+          <dl class="meal-features">
+            <div class="meal-feature reveal">
+              <dt>Café da manhã</dt>
+              <dd>Combinações com energia para começar o dia.</dd>
             </div>
-
-            <div class="meal-feature reveal reveal-delay-2">
-              <div class="meal-feature-icon" aria-hidden="true">🥩</div>
-              <div class="meal-feature-text">
-                <h3>Almoço e jantar completos</h3>
-                <p>Proteínas, carboidratos e gorduras na medida certa para seus objetivos.</p>
-              </div>
+            <div class="meal-feature reveal">
+              <dt>Almoço e jantar</dt>
+              <dd>Proteínas, carboidratos e gorduras na medida do seu objetivo.</dd>
             </div>
-
-            <div class="meal-feature reveal reveal-delay-3">
-              <div class="meal-feature-icon" aria-hidden="true">🥜</div>
-              <div class="meal-feature-text">
-                <h3>Lanches inteligentes</h3>
-                <p>Opções práticas entre as refeições para manter a energia e saciedade.</p>
-              </div>
+            <div class="meal-feature reveal">
+              <dt>Lanches</dt>
+              <dd>Opções práticas para manter a saciedade entre as refeições.</dd>
             </div>
-
-            <div class="meal-feature reveal reveal-delay-3">
-              <div class="meal-feature-icon" aria-hidden="true">📊</div>
-              <div class="meal-feature-text">
-                <h3>Macros calculados</h3>
-                <p>Calorias, proteínas, carboidratos e gorduras otimizados para você.</p>
-              </div>
+            <div class="meal-feature reveal">
+              <dt>Substituições</dt>
+              <dd>Trocas equivalentes para cada alimento, sem desmontar o plano.</dd>
             </div>
-          </div>
+          </dl>
         </div>
       </div>
     </div>
@@ -353,10 +345,9 @@
 
   <!-- ===================== DEPOIMENTOS ===================== -->
   <section class="testimonials" id="depoimentos" hidden>
-    <div class="container text-center">
-      <span class="section-tag reveal"><span aria-hidden="true">💬</span> Depoimentos</span>
-      <h2 class="section-title reveal">O que nossos usuários dizem</h2>
-      <p class="section-subtitle mx-auto reveal">Opiniões enviadas por quem usa o MyNutri AI.</p>
+    <div class="container">
+      <h2 class="section-title reveal">O que diz quem usa</h2>
+      <p class="section-subtitle reveal">Opiniões enviadas por usuários do MyNutri AI.</p>
 
       <!-- Carrossel de depoimentos -->
       <div class="testimonials-carousel-wrapper reveal" id="testimonials-carousel">
@@ -368,7 +359,7 @@
         </div>
 
         <button class="carousel-arrow" id="carousel-next" aria-label="Próximos depoimentos" disabled>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
 
@@ -391,13 +382,11 @@
   <section class="cta-section" id="cta">
     <div class="container">
       <div class="cta-box reveal">
+        <div class="plate plate--cta" aria-hidden="true"></div>
         <div class="cta-box-content">
-          <h2>Pronto para transformar sua alimentação?</h2>
-          <p>Comece agora mesmo. É rápido, fácil e personalizado para você. Deixe a inteligência artificial cuidar da sua nutrição.</p>
+          <h2>Bora montar o seu prato?</h2>
+          <p>Responda o questionário agora e receba um plano com calorias e macros calculados para você.</p>
           <a href="/questionario/" class="btn btn-white btn-lg" id="final-cta-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
             Gerar minha dieta agora
           </a>
         </div>

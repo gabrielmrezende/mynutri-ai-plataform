@@ -39,7 +39,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   border: 3px solid rgba(255,255,255,.5);
 }
 .sidebar-name {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1.125rem; font-weight: 700; color: #fff;
   margin-bottom: 4px;
 }
@@ -78,7 +78,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   margin-bottom: 20px;
 }
 .card-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1.125rem; font-weight: 700;
   color: var(--gray-800);
   margin-bottom: 4px;
@@ -304,7 +304,7 @@ html.dark .dash-metric-icon.teal   { background: rgba(13,148,136,.12); color: #5
   letter-spacing: .06em; color: var(--gray-500);
 }
 .dash-metric-value {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1.5rem; font-weight: 700;
   color: var(--gray-800); line-height: 1;
   transition: color .2s ease;
@@ -344,7 +344,7 @@ html.dark .imc-obese  { background: rgba(220,38,38,.2);   color: #fca5a5; }
 
 /* ── Section divider ── */
 .dash-section-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: .75rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .07em;
   color: var(--gray-500);
@@ -396,7 +396,7 @@ html.dark .goal-banner {
 }
 html.dark .goal-banner-title { color: var(--green-400); }
 .goal-banner-text {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1.05rem; font-weight: 700; color: var(--green-800);
 }
 html.dark .goal-banner-text { color: var(--green-300); }
@@ -476,7 +476,7 @@ html.dark .progress-step.pending {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   pointer-events: none;
 }
 .macro-donut-kcal {

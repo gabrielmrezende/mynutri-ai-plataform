@@ -17,7 +17,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   flex-wrap: wrap; gap: 16px;
 }
 .page-header-left h1 {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1.75rem; font-weight: 700;
   color: var(--gray-900); margin-bottom: 4px;
 }
@@ -41,7 +41,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   min-height: 40vh; text-align: center; gap: 16px;
 }
 /* .spinner e @keyframes spin: ver base.css */
-.state-title { font-family: 'Outfit', sans-serif; font-size: 1.125rem; font-weight: 600; color: var(--gray-700); }
+.state-title { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; color: var(--gray-700); }
 .state-subtitle { font-size: .9375rem; color: var(--gray-500); max-width: 380px; }
 
 /* ── History list ── */
@@ -82,7 +82,7 @@ body { background: var(--gray-50); min-height: 100vh; }
   margin-bottom: 3px;
 }
 .diet-goal {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-size: 1rem; font-weight: 600;
   color: var(--gray-800);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

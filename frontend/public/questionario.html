@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Figtree:ital,wght@0,400..800;1,400..600&amp;display=swap" />
   <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/questionario.css" />
   <script src="/static/src/js/utils/theme.js"></script>
@@ -48,9 +48,9 @@
       </button>
 
       <!-- Guest: shown when not logged in -->
-      <div id="guestNav" style="display:flex;align-items:center;gap:12px;">
-        <a href="/auth/" class="btn btn-text" style="padding:8px 16px;font-size:.8125rem;">Entrar</a>
-        <a href="/" class="btn btn-secondary" style="padding:8px 20px;font-size:.8125rem;">
+      <div id="guestNav">
+        <a href="/auth/" class="btn btn-text">Entrar</a>
+        <a href="/" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
           Voltar
         </a>
@@ -96,9 +96,8 @@
 
       <!-- Page Header -->
       <div class="questionnaire-header">
-        <span class="section-tag"><span aria-hidden="true">📝</span> Questionário Nutricional</span>
         <h1 class="section-title">Monte sua dieta ideal</h1>
-        <p class="section-subtitle">Responda as perguntas abaixo para que nossa IA crie um plano alimentar personalizado para você.</p>
+        <p class="section-subtitle">Seis etapas rápidas. Com as suas respostas, a IA escolhe os alimentos e o sistema calcula as porções.</p>
       </div>
 
       <!-- Aviso nutricional -->
@@ -503,7 +502,7 @@
 
     <!-- Footer -->
     <div class="questionnaire-footer">
-      <p>Suas informações são usadas apenas para gerar sua dieta. Veja a <a href="/privacidade/">Política de Privacidade</a> · <a href="/">Voltar ao início</a></p>
+      <p>Suas informações são usadas apenas para gerar sua dieta. Veja a <a href="/privacidade/">Política de Privacidade</a> ou <a href="/">volte ao início</a>.</p>
     </div>
   </main>
 

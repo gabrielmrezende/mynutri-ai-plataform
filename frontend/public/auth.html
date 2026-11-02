@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Figtree:ital,wght@0,400..800;1,400..600&amp;display=swap" />
   <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/auth.css" />
   <script src="/static/src/js/utils/theme.js"></script>
@@ -18,8 +18,8 @@
 <body>
   <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
-  <header class="header scrolled" style="position: relative;">
-    <div class="container header-inner" style="justify-content: space-between;">
+  <header class="header scrolled header--static">
+    <div class="container header-inner">
       <a href="/" class="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
@@ -48,6 +48,11 @@
   </header>
 
   <main class="auth-container" id="main-content">
+    <aside class="auth-aside">
+      <div class="plate plate--auth" aria-hidden="true"></div>
+      <p class="auth-aside-title">Seu plano fica guardado na sua conta.</p>
+      <p class="auth-aside-text">Volte quando quiser para ver as refeições, trocar um alimento ou baixar o PDF.</p>
+    </aside>
     <div class="auth-card">
       <div class="auth-header">
         <h1 class="auth-title">Boas-vindas</h1>
@@ -105,10 +110,10 @@
 
       <div class="social-auth">
         <div class="social-auth-divider">
-          <span>OU</span>
+          <span>ou</span>
         </div>
-        <div style="position:relative;display:block;">
-          <button class="btn-social" id="btn-google" type="button" tabindex="-1" aria-hidden="true" style="pointer-events:none;width:100%;">
+        <div class="google-wrap">
+          <button class="btn-social" id="btn-google" type="button" tabindex="-1" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -117,7 +122,7 @@
             </svg>
             Continuar com Google
           </button>
-          <div id="google-btn-hidden" style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0;cursor:pointer;overflow:hidden;"></div>
+          <div id="google-btn-hidden"></div>
         </div>
       </div>
 
