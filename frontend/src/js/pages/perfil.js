@@ -405,9 +405,9 @@
     const circ = 2 * Math.PI * R;
 
     const segments = [
-      { label: 'Proteínas',    g: macros.proteina, pct: macros.pPct, color: '#22c55e' },
-      { label: 'Carboidratos', g: macros.carbo,    pct: macros.cPct, color: '#3b82f6' },
-      { label: 'Gorduras',     g: macros.gordura,  pct: macros.gPct, color: '#a855f7' },
+      { label: 'Proteínas',    g: macros.proteina, pct: macros.pPct, color: '#c8402f' },
+      { label: 'Carboidratos', g: macros.carbo,    pct: macros.cPct, color: '#f2a93b' },
+      { label: 'Gorduras',     g: macros.gordura,  pct: macros.gPct, color: '#7b4e8f' },
     ];
 
     // Gerar arcos SVG com gap de 2px entre segmentos
@@ -525,10 +525,10 @@
 
     const configs = [
       { w: '0%',   bg: 'transparent', text: '' },
-      { w: '25%',  bg: '#ef4444',     text: 'Fraca' },
-      { w: '50%',  bg: '#f97316',     text: 'Razoável' },
-      { w: '75%',  bg: '#eab308',     text: 'Boa' },
-      { w: '100%', bg: '#22c55e',     text: 'Forte' },
+      { w: '25%',  bg: '#c8402f',     text: 'Fraca' },
+      { w: '50%',  bg: '#e07a2e',     text: 'Razoável' },
+      { w: '75%',  bg: '#f2a93b',     text: 'Boa' },
+      { w: '100%', bg: '#2f6b34',     text: 'Forte' },
     ];
     fill.style.width      = configs[strength].w;
     fill.style.background = configs[strength].bg;

@@ -1347,7 +1347,7 @@ function _showGeneratingState() {
   document.getElementById('diet-content').style.display  = 'none';
   document.getElementById('state-loading').style.display = 'flex';
   document.getElementById('loading-subtitle').textContent =
-    'Costuma levar de 1 a 3 minutos. Você pode sair desta página: a geração continua e sua dieta aparecerá em "Minha Dieta" e no Histórico quando ficar pronta.';
+    'Costuma levar de 1 a 3 minutos. Você pode sair desta página: a geração continua e sua dieta aparecerá em "Minha dieta" e no Histórico quando ficar pronta.';
   _setGenProgressVisible(true);
   showCancelButton();
   startLoadingTips();

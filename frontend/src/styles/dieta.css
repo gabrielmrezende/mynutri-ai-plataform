@@ -1543,3 +1543,4 @@ html.dark .mhm-pill.p { background: rgba(200,64,47,.16); border-color: rgba(232,
 html.dark .modal-kcal-tag,
 html.dark .sub-btn-save,
 html.dark .sub-tag:hover { color: var(--jabuticaba); }
+.state-icon { color: var(--gray-300); }

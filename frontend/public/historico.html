@@ -57,11 +57,11 @@
           </div>
           <a href="/perfil/" class="dropdown-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            Meu Perfil
+            Meu perfil
           </a>
           <a href="/dieta/" class="dropdown-item">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
-            Minha Dieta
+            Minha dieta
           </a>
           <a href="/historico/" class="dropdown-item active">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
@@ -79,17 +79,17 @@
 
   <!-- ===================== MAIN ===================== -->
   <main class="history-page" id="main-content">
-    <div class="container" style="max-width: 820px;">
+    <div class="container history-container">
 
       <!-- Page header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1>Histórico de Dietas</h1>
+          <h1>Histórico de dietas</h1>
           <p>Todos os planos alimentares gerados para você.</p>
         </div>
         <a href="/questionario/" class="btn-new-diet">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nova Dieta
+          Nova dieta
         </a>
       </div>
 
@@ -101,18 +101,18 @@
 
       <!-- Empty -->
       <div class="state-center" id="stateEmpty" style="display:none;">
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gray-300)"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="state-icon"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>
         <p class="state-title">Nenhuma dieta gerada ainda</p>
         <p class="state-subtitle">Responda o questionário para que a IA crie o seu plano alimentar personalizado.</p>
-        <a href="/questionario/" class="btn-new-diet" style="margin-top:8px;">Criar minha primeira dieta</a>
+        <a href="/questionario/" class="btn-new-diet">Criar minha primeira dieta</a>
       </div>
 
       <!-- Error -->
       <div class="state-center" id="stateError" role="alert" style="display:none;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#f87171"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="state-icon state-icon--error"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <p class="state-title">Não foi possível carregar</p>
         <p class="state-subtitle" id="errorMsg">Tente novamente em alguns instantes.</p>
-        <button type="button" id="btnRetry" class="btn-new-diet" style="margin-top:8px;">Tentar novamente</button>
+        <button type="button" id="btnRetry" class="btn-new-diet">Tentar novamente</button>
       </div>
 
       <!-- List -->
