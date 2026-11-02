@@ -15,7 +15,7 @@ import re
 USER_DATA_MAX_CHARS = 500
 
 # Caracteres de controle e de largura zero usados para mascarar texto
-_CONTROL_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f​-‏  ﻿]')
+_CONTROL_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\ufeff]')
 
 # Instrução reaproveitada pelos system prompts
 USER_DATA_INSTRUCTION = (

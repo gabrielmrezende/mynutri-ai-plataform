@@ -100,6 +100,10 @@ class AIClient:
         if not self.api_key or not self.api_url:
             logger.error('[AI_CONFIG] AI_API_KEY/AI_API_URL não configurados.')
             raise PermanentAIError('O serviço de IA não está configurado. Contate o suporte.')
+        # urlopen aceita file:// e esquemas customizados — só HTTP(S) é válido aqui
+        if not self.api_url.lower().startswith(('https://', 'http://')):
+            logger.error('[AI_CONFIG] AI_API_URL com esquema inválido (esperado http/https).')
+            raise PermanentAIError('O serviço de IA não está configurado. Contate o suporte.')
 
         body: dict = {
             'model':       self.model,
@@ -128,7 +132,7 @@ class AIClient:
         for attempt in range(max_retries):
             retry_after = None
             try:
-                with urllib.request.urlopen(req, timeout=120) as response:
+                with urllib.request.urlopen(req, timeout=120) as response:  # nosec B310 — esquema validado acima
                     raw = response.read()
                 try:
                     data = json.loads(raw.decode('utf-8'))

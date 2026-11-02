@@ -151,6 +151,15 @@ class TestCallApiErrors:
             s._call_api('p', 's')
         assert '.env' not in str(exc_info.value)
 
+    @pytest.mark.parametrize('url', ['file:///etc/passwd', 'ftp://ai.example.com/v1'])
+    def test_url_com_esquema_nao_http_e_recusada_sem_chamar_rede(self, url):
+        s = AIService()
+        s.api_key = 'k'
+        s.api_url = url
+        with patch('urllib.request.urlopen') as urlopen, pytest.raises(PermanentAIError):
+            s._call_api('p', 's')
+        urlopen.assert_not_called()
+
     def test_registra_usage_de_tokens(self, service, caplog):
         usage = {'prompt_tokens': 11, 'completion_tokens': 22, 'total_tokens': 33}
         with patch('urllib.request.urlopen', return_value=_ok_response({'ok': 1}, usage)), \

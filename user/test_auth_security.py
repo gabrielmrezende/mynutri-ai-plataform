@@ -583,7 +583,7 @@ class TestEmailValidationHardening:
 
     @pytest.mark.parametrize('ip,expected', [
         ('8.8.8.8', True), ('10.0.0.5', False), ('127.0.0.1', False),
-        ('192.168.1.1', False), ('169.254.169.254', False), ('::1', False), ('0.0.0.0', False),
+        ('192.168.1.1', False), ('169.254.169.254', False), ('::1', False), ('0.0.0.0', False),  # nosec B104 — só dado de teste
     ])
     def test_is_public_ip(self, ip, expected):
         assert email_validation._is_public_ip(ip) is expected
