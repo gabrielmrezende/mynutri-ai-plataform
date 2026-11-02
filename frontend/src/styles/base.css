@@ -334,7 +334,8 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 .header.scrolled {
-  background: rgba(255,255,255,.85);
+  /* .95: com .85 o texto em negrito logo abaixo continuava legível através do blur */
+  background: rgba(255,255,255,.95);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-bottom: 1px solid rgba(0,0,0,.06);
@@ -343,7 +344,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 
 html.dark .header.scrolled {
-  background: rgba(15,23,42,.85);
+  background: rgba(15,23,42,.95);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 

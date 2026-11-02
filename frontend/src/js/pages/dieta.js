@@ -40,6 +40,17 @@ let _loadingMsgTimer       = null;   // intervalo das mensagens de loading
 
 initUserMenu({ requireAuth: false, logoutRedirect: '/' });
 
+/**
+ * Nome da refeição para exibição. O backend grava "Almoço (12:30)" (formato
+ * usado no PDF); na tela o horário já aparece num selo próprio, então o
+ * sufixo é removido quando coincide com time_suggestion.
+ */
+function mealDisplayName(name, time) {
+  const n = String(name || '');
+  const suffix = time ? ` (${time})` : '';
+  return suffix && n.endsWith(suffix) ? n.slice(0, -suffix.length) : n;
+}
+
 function _applyModalPalette(mealIndex) {
   const pal  = MODAL_PALETTES[mealIndex % MODAL_PALETTES.length];
   const dark = document.documentElement.classList.contains('dark');
@@ -376,7 +387,7 @@ async function openModal(mealIndex) {
   // ── Header ──
   document.getElementById('modal-emoji').textContent     = emoji;
   document.getElementById('modal-order').textContent     = `Refeição ${mealIndex + 1}`;
-  document.getElementById('modal-title').textContent     = refeicao.nome_refeicao;
+  document.getElementById('modal-title').textContent     = mealDisplayName(refeicao.nome_refeicao, rawMeal.time_suggestion);
   document.getElementById('modal-kcal-text').textContent = `${toNumber(refeicao.calorias_estimadas, 0)} kcal`;
 
   const timeSuggestion = rawMeal.time_suggestion || '';
@@ -686,7 +697,7 @@ function _applyMealUpdate(idx, apiData) {
   if (apiData.macros) dietData.macros = apiData.macros;
 
   renderMealCards(dietData.refeicoes);
-  renderMacrosBar(dietData.macros);
+  renderMacrosBar(dietData.macros, dietData.calorias_totais);
   document.getElementById('stat-calories').textContent =
     toNumber(dietData.calorias_totais, 0).toLocaleString('pt-BR');
 }
@@ -992,7 +1003,14 @@ function showError(msg, ctaHref, ctaLabel, showRetry = false, retryLabel = 'Tent
   }
 }
 
-function renderMacrosBar(macros) {
+/**
+ * @param macros     gramas de proteína/carboidrato/gordura do plano
+ * @param planKcal   total de kcal do plano (soma das kcal de cada alimento na
+ *                   base nutricional). Os % usam o fator Atwater (4/4/9 kcal/g),
+ *                   que difere um pouco desse total — por isso o total exibido é
+ *                   o do plano, igual ao do topo da página.
+ */
+function renderMacrosBar(macros, planKcal) {
   if (!macros) return;
   const bar = document.getElementById('macros-bar');
   bar.classList.add('visible');
@@ -1006,6 +1024,7 @@ function renderMacrosBar(macros) {
   const ckcal = cg * 4;
   const fkcal = fg * 9;
   const total = pkcal + ckcal + fkcal || 1;
+  const displayTotal = Math.round(toNumber(planKcal, 0)) || total;
 
   const ppct = Math.round(pkcal / total * 100);
   const cpct = Math.round(ckcal / total * 100);
@@ -1070,11 +1089,11 @@ function renderMacrosBar(macros) {
     animateCounter(el, toNumber(el.dataset.target, 0), DURATION));
 
   // Animate total kcal display
-  animateCounter(document.getElementById('mb-total-kcal'), total, DURATION);
+  animateCounter(document.getElementById('mb-total-kcal'), displayTotal, DURATION);
   // Append " kcal" suffix after animation ends
   setTimeout(() => {
     const el = document.getElementById('mb-total-kcal');
-    if (el) el.textContent = total.toLocaleString('pt-BR') + ' kcal';
+    if (el) el.textContent = displayTotal.toLocaleString('pt-BR') + ' kcal';
   }, prefersReducedMotion() ? 0 : DURATION + 50);
 
   // ── Tooltip + focus/dim interactions (mouse e teclado) ──
@@ -1157,7 +1176,8 @@ function renderMealCards(refeicoes) {
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
     card.setAttribute('aria-haspopup', 'dialog');
-    card.setAttribute('aria-label', `Ver detalhes de ${r.nome_refeicao || `Refeição ${i + 1}`}, ${kcal} kcal`);
+    const displayName = mealDisplayName(r.nome_refeicao, time) || `Refeição ${i + 1}`;
+    card.setAttribute('aria-label', `Ver detalhes de ${displayName}, ${kcal} kcal`);
     card.innerHTML = `
       <div class="meal-card-header">
         <div class="meal-card-header-top">
@@ -1172,7 +1192,7 @@ function renderMealCards(refeicoes) {
             <span class="meal-order-dot"></span>
             Refeição ${i + 1}
           </p>
-          <p class="meal-name">${escapeHtml(r.nome_refeicao)}</p>
+          <p class="meal-name">${escapeHtml(displayName)}</p>
           ${time ? `<span class="meal-time-tag">
             <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             ${escapeHtml(time)}
@@ -1222,7 +1242,7 @@ function renderDiet(diet) {
       `Dieta gerada em ${d.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })}`;
   }
 
-  renderMacrosBar(diet.macros);
+  renderMacrosBar(diet.macros, diet.calorias_totais);
   renderMealCards(diet.refeicoes || []);
 
   if (diet.notes) {
