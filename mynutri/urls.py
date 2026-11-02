@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.generic import TemplateView
 from django.views.decorators.cache import cache_page
 from django.db import connection
@@ -19,6 +19,32 @@ def health_check(request):
         return JsonResponse({'status': 'error'}, status=503)
 
 
+# Páginas públicas indexáveis (sitemap) e páginas do app (fora dos buscadores)
+_PUBLIC_PAGES = ['/', '/auth/', '/termos/', '/privacidade/', '/contato/']
+_PRIVATE_PAGES = ['/dieta/', '/perfil/', '/historico/', '/questionario/', '/api/', '/admin/']
+
+
+def robots_txt(request):
+    lines = ['User-agent: *']
+    lines += [f'Allow: {p}' for p in _PUBLIC_PAGES]
+    lines += [f'Disallow: {p}' for p in _PRIVATE_PAGES]
+    lines += ['', f'Sitemap: {request.build_absolute_uri("/sitemap.xml")}', '']
+    return HttpResponse('\n'.join(lines), content_type='text/plain; charset=utf-8')
+
+
+def sitemap_xml(request):
+    urls = ''.join(
+        f'  <url><loc>{request.build_absolute_uri(p)}</loc></url>\n' for p in _PUBLIC_PAGES
+    )
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'{urls}'
+        '</urlset>\n'
+    )
+    return HttpResponse(body, content_type='application/xml; charset=utf-8')
+
+
 urlpatterns = [
     # Frontend pages — páginas públicas cacheadas por 1h; páginas autenticadas sem cache
     path('', _CACHE_1H(TemplateView.as_view(template_name='index.html')), name='home'),
@@ -30,6 +56,9 @@ urlpatterns = [
     path('contato/', _CACHE_1H(TemplateView.as_view(template_name='contato.html')), name='contato'),
     path('privacidade/', _CACHE_1H(TemplateView.as_view(template_name='privacidade.html')), name='privacidade'),
     path('termos/', _CACHE_1H(TemplateView.as_view(template_name='termos.html')), name='termos'),
+    # SEO
+    path('robots.txt', _CACHE_1H(robots_txt), name='robots-txt'),
+    path('sitemap.xml', _CACHE_1H(sitemap_xml), name='sitemap-xml'),
     # Backend
     path('health/', health_check, name='health-check'),
     path('admin/', admin.site.urls),

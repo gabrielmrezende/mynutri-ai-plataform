@@ -163,7 +163,10 @@ STORAGES = {
     },
 }
 STATICFILES_DIRS = [BASE_DIR / 'frontend']
-WHITENOISE_MAX_AGE = 0 if DEBUG else 31536000
+# Vale para arquivos referenciados SEM hash (o HTML usa /static/src/... direto).
+# Arquivos com hash do manifest são sempre servidos como immutable (1 ano) pelo
+# WhiteNoise. 1 ano aqui deixaria usuários com JS/CSS antigos após cada deploy.
+WHITENOISE_MAX_AGE = 0 if DEBUG else 3600
 
 # =============================================================================
 # Django REST Framework
