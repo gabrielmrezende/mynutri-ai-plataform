@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contato — MyNutri AI</title>
   <meta name="description" content="Entre em contato com a equipe do MyNutri AI. Tire suas dúvidas, envie sugestões ou solicite suporte." />
-  <link rel="icon" type="image/png" href="/static/src/assets/mynutriai-logo.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/src/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/static/src/assets/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Outfit:wght@700&amp;display=swap" />
+  <link rel="stylesheet" href="/static/src/styles/base.css" />
   <link rel="stylesheet" href="/static/src/styles/index.css" />
   <link rel="stylesheet" href="/static/src/styles/contato.css" />
+  <script src="/static/src/js/utils/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
   <!-- ===================== HEADER ===================== -->
   <header class="header scrolled" id="header">
@@ -17,12 +24,12 @@
       <a href="/" class="logo" id="logo">
         <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
         MyNutri <span>AI</span>
       </a>
 
-      <nav class="nav" id="nav">
+      <nav class="nav" id="nav" aria-label="Navegação principal">
         <a href="/#como-funciona" class="nav-link">Como Funciona</a>
         <a href="/#beneficios" class="nav-link">Benefícios</a>
         <a href="/#plano" class="nav-link">Plano Alimentar</a>
@@ -89,12 +96,13 @@
         </svg>
       </button>
 
-      <button class="mobile-toggle" id="mobile-toggle" aria-label="Abrir menu">
+      <button class="mobile-toggle" id="mobile-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
         <span></span><span></span><span></span>
       </button>
     </div>
   </header>
 
+  <main id="main-content">
   <!-- ===================== HERO ===================== -->
   <section class="contact-hero">
     <div class="container text-center">
@@ -115,17 +123,17 @@
           <form class="contact-form" id="contact-form" novalidate>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="contact-nome">Nome <span class="required">*</span></label>
+                <label class="form-label" for="contact-nome">Nome <span class="required" aria-hidden="true">*</span></label>
                 <input type="text" class="form-input" id="contact-nome" name="nome" placeholder="Seu nome" required />
               </div>
               <div class="form-group">
-                <label class="form-label" for="contact-email">Email <span class="required">*</span></label>
+                <label class="form-label" for="contact-email">Email <span class="required" aria-hidden="true">*</span></label>
                 <input type="email" class="form-input" id="contact-email" name="email" placeholder="seu@email.com" required />
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="contact-assunto">Assunto <span class="required">*</span></label>
+              <label class="form-label" for="contact-assunto">Assunto <span class="required" aria-hidden="true">*</span></label>
               <select class="form-select" id="contact-assunto" name="assunto" required>
                 <option value="">Selecione o assunto</option>
                 <option value="suporte">Suporte técnico</option>
@@ -138,7 +146,7 @@
             </div>
 
             <div class="form-group stretch-textarea">
-              <label class="form-label" for="contact-mensagem">Mensagem <span class="required">*</span></label>
+              <label class="form-label" for="contact-mensagem">Mensagem <span class="required" aria-hidden="true">*</span></label>
               <textarea class="form-textarea" id="contact-mensagem" name="mensagem" placeholder="Como podemos ajudar?" rows="5" required></textarea>
             </div>
 
@@ -151,11 +159,11 @@
           </form>
 
           <!-- Success State -->
-          <div class="contact-success" id="contact-success" style="display:none;">
+          <div class="contact-success" id="contact-success" role="status" style="display:none;">
             <div class="success-icon">✅</div>
             <h3>Mensagem enviada!</h3>
             <p>Recebemos sua mensagem e responderemos em até 24 horas. Obrigado pelo contato!</p>
-            <button class="btn btn-secondary" id="btn-new-message" onclick="document.getElementById('contact-success').style.display='none'; document.getElementById('contact-form').style.display='flex'; document.getElementById('contact-form-title').style.display='block'; document.getElementById('contact-form').reset();">
+            <button type="button" class="btn btn-secondary" id="btn-new-message">
               Enviar outra mensagem
             </button>
           </div>
@@ -190,31 +198,6 @@
             <span>Atendimento 100% remoto</span>
           </div>
 
-          <div class="contact-socials-card">
-            <h4>Nos siga nas redes</h4>
-            <div class="contact-socials">
-              <a href="#" class="contact-social-btn" aria-label="Instagram">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
-                </svg>
-              </a>
-              <a href="#" class="contact-social-btn" aria-label="Twitter">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
-                </svg>
-              </a>
-              <a href="#" class="contact-social-btn" aria-label="LinkedIn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
-                </svg>
-              </a>
-              <a href="#" class="contact-social-btn" aria-label="YouTube">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
-                </svg>
-              </a>
-            </div>
-          </div>
         </div>
 
       </div>
@@ -282,6 +265,8 @@
     </div>
   </section>
 
+  </main>
+
   <!-- ===================== FOOTER ===================== -->
   <footer class="footer" id="footer">
     <div class="container">
@@ -290,14 +275,14 @@
           <a href="/" class="logo">
             <picture>
             <source srcset="/static/src/assets/mynutriai-logo.webp" type="image/webp">
-            <img src="/static/src/assets/mynutriai-logo.png" alt="MyNutri AI">
+            <img src="/static/src/assets/mynutriai-logo.png" alt="" width="55" height="55">
           </picture>
             MyNutri <span>AI</span>
           </a>
           <p>Nutrição inteligente, personalizada e acessível.</p>
         </div>
         <div>
-          <h4>Plataforma</h4>
+          <h2 class="footer-heading">Plataforma</h2>
           <ul class="footer-links">
             <li><a href="/#como-funciona">Como funciona</a></li>
             
@@ -305,14 +290,14 @@
           </ul>
         </div>
         <div>
-          <h4>Suporte</h4>
+          <h2 class="footer-heading">Suporte</h2>
           <ul class="footer-links">
             <li><a href="/contato/">Contato</a></li>
             <li><a href="#faq">FAQ</a></li>
           </ul>
         </div>
         <div>
-          <h4>Legal</h4>
+          <h2 class="footer-heading">Legal</h2>
           <ul class="footer-links">
             <li><a href="/termos/">Termos de uso</a></li>
             <li><a href="/privacidade/">Privacidade</a></li>
@@ -326,7 +311,6 @@
   </footer>
 
   <!-- ===================== JAVASCRIPT ===================== -->
-  <script src="/static/src/js/utils/theme.js" defer></script>
   <script src="/static/src/js/utils/http.js" defer></script>
   <script src="/static/src/js/utils/helpers.js" defer></script>
   <script src="/static/src/js/components/user-menu.js" defer></script>
