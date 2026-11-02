@@ -155,7 +155,8 @@ GET /api/v1/diet/status/<job_id>
 - **Arquivo:** `nutrition/services.py` (`AIService`)
 - **Protocolo:** HTTP POST para qualquer API OpenAI-compatible
 - **Timeout:** 120 segundos
-- **Rate limit:** 3 gerações por dia por usuário (via DRF `ScopedRateThrottle`)
+- **Rate limit:** 3 gerações bem-sucedidas por 24 h por usuário (`DIET_GENERATE_DAILY_LIMIT`, jobs falhos não contam) + throttle anti-abuso `diet_generate` (10/dia, DRF `ScopedRateThrottle`)
+- **Execução:** task Celery com `acks_late`, time limits (8/9 min), retry de `TransientAIError` e expiração de jobs presos (pending > 10 min, processing > 15 min)
 - **Pós-processamento:** normalização de totais nutricionais + ajuste de porções por meta calórica
 
 ---

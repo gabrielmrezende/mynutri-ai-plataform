@@ -252,7 +252,7 @@ Relacionamentos:
 
 ## Tabela: meal_regeneration_logs (MealRegenerationLog)
 
-Registra cada regeneração pontual de uma refeição. Usado para rate limiting (3/dia por DietPlan), auditoria e suporte a desfazer.
+Registra cada regeneração pontual de uma refeição. Usado para rate limiting (3 por dia local por DietPlan, contando também as regenerações desfeitas), auditoria e suporte a desfazer. Um registro com `is_undone=True` criado antes da chamada à IA funciona como reserva da cota; ele é ativado (`is_undone=False`) quando a regeneração é aplicada ou apagado se a IA falhar.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
