@@ -1,16 +1,18 @@
+# Dependências de produção. Ferramentas de teste/lint ficam em requirements-dev.txt.
+
 # ─── Core Django ──────────────────────────────────────────────────────────────
-Django==6.0.3
+Django==6.0.9                        # 6.0.x mais recente (correções de segurança)
 asgiref==3.11.1
-sqlparse==0.5.5
+sqlparse==0.6.1
 
 # ─── REST API & Autenticação ──────────────────────────────────────────────────
-djangorestframework==3.15.1
-djangorestframework-simplejwt==5.4.0
-PyJWT==2.12.1
-django-cors-headers==4.7.0
+djangorestframework==3.18.3          # suporte ao Django 6.0 + correções de segurança
+djangorestframework-simplejwt==5.5.1
+PyJWT==2.15.1
+django-cors-headers==4.9.0
 
 # ─── Variáveis de ambiente ────────────────────────────────────────────────────
-python-dotenv==1.1.0
+python-dotenv==1.2.4
 dj-database-url==3.1.2
 
 # ─── Produção ─────────────────────────────────────────────────────────────────
@@ -20,20 +22,16 @@ psycopg2-binary==2.9.11
 
 # ─── Utilidades ───────────────────────────────────────────────────────────────
 tzdata==2025.3
-dnspython==2.7.0             # validação DNS/MX de e-mail
-requests==2.32.3             # APIs externas de validação de e-mail
+dnspython==2.9.1             # validação DNS/MX de e-mail
+requests==2.33.1             # APIs externas de validação de e-mail (>=2.32.4; ver pip-audit)
 google-auth==2.62.0          # verificação local de id_token Google OAuth (assinatura, aud, iss)
 
 # ─── Celery + Broker ─────────────────────────────────────────────────────────
-celery==5.4.0
-redis==5.2.1                 # cliente Redis para broker/backend do Celery
+celery==5.5.3                # 5.5+ suporta Python 3.13 (versão usada no Render)
+redis==5.2.1                 # cliente Redis para broker/backend do Celery e cache
 
 # ─── PDF ──────────────────────────────────────────────────────────────────────
 reportlab==4.2.5
 
 # ─── Monitoramento ────────────────────────────────────────────────────────────
 sentry-sdk[django]==2.25.1
-
-# ─── Testes ───────────────────────────────────────────────────────────────────
-pytest==9.0.3
-pytest-django==4.12.0

@@ -1,8 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { uniqueEmail } = require('./helpers');
-
-const BASE = 'http://127.0.0.1:8000';
+const { BASE, uniqueEmail, registerUser, acceptTermsIfPresent } = require('./helpers');
 
 test.describe('Autenticação', () => {
 
@@ -16,6 +14,7 @@ test.describe('Autenticação', () => {
     await page.locator('#register-form input[type="email"]').fill(email);
     await page.locator('#register-form input[type="password"]').fill('SenhaSegura@123');
 
+    await acceptTermsIfPresent(page);
     await page.locator('#register-form button[type="submit"]').click();
 
     await expect(page).toHaveURL(/\/dieta\//, { timeout: 10_000 });
@@ -30,6 +29,7 @@ test.describe('Autenticação', () => {
     await page.locator('#register-form input[type="text"]').fill('Cookie Test');
     await page.locator('#register-form input[type="email"]').fill(email);
     await page.locator('#register-form input[type="password"]').fill('SenhaSegura@123');
+    await acceptTermsIfPresent(page);
     await page.locator('#register-form button[type="submit"]').click();
 
     await page.waitForURL(/\/dieta\//, { timeout: 10_000 });
@@ -45,9 +45,7 @@ test.describe('Autenticação', () => {
     const email    = uniqueEmail();
     const password = 'SenhaSegura@123';
 
-    await context.request.post('http://127.0.0.1:8000/api/v1/auth/register', {
-      data: { nome: 'Login Test', email, senha: password },
-    });
+    await registerUser(context.request, { nome: 'Login Test', email, password });
 
     // Aguarda um momento para o servidor processar
     await page.waitForTimeout(200);
@@ -75,9 +73,7 @@ test.describe('Autenticação', () => {
     const email = uniqueEmail();
 
     // Cria usuário via API
-    await context.request.post('http://127.0.0.1:8000/api/v1/auth/register', {
-      data: { nome: 'Duplicado', email, senha: 'SenhaSegura@123' },
-    });
+    await registerUser(context.request, { nome: 'Duplicado', email, password: 'SenhaSegura@123' });
 
     // Tenta cadastrar de novo via UI
     await page.goto(`${BASE}/auth/`);
@@ -85,6 +81,7 @@ test.describe('Autenticação', () => {
     await page.locator('#register-form input[type="text"]').fill('Duplicado 2');
     await page.locator('#register-form input[type="email"]').fill(email);
     await page.locator('#register-form input[type="password"]').fill('SenhaSegura@123');
+    await acceptTermsIfPresent(page);
     await page.locator('#register-form button[type="submit"]').click();
 
     await expect(page.locator('#auth-error')).toBeVisible({ timeout: 5_000 });
@@ -94,9 +91,7 @@ test.describe('Autenticação', () => {
     const email = uniqueEmail();
 
     // Registra e entra na dieta
-    await context.request.post('http://127.0.0.1:8000/api/v1/auth/register', {
-      data: { nome: 'Logout Test', email, senha: 'SenhaSegura@123' },
-    });
+    await registerUser(context.request, { nome: 'Logout Test', email, password: 'SenhaSegura@123' });
 
     await page.goto(`${BASE}/auth/`);
     await page.locator('#login-form input[type="email"]').fill(email);
@@ -113,6 +108,29 @@ test.describe('Autenticação', () => {
     const cookies = await context.cookies();
     const accessCookie = cookies.find(c => c.name === 'mynutri_access');
     expect(accessCookie).toBeFalsy();
+  });
+
+  test('Registro via API não devolve tokens no JSON (somente cookies HttpOnly)', async ({ context }) => {
+    const res = await registerUser(context.request, {
+      nome: 'Sem Token', email: uniqueEmail(), password: 'SenhaSegura@123',
+    });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body).not.toHaveProperty('token');
+    expect(body).not.toHaveProperty('refresh');
+    expect(body).not.toHaveProperty('access');
+    expect(body).toHaveProperty('user');
+
+    const cookies = await context.cookies();
+    expect(cookies.find(c => c.name === 'mynutri_access')?.httpOnly).toBe(true);
+  });
+
+  test('Registro sem aceite dos termos é rejeitado', async ({ request }) => {
+    const res = await request.post('http://127.0.0.1:8000/api/v1/auth/register', {
+      data: { nome: 'Sem termos', email: uniqueEmail(), senha: 'SenhaSegura@123' },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    expect(res.status()).toBe(400);
   });
 
 });

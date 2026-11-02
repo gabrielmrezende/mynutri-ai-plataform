@@ -1264,7 +1264,9 @@ class TestGenerateDietTask:
         from nutrition.tasks import generate_diet_task
         generate_diet_task.delay(job.pk)
         job.refresh_from_db()
-        assert job.status == DietJob.STATUS_FAILED and 'Conexão recusada' in job.error_message
+        assert job.status == DietJob.STATUS_FAILED
+        # C6: o usuário vê só mensagem amigável, nunca str(exc) bruto
+        assert job.error_message and 'Conexão recusada' not in job.error_message
 
     @patch('nutrition.services.AIService.generate_diet')
     def test_job_done_nao_reprocessado(self, mock, job):

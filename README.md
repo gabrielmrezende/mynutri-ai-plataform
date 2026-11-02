@@ -100,7 +100,8 @@ source venv/bin/activate
 **3. Instale as dependências:**
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # produção + pytest/ruff/pip-audit
+# Somente produção: pip install -r requirements.txt
 ```
 
 **4. Configure as variáveis de ambiente:**
@@ -114,6 +115,8 @@ Abra o `.env` e preencha as chaves obrigatórias:
 - `SECRET_KEY` — chave secreta do Django
 - `AI_API_KEY` — sua chave da OpenAI (ou Gemini)
 - `AI_API_URL` — URL da API de IA
+- `GOOGLE_CLIENT_ID` — client ID OAuth do Google (login com Google)
+- `CACHE_URL` — Redis para cache/rate limiting (ex.: `redis://localhost:6379/1`). **Obrigatório com `DEBUG=False`**; em dev (`DEBUG=True`) usa cache local
 
 **5. Execute as migrações:**
 
@@ -191,7 +194,9 @@ A documentação técnica detalhada está na pasta **`docs/`**:
 
 - Variáveis sensíveis isoladas em `.env` (nunca commitadas)
 - JWT com `ACCESS_TOKEN_LIFETIME` de 8h e refresh de 7 dias, servidos via cookies HttpOnly
-- Rate limiting: `3/day` para geração de dieta, `3/day` para regeneração de refeição, `60/hour` para usuários autenticados, `5/hour` para contato
+- Rate limiting: 3 gerações de dieta bem-sucedidas por 24 h (falhas não contam; throttle anti-abuso de `10/day`), 3 regenerações de refeição por dia local por plano (inclusive desfeitas), `300/hour` para usuários autenticados, `1200/hour` para polling de status, `20/hour` para anamnese, `5/hour` para contato
+- Content-Security-Policy enforcing, `Permissions-Policy` e `Referrer-Policy` em todas as respostas
+- Sentry configurado para nunca enviar corpo de requisição nem dados de anamnese
 - CORS restritivo em produção (`DEBUG=False`)
 - Pre-commit hook disponível em `scripts/pre-commit-hook`
 

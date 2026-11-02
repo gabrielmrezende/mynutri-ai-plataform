@@ -1,6 +1,10 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
+// Banco SQLite em ARQUIVO: migrate e runserver são processos distintos, então
+// :memory: deixaria o servidor sem tabelas. Lido por mynutri/test_settings.py.
+const TEST_DB_PATH = process.env.TEST_DB_PATH || 'e2e-db.sqlite3';
+
 module.exports = defineConfig({
   testDir: './e2e',
   fullyParallel: false,     // testes de auth compartilham estado do servidor
@@ -22,12 +26,16 @@ module.exports = defineConfig({
     },
   ],
 
-  // Inicia o Django antes de rodar os testes (só em dev local)
-  // Em CI o servidor já deve estar rodando ou use um processo separado
+  // Inicia o Django antes de rodar os testes (só em dev local).
+  // Em CI o workflow sobe o servidor e espera o /health/ responder.
   webServer: process.env.CI ? undefined : {
-    command: 'python manage.py runserver --settings=mynutri.test_settings 2>&1',
-    url: 'http://127.0.0.1:8000',
+    command: 'python manage.py migrate --no-input && python manage.py runserver 127.0.0.1:8000 --noreload',
+    url: 'http://127.0.0.1:8000/health/',
     reuseExistingServer: true,
-    timeout: 30000,
+    timeout: 60000,
+    env: {
+      DJANGO_SETTINGS_MODULE: 'mynutri.test_settings',
+      TEST_DB_PATH,
+    },
   },
 });

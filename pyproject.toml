@@ -1,0 +1,52 @@
+# Configuração de ferramentas (o projeto não é um pacote instalável).
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "staticfiles",
+    "node_modules",
+    "frontend",
+    "mynutri-ai-plataform",
+    "*/migrations/*",
+]
+
+[tool.ruff.lint]
+# Regras padrão (pycodestyle E + pyflakes F). O alinhamento de "=" usado no
+# código (E221 etc.) não faz parte do conjunto padrão do ruff.
+select = ["E", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Dívida existente em código legado — exceções pontuais por arquivo/regra para o
+# CI passar sem mascarar regras novas. Remova a entrada ao limpar o arquivo.
+"nutrition/services.py" = ["E402", "E501", "E701"]
+"nutrition/substitutions.py" = ["E501"]
+"nutrition/prompts/*.py" = ["E501", "F401"]
+"nutrition/tests/test_calculations.py" = ["E741", "F401"]
+"nutrition/tests/test_critical.py" = ["E501", "F401"]
+"nutrition/tests/test_new_prompts.py" = ["E501", "F401"]
+"nutrition/tests/test_prompts.py" = ["F401", "F841"]
+"nutrition/tests/test_services.py" = ["E501", "F401"]
+"nutrition/tests/test_services_advanced.py" = ["F401"]
+"nutrition/tests/test_substitutions.py" = ["F401"]
+"scripts/*.py" = ["F541"]
+"user/*.py" = ["E501", "F401"]
+
+[tool.coverage.run]
+source = ["nutrition", "user", "mynutri"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/tests.py",
+    "*/test_*.py",
+    "mynutri/asgi.py",
+    "mynutri/wsgi.py",
+    # Configuração dependente de variáveis de ambiente (ramos de produção/Sentry);
+    # validada por testes em subprocesso (nutrition/tests/test_api_site.py).
+    "mynutri/settings.py",
+    "mynutri/test_settings.py",
+]
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = true

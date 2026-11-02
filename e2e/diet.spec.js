@@ -1,23 +1,32 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { createAndLoginUser, setUserLocalStorage, API } = require('./helpers');
+const {
+  BASE, API, XHR_HEADERS, apiPost, createAndLoginUser, setUserLocalStorage,
+} = require('./helpers');
 
-const BASE = 'http://127.0.0.1:8000';
+/** Anamnese válida no formato real da API (AnamneseSerializer). */
+function validAnamnese(overrides = {}) {
+  return {
+    idade: 28,
+    sexo: 'M',
+    peso: 75.0,
+    altura: 178.0,
+    nivel_atividade: 'moderate',
+    objetivo: 'lose',
+    meals_per_day: 4,
+    restricoes: '',
+    food_preferences: 'frango, arroz',
+    allergies: '',
+    ...overrides,
+  };
+}
 
 /**
  * Submete o questionário de anamnese diretamente via API.
  * Mais rápido do que preencher 5 etapas do formulário na UI.
  */
-async function submitAnamnese(context) {
-  const res = await context.request.post(`${API}/anamnese`, {
-    data: {
-      age: 28, gender: 'M', weight_kg: 75.0, height_cm: 178.0,
-      activity_level: 'moderate', goal: 'lose', meals_per_day: 4,
-      dietary_restrictions: '', allergies: '', food_preferences: '',
-      goal_description: 'Emagrecer com saúde',
-    },
-  });
-  return res.ok();
+async function submitAnamnese(context, overrides = {}) {
+  return apiPost(context.request, '/anamnese', validAnamnese(overrides));
 }
 
 test.describe('Questionário e geração de dieta', () => {
@@ -47,9 +56,22 @@ test.describe('Questionário e geração de dieta', () => {
 
     await expect(page).toHaveURL(`${BASE}/historico/`, { timeout: 5_000 });
     // Aguarda o estado inicial (loading → empty ou list)
-    await page.waitForTimeout(1500);
-    const hasState = await page.locator('#stateEmpty, #stateList, #stateError').count();
-    expect(hasState).toBeGreaterThan(0);
+    await expect(page.locator('#stateEmpty, #stateList, #stateError').first())
+      .toBeVisible({ timeout: 5_000 });
+  });
+
+  test('API de anamnese aceita payload válido', async ({ context }) => {
+    await createAndLoginUser(context);
+    const res = await submitAnamnese(context);
+    expect(res.status()).toBe(201);
+  });
+
+  test('API de anamnese rejeita menor de 18 anos', async ({ context }) => {
+    await createAndLoginUser(context);
+    const res = await submitAnamnese(context, { idade: 17 });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body).toHaveProperty('idade');
   });
 
   test('Questionário salva anamnese e redireciona para /dieta/?generate=1', async ({ page, context }) => {
@@ -60,52 +82,70 @@ test.describe('Questionário e geração de dieta', () => {
     await page.reload();
 
     // Etapa 1 — dados pessoais
-    await page.locator('[data-field="nome"]').fill('Teste E2E');
-    await page.locator('[data-field="idade"]').fill('28');
-    await page.locator('[data-field="peso"]').fill('75');
-    await page.locator('[data-field="altura"]').fill('178');
-    await page.locator('.btn-next').first().click();
+    await page.locator('#nome').fill('Teste E2E');
+    await page.locator('#idade').fill('28');
+    await page.locator('#custom-sexo .custom-select-trigger').click();
+    await page.locator('#custom-sexo .custom-select-option[data-value="masculino"]').click();
+    await page.locator('#peso').fill('75');
+    await page.locator('#altura').fill('178');
+    await page.locator('#btn-next').click();
 
-    // Etapa 2 — sexo
-    await page.locator('[data-value="M"]').first().click();
-    await page.locator('.btn-next').first().click();
+    // Etapa 2 — objetivo
+    await page.locator('input[name="objetivo"][value="perda_peso"]').check({ force: true });
+    await page.locator('#btn-next').click();
 
-    // Etapa 3 — objetivo
-    await page.locator('[data-value="lose"]').first().click();
-    await page.locator('.btn-next').first().click();
+    // Etapa 3 — nível de atividade
+    await page.locator('input[name="atividade"][value="moderado"]').check({ force: true });
+    await page.locator('#btn-next').click();
 
-    // Etapa 4 — nível de atividade
-    await page.locator('[data-value="moderate"]').first().click();
-    await page.locator('.btn-next').first().click();
+    // Etapa 4 — restrições (mantém padrão onívoro)
+    await page.locator('#btn-next').click();
 
     // Etapa 5 — refeições por dia
-    await page.locator('[data-value="4"]').first().click();
+    await page.locator('#custom-refeicoes .custom-select-trigger').click();
+    await page.locator('#custom-refeicoes .custom-select-option[data-value="4"]').click();
 
-    // Submit
-    const submitBtn = page.locator('#btn-submit');
-    await submitBtn.click();
+    await page.locator('#btn-submit').click();
 
     await expect(page).toHaveURL(/\/dieta\/\?generate=1/, { timeout: 10_000 });
   });
 
 });
 
-test.describe('Rate limiting', () => {
+test.describe('Proteções da API', () => {
 
-  test('/api/v1/auth/login retorna 429 após 5 tentativas com senha errada', async ({ request }) => {
-    const email = `throttle_${Date.now()}@test.com`;
+  test('POST autenticado por cookie sem X-Requested-With é bloqueado (anti-CSRF)', async ({ context }) => {
+    await createAndLoginUser(context);
+    const res = await context.request.post(`${API}/anamnese`, { data: validAnamnese() });
+    expect(res.status()).toBe(403);
+  });
 
-    for (let i = 0; i < 5; i++) {
-      await request.post(`${API}/auth/login`, {
-        data: { email, password: 'senha_errada' },
-      });
+  test('Status de job de outro usuário retorna 404', async ({ browser }) => {
+    const ctxA = await browser.newContext();
+    const ctxB = await browser.newContext();
+    try {
+      await createAndLoginUser(ctxA);
+      await createAndLoginUser(ctxB);
+      // Job inexistente/alheio: nunca vaza informação
+      const res = await ctxB.request.get(`${API}/diet/status/999999`);
+      expect(res.status()).toBe(404);
+    } finally {
+      await ctxA.close();
+      await ctxB.close();
     }
+  });
 
-    const res = await request.post(`${API}/auth/login`, {
-      data: { email, password: 'senha_errada' },
+  test('Respostas trazem Content-Security-Policy', async ({ request }) => {
+    const res = await request.get(`${BASE}/`);
+    expect(res.headers()['content-security-policy']).toContain("default-src 'self'");
+  });
+
+  test('Header anti-CSRF é aceito pela API', async ({ context }) => {
+    await createAndLoginUser(context);
+    const res = await context.request.post(`${API}/anamnese`, {
+      data: validAnamnese(), headers: XHR_HEADERS,
     });
-
-    expect(res.status()).toBe(429);
+    expect(res.status()).toBe(201);
   });
 
 });

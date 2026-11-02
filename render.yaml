@@ -1,18 +1,20 @@
-
 # =============================================================================
 # render.yaml — Infraestrutura como código para o Render
-# Docs: https://render.com/docs/infrastructure-as-code
+# Docs: https://render.com/docs/blueprint-spec
 #
 # Como usar:
 #   1. Faça push deste arquivo para o seu repositório GitHub
 #   2. No Render: New → Blueprint → conecte o repositório
-#   O Render criará o Web Service, o Worker e o Redis.
+#   O Render criará o Web Service, o Worker Celery e o Key Value (Redis).
 #   O PostgreSQL é o Supabase — preencha DATABASE_URL no painel.
+#
+# Variáveis com "sync: false" devem ser preenchidas manualmente no painel
+# (Environment > Add Environment Variable) — NUNCA commite segredos.
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # Web Service — API Django
+  # Web Service — API Django + frontend
   # ---------------------------------------------------------------------------
   - type: web
     name: mynutri-ai-api
@@ -21,10 +23,13 @@ services:
     plan: free            # troque por "starter" para produção real
 
     buildCommand: "./build.sh"
-    startCommand: "gunicorn mynutri.wsgi:application --workers 4 --timeout 300 --log-file -"
+    # O build não alcança o banco interno; migrations rodam no start.
+    # (preDeployCommand seria o ideal, mas não está disponível no plano free.)
+    # 2 workers x 4 threads cabem nos 512 MB do free; timeout 120s cobre a
+    # regeneração de refeição (chamada síncrona à IA) sem prender worker morto.
+    startCommand: "python manage.py migrate --no-input && python manage.py createcachetable && gunicorn mynutri.wsgi:application --workers 2 --threads 4 --timeout 120 --log-file -"
+    healthCheckPath: /health/
 
-    # Variáveis de ambiente — os valores com sync: false devem ser preenchidos
-    # manualmente no painel do Render (Environment > Add Environment Variable)
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.0"
@@ -39,10 +44,13 @@ services:
         sync: false           # Supabase → Connect → Session pooler (porta 5432)
 
       - key: ALLOWED_HOSTS
-        sync: false           # preencha com seu domínio: mynutri-ai.onrender.com
+        sync: false           # seu domínio próprio (o *.onrender.com é incluído automaticamente)
 
       - key: CORS_ALLOWED_ORIGINS
         sync: false           # preencha com a URL do seu frontend
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false           # OAuth client ID do Google (obrigatório)
 
       - key: AI_API_KEY
         sync: false           # sua chave da OpenAI/Gemini — NUNCA commite no git
@@ -51,38 +59,55 @@ services:
         sync: false           # ex: https://api.openai.com/v1/chat/completions
 
       - key: AI_MODEL
-        value: "gpt-3.5-turbo"
+        value: "gpt-4o-mini"
 
       - key: LOG_LEVEL
         value: "WARNING"
 
+      - key: NUM_PROXIES
+        value: "1"            # Render tem 1 proxy reverso na frente da app
+
+      - key: SENTRY_DSN
+        sync: false           # opcional
+
+      # Cache compartilhado (throttle/rate limit) — obrigatório com DEBUG=False
+      - key: CACHE_URL
+        fromService:
+          name: mynutri-redis
+          type: keyvalue
+          property: connectionString
+
       - key: CELERY_BROKER_URL
         fromService:
           name: mynutri-redis
-          type: redis
+          type: keyvalue
           property: connectionString
 
       - key: CELERY_RESULT_BACKEND
         fromService:
           name: mynutri-redis
-          type: redis
+          type: keyvalue
           property: connectionString
 
   # ---------------------------------------------------------------------------
   # Celery Worker — processa geração de dietas em background
+  # Atenção: o Render NÃO oferece plano free para background workers.
   # ---------------------------------------------------------------------------
   - type: worker
     name: mynutri-celery-worker
     runtime: python
     region: ohio
-    plan: free
+    plan: starter
 
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A mynutri worker --loglevel=info --concurrency=2 --without-heartbeat"
+    startCommand: "celery -A mynutri worker --loglevel=info --concurrency=2 --without-heartbeat --without-gossip --without-mingle"
 
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.0"
+
+      - key: DEBUG
+        value: "False"
 
       - key: SECRET_KEY
         fromService:
@@ -93,6 +118,9 @@ services:
       - key: DATABASE_URL
         sync: false           # Supabase → Connect → Session pooler (porta 5432)
 
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
       - key: AI_API_KEY
         sync: false
 
@@ -100,28 +128,39 @@ services:
         sync: false
 
       - key: AI_MODEL
-        value: "gpt-3.5-turbo"
+        value: "gpt-4o-mini"
+
+      - key: SENTRY_DSN
+        sync: false
+
+      - key: CACHE_URL
+        fromService:
+          name: mynutri-redis
+          type: keyvalue
+          property: connectionString
 
       - key: CELERY_BROKER_URL
         fromService:
           name: mynutri-redis
-          type: redis
+          type: keyvalue
           property: connectionString
 
       - key: CELERY_RESULT_BACKEND
         fromService:
           name: mynutri-redis
-          type: redis
+          type: keyvalue
           property: connectionString
 
   # ---------------------------------------------------------------------------
-  # Banco de dados: PostgreSQL hospedado no Supabase (fora do Render).
-  # Configure DATABASE_URL manualmente nos dois serviços acima.
+  # Key Value (Redis) — broker do Celery + cache da aplicação
+  # Um único Redis serve aos dois: as chaves do cache usam KEY_PREFIX "mynutri".
+  # noeviction: o broker não pode perder mensagens da fila; as chaves de cache
+  # (throttle) sempre têm TTL, então não crescem indefinidamente.
   # ---------------------------------------------------------------------------
-databases:
-  # Redis — broker do Celery e cache da aplicação
-  - name: mynutri-redis
-    type: redis
+  - type: keyvalue
+    name: mynutri-redis
     region: ohio
     plan: free
-    maxmemoryPolicy: allkeys-lru
+    maxmemoryPolicy: noeviction
+    ipAllowList: []       # só acessível pela rede privada do Render
+

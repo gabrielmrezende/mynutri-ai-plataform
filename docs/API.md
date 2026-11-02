@@ -373,10 +373,18 @@ Retorna a anamnese mais recente do usuário para pré-preenchimento do question�
 { "error": "Nenhuma anamnese encontrada. Responda o questionário primeiro." }
 ```
 
-**Resposta 429 Too Many Requests:**
+**Resposta 429 Too Many Requests (cota diária — 3 gerações em 24 h; jobs que falharam não contam):**
+```json
+{ "error": "Limite de 3 dietas geradas por dia atingido. Tente novamente amanhã." }
+```
+
+**Resposta 429 Too Many Requests (throttle anti-abuso, 10 requisições/dia):**
 ```json
 { "detail": "Request was throttled. Expected available in 86400 seconds." }
 ```
+
+> Se já existir um job `pending`/`processing` do usuário, o mesmo `job_id` é devolvido (202).
+> Jobs presos são expirados automaticamente: `pending` > 10 min e `processing` > 15 min viram `failed`.
 
 ---
 
@@ -407,9 +415,12 @@ ou
 ```json
 {
   "status": "failed",
-  "error": "Falha ao gerar o plano alimentar via IA, tente novamente mais tarde."
+  "error": "O serviço de IA está instável no momento e não conseguimos gerar sua dieta. Aguarde alguns minutos e tente novamente."
 }
 ```
+
+> `error` contém sempre uma mensagem amigável em português (nunca o texto bruto da exceção).
+> Throttle próprio (`job_status`): 1200 requisições/hora.
 
 ---
 
@@ -433,9 +444,12 @@ ou
       "order": 0
     }
   ],
-  "created_at": "2026-03-31T23:05:00Z"
+  "created_at": "2026-03-31T23:05:00Z",
+  "regenerations_remaining_today": 3
 }
 ```
+
+> `regenerations_remaining_today`: regenerações de refeição ainda disponíveis hoje (dia local) para este plano — também presente em `GET /api/v1/diet/<id>`.
 
 **Resposta 404 Not Found:**
 ```json

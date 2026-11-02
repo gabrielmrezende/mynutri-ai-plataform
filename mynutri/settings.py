@@ -4,7 +4,6 @@ Funciona tanto em desenvolvimento (SQLite + DEBUG=True) quanto em produção (Po
 """
 
 import os
-import logging
 from pathlib import Path
 from datetime import timedelta
 
@@ -20,7 +19,10 @@ load_dotenv(BASE_DIR / '.env')
 # Validação de variáveis obrigatórias
 # =============================================================================
 _REQUIRED_VARS = {
-    'SECRET_KEY': 'Django secret key (gere com: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")',
+    'SECRET_KEY': (
+        'Django secret key (gere com: python -c "from django.core.management.utils '
+        'import get_random_secret_key; print(get_random_secret_key())")'
+    ),
     'AI_API_KEY': 'Chave da API de IA (OpenAI, Gemini, etc.)',
     'AI_API_URL': 'URL do endpoint da API de IA',
     'DATABASE_URL': 'Connection string do Postgres do Supabase (Dashboard → Connect → Session pooler)',
@@ -90,6 +92,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'mynutri.middleware.SecurityHeadersMiddleware',     # CSP + Permissions-Policy + Referrer-Policy
 ]
 
 if DEBUG:
@@ -160,13 +163,24 @@ USE_TZ = True
 # =============================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = (
-    'django.contrib.staticfiles.storage.StaticFilesStorage'
-    if DEBUG else
-    'whitenoise.storage.CompressedManifestStaticFilesStorage'
-)
+# Django 4.2+ usa STORAGES (STATICFILES_STORAGE foi removido no Django 5.1 e é ignorado).
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+            if DEBUG else
+            'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
+    },
+}
 STATICFILES_DIRS = [BASE_DIR / 'frontend']
-WHITENOISE_MAX_AGE = 0 if DEBUG else 31536000
+# Vale para arquivos referenciados SEM hash (o HTML usa /static/src/... direto).
+# Arquivos com hash do manifest são sempre servidos como immutable (1 ano) pelo
+# WhiteNoise. 1 ano aqui deixaria usuários com JS/CSS antigos após cada deploy.
+WHITENOISE_MAX_AGE = 0 if DEBUG else 3600
 
 # =============================================================================
 # Django REST Framework
@@ -185,14 +199,25 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/hour',
-        'user': '60/hour',
-        'diet_generate': '3/day',
+        'user': '300/hour',
+        # Anti-abuso de /diet/generate (conta toda requisição, inclusive falhas).
+        # A cota de negócio (gerações bem-sucedidas/dia) é DIET_GENERATE_DAILY_LIMIT.
+        'diet_generate': '10/day',
+        'job_status': '1200/hour',     # polling a cada 3s do frontend
+        'anamnese': '20/hour',
         'contact': '5/hour',
         'login': '5/minute',
         'change_password': '5/hour',
         'delete_account': '5/hour',
     },
+    # Quantos proxies reversos ficam na frente do Django (Render = 1). O DRF usa
+    # X-Forwarded-For com este valor para achar o IP real no throttle anônimo.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '1')),
 }
+
+# Cota diária de gerações de dieta por usuário (janela de 24h). Jobs que
+# falharam ou expiraram não contam — ver DietGenerateAPIView.
+DIET_GENERATE_DAILY_LIMIT = int(os.getenv('DIET_GENERATE_DAILY_LIMIT', '3'))
 
 # =============================================================================
 # SimpleJWT
@@ -244,10 +269,18 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    # Health check do Render pode chegar via HTTP interno — não redireciona para HTTPS
+    SECURE_REDIRECT_EXEMPT = [r'^health/$']
+
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # =============================================================================
-# Cache — LocMemCache em dev, Redis em prod (via CACHE_URL)
-# Usado pela validação de e-mail e outros módulos que precisam de cache.
+# Cache — Redis (CACHE_URL) quando disponível; senão banco (prod) ou LocMem (dev)
+# Usado pelo throttle do DRF, validação de e-mail e cache de páginas.
+# Em produção o cache PRECISA ser compartilhado entre processos/instâncias:
+# LocMemCache é por processo, então com vários workers gunicorn (ou várias
+# funções serverless no Vercel) o rate limit seria multiplicado. Sem Redis,
+# usa DatabaseCache no Postgres (requer `python manage.py createcachetable`).
 # Para Redis: CACHE_URL=redis://localhost:6379/1
 # =============================================================================
 _cache_url = os.getenv('CACHE_URL', '')
@@ -257,7 +290,15 @@ if _cache_url:
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
             'LOCATION': _cache_url,
             'TIMEOUT': 86400,               # 24 h padrão
-            'OPTIONS': {'MAX_ENTRIES': 5000},
+            'KEY_PREFIX': 'mynutri',        # isola das chaves do Celery no mesmo Redis
+        }
+    }
+elif not DEBUG:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'mynutri_cache',
+            'TIMEOUT': 86400,
         }
     }
 else:
@@ -320,6 +361,10 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
+# Com acks_late, mensagens não confirmadas voltam para a fila após este tempo;
+# precisa ser maior que o time_limit da task (9 min).
+CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 60 * 60}
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1   # tasks longas: não reserva mensagens à toa
 
 # =============================================================================
 # Logging — INFO em dev, WARNING em prod, erros sempre visíveis
@@ -382,8 +427,48 @@ if _sentry_dsn:
     from sentry_sdk.integrations.logging import LoggingIntegration
     import logging as _logging
 
+    # Campos da anamnese/dados de saúde e credenciais que nunca devem sair do servidor
+    _SENTRY_SENSITIVE_KEYS = {
+        'idade', 'sexo', 'peso', 'altura', 'nivel_atividade', 'objetivo',
+        'restricoes', 'food_preferences', 'allergies', 'health_conditions',
+        'meals_per_day', 'reason', 'anamnese', 'raw_response',
+        'password', 'new_password', 'old_password', 'current_password',
+        'token', 'refresh', 'access', 'credential',
+    }
+
+    def _sentry_scrub(value):
+        if isinstance(value, dict):
+            return {
+                k: ('[Filtered]' if str(k).lower() in _SENTRY_SENSITIVE_KEYS else _sentry_scrub(v))
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [_sentry_scrub(v) for v in value]
+        return value
+
+    def _sentry_before_send(event, hint):
+        """Remove corpo de requisição, cookies e dados de anamnese/saúde dos eventos."""
+        request = event.get('request')
+        if isinstance(request, dict):
+            request.pop('data', None)
+            request.pop('cookies', None)
+            headers = request.get('headers')
+            if isinstance(headers, dict):
+                for h in list(headers):
+                    if h.lower() in ('cookie', 'authorization', 'x-csrftoken'):
+                        headers[h] = '[Filtered]'
+        if 'extra' in event:
+            event['extra'] = _sentry_scrub(event['extra'])
+        for exc in (event.get('exception') or {}).get('values', []) or []:
+            for frame in (exc.get('stacktrace') or {}).get('frames', []) or []:
+                if 'vars' in frame:
+                    frame['vars'] = _sentry_scrub(frame['vars'])
+        return event
+
     sentry_sdk.init(
         dsn=_sentry_dsn,
+        before_send=_sentry_before_send,
+        max_request_body_size='never',  # nunca anexa o corpo da requisição
         integrations=[
             DjangoIntegration(),
             CeleryIntegration(),

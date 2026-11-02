@@ -1,0 +1,12 @@
+# Dependências de desenvolvimento, testes e CI (inclui as de produção).
+# Uso: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# ─── Testes ───────────────────────────────────────────────────────────────────
+pytest==9.0.3
+pytest-django==4.12.0
+pytest-cov==7.1.0
+
+# ─── Lint / segurança ─────────────────────────────────────────────────────────
+ruff==0.14.0
+pip-audit==2.9.0
