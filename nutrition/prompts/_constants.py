@@ -32,18 +32,17 @@ ACTIVITY_FACTORS: dict[str, float] = {
     'athlete':   1.9,
 }
 
-# ─── Ajustes calóricos por objetivo (kcal/dia) ───────────────────────────────
-GOAL_ADJUSTMENTS: dict[str, int] = {
-    'lose':     -450,
-    'maintain':    0,
-    'gain':      350,
-}
+# ─── Ajustes calóricos por objetivo ──────────────────────────────────────────
+# Déficit percentual do GET (gasto energético total): 20%, limitado a 750 kcal
+# — mas nunca abaixo de 15% do GET (o teto absoluto só reduz até 15%).
+DEFICIT_PCT       = 0.20
+DEFICIT_MIN_PCT   = 0.15
+DEFICIT_MAX_KCAL  = 750
 
-GOAL_ADJUSTMENT_LABELS: dict[str, str] = {
-    'lose':     'Déficit de 450 kcal (emagrecimento)',
-    'maintain': 'Sem ajuste (manutenção)',
-    'gain':     'Superávit de 350 kcal (ganho de massa)',
-}
+# Superávit percentual do GET: 10%, entre 200 e 500 kcal.
+SURPLUS_PCT       = 0.10
+SURPLUS_MIN_KCAL  = 200
+SURPLUS_MAX_KCAL  = 500
 
 # ─── Calorias mínimas por sexo ────────────────────────────────────────────────
 MIN_CALORIES: dict[str, int] = {
@@ -51,6 +50,27 @@ MIN_CALORIES: dict[str, int] = {
     'F': 1200,
     'O': 1350,
 }
+
+# ─── Teto absoluto da meta calórica (kcal/dia) ───────────────────────────────
+# Acima disso o plano automático deixa de ser razoável (porções enormes).
+MAX_CALORIES = 4500
+
+# ─── Peso de referência para obesidade ───────────────────────────────────────
+# Com IMC > 30, metas por kg usam o peso ajustado:
+#   ideal (IMC 25) + 25% do excesso — evita metas de proteína/gordura absurdas.
+ADJUSTED_WEIGHT_BMI_THRESHOLD = 30.0
+ADJUSTED_WEIGHT_IDEAL_BMI     = 25.0
+ADJUSTED_WEIGHT_EXCESS_FACTOR = 0.25
+
+# ─── Faixas de macros por % das calorias ─────────────────────────────────────
+# Mantidas com folga em relação a services._validate_macro_ratios
+# (carbo ≤ 65%, proteína ≥ 15%, gordura ≥ 15%) para que a meta calculada
+# sempre seja aprovada pelo validador.
+CARBS_MAX_PCT   = 0.60
+PROTEIN_MIN_PCT = 0.16
+PROTEIN_MAX_PCT = 0.40
+FAT_MIN_PCT     = 0.20
+FAT_MAX_PCT     = 0.35
 
 # ─── Distribuição calórica por número de refeições ───────────────────────────
 # Cada entrada: lista de (nome_da_refeição, fração_do_total_diário).

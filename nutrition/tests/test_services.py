@@ -7,6 +7,9 @@ Cobre: _parse_response (markdown, json inválido), _parse_allergens, _food_conta
        _generate_notes (meal_notes parsing), regenerate_meal,
        _enforce_allergies, generate_diet, generate_diet_task (Celery).
 A chamada HTTP (_call_api) é sempre mockada — sem dependência de API externa.
+
+Consolida as classes que antes eram duplicadas em test_services_advanced.py
+(removido) e test_critical.py — cada classe de teste existe em um único lugar.
 """
 
 import json
@@ -101,6 +104,10 @@ def diet_plan(db, anamnese):
 
 def _wrap(content_dict):
     return {'choices': [{'message': {'content': json.dumps(content_dict)}}]}
+
+
+# Alias usado pelos testes consolidados do antigo test_services_advanced.py
+_wrap_api = _wrap
 
 
 # Respostas mínimas para o pipeline completo
@@ -220,6 +227,89 @@ class TestParseAllergens:
         r = _parse_allergens('frutos do mar, leite')
         assert 'frutos do mar' in r
 
+    def test_virgula_como_separador(self):
+        result = _parse_allergens('amendoim, camarão, ovo')
+        assert 'amendoim' in result
+        assert 'camarao' in result
+        assert 'ovo' in result
+
+    def test_ponto_virgula_como_separador(self):
+        result = _parse_allergens('amendoim; camarão')
+        assert 'amendoim' in result
+        assert 'camarao' in result
+
+    def test_quebra_de_linha_adv(self):
+        result = _parse_allergens('amendoim\ncamarão\novo')
+        assert 'amendoim' in result
+
+    def test_conectivo_e_adv(self):
+        result = _parse_allergens('amendoim e camarão')
+        assert 'amendoim' in result
+        assert 'camarao' in result
+
+    def test_normaliza_acentos(self):
+        result = _parse_allergens('Camarão, Peixe')
+        assert 'camarao' in result
+        assert 'peixe' in result
+
+    def test_descarta_curtos_adv(self):
+        # Menos de 3 chars são descartados
+        result = _parse_allergens('a, ab, ovo')
+        assert 'a' not in result
+        assert 'ab' not in result
+        assert 'ovo' in result
+
+    def test_sem_duplicatas_adv(self):
+        result = _parse_allergens('amendoim, amendoim, Amendoim')
+        assert result.count('amendoim') == 1
+
+    def test_espaco_no_inicio_fim_removido(self):
+        result = _parse_allergens('  amendoim  , camarão  ')
+        assert 'amendoim' in result
+        assert 'camarao' in result
+
+    def test_vazio_retorna_lista_vazia(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('') == []
+        assert _parse_allergens('   ') == []
+
+    def test_alergeno_simples(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim') == ['amendoim']
+
+    def test_separador_virgula(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim, leite') == ['amendoim', 'leite']
+
+    def test_separador_ponto_virgula(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim; leite') == ['amendoim', 'leite']
+
+    def test_separador_e(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim e leite') == ['amendoim', 'leite']
+
+    def test_separador_quebra_linha(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim\nleite') == ['amendoim', 'leite']
+
+    def test_remove_acentos_e_caixa(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('Amêndoa, LEITE') == ['amendoa', 'leite']
+
+    def test_alergeno_multipalavra_crit(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('frutos do mar, leite') == ['frutos do mar', 'leite']
+
+    def test_descarta_entradas_curtas(self):
+        from nutrition.services import _parse_allergens
+        # "ov" tem só 2 chars → descartado
+        assert _parse_allergens('ov, amendoim') == ['amendoim']
+
+    def test_dedup(self):
+        from nutrition.services import _parse_allergens
+        assert _parse_allergens('amendoim, AMENDOIM, amendoim') == ['amendoim']
+
 
 # ---------------------------------------------------------------------------
 # _food_contains_allergen
@@ -245,6 +335,85 @@ class TestFoodContainsAllergen:
 
     def test_alimento_vazio_retorna_none(self):
         assert _food_contains_allergen('', ['amendoim']) is None
+
+    def test_none_retorna_none(self):
+        assert _food_contains_allergen(None, ['ovo']) is None
+
+    def test_lista_vazia_retorna_none(self):
+        assert _food_contains_allergen('Ovo cozido', []) is None
+
+    def test_deteccao_por_palavra_inteira(self):
+        result = _food_contains_allergen('Ovo cozido', ['ovo'])
+        assert result == 'ovo'
+
+    def test_word_boundary_evita_falso_positivo_adv(self):
+        # "ovo" não deve casar com "Iogurte"
+        assert _food_contains_allergen('Iogurte natural', ['ovo']) is None
+
+    def test_alergeno_multi_palavra(self):
+        result = _food_contains_allergen('Peito de frango grelhado', ['peito de frango'])
+        assert result == 'peito de frango'
+
+    def test_normaliza_acentos_no_alimento(self):
+        result = _food_contains_allergen('Camarão grelhado', ['camarao'])
+        assert result == 'camarao'
+
+    def test_retorna_alergeno_especifico(self):
+        result = _food_contains_allergen('Atum em lata', ['salmao', 'atum', 'camarao'])
+        assert result == 'atum'
+
+    def test_string_vazia_retorna_none(self):
+        assert _food_contains_allergen('', ['ovo']) is None
+
+    def test_sem_alergenos_retorna_none_crit(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Frango grelhado', []) is None
+
+    def test_alimento_vazio_retorna_none_crit(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('', ['amendoim']) is None
+
+    def test_match_palavra_exata_crit(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Pasta de amendoim', ['amendoim']) == 'amendoim'
+
+    def test_match_inicio_palavra(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Amendoim torrado', ['amendoim']) == 'amendoim'
+
+    def test_match_com_acento_no_alimento(self):
+        from nutrition.services import _food_contains_allergen
+        # "amêndoa" no alimento, "amendoa" como allergeno normalizado
+        assert _food_contains_allergen('Amêndoa fatiada', ['amendoa']) == 'amendoa'
+
+    def test_word_boundary_evita_falso_positivo_crit(self):
+        """'novo' não deve casar com 'ovo'."""
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Prato novo', ['ovo']) is None
+        # Mas 'ovo' como palavra deve casar
+        assert _food_contains_allergen('Ovo cozido', ['ovo']) == 'ovo'
+
+    def test_word_boundary_evita_substring_palavra(self):
+        """'amendoinzinho' não deveria existir, mas se existisse, não casa."""
+        from nutrition.services import _food_contains_allergen
+        # 'amendoado' contém 'amendo' mas não 'amendoim' → sem match
+        assert _food_contains_allergen('Sabor amendoado', ['amendoim']) is None
+
+    def test_match_alergeno_multipalavra(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Sopa de frutos do mar',
+                                       ['frutos do mar']) == 'frutos do mar'
+
+    def test_match_primeiro_alergeno_da_lista(self):
+        from nutrition.services import _food_contains_allergen
+        # Alimento com dois alergenos — retorna o primeiro encontrado
+        result = _food_contains_allergen('Pão com leite e amendoim',
+                                         ['amendoim', 'leite'])
+        assert result in ('amendoim', 'leite')
+
+    def test_alimento_seguro_retorna_none(self):
+        from nutrition.services import _food_contains_allergen
+        assert _food_contains_allergen('Frango grelhado', ['amendoim', 'leite']) is None
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +443,56 @@ class TestRoundFoodQuantity:
 
     def test_iogurte_minimo_100(self):
         assert _round_food_quantity('Iogurte natural', 50) >= 100
+
+    def test_oleo_minimo_5(self):
+        assert _round_food_quantity("Azeite", 2) >= 5
+
+    def test_ovo_multiplo_de_50_adv(self):
+        result = _round_food_quantity("Ovo cozido", 55)
+        assert result % 50 == 0
+
+    def test_tapioca_multiplo_de_20(self):
+        result = _round_food_quantity("Tapioca", 70)
+        assert result % 20 == 0
+
+    def test_frango_multiplo_de_25(self):
+        result = _round_food_quantity("Frango grelhado", 123)
+        assert result % 25 == 0
+
+    def test_frango_minimo_50(self):
+        result = _round_food_quantity("Frango grelhado", 20)
+        assert result >= 50
+
+    def test_arroz_multiplo_de_50_adv(self):
+        result = _round_food_quantity("Arroz cozido", 133)
+        assert result % 50 == 0
+
+    def test_aveia_multiplo_de_10(self):
+        result = _round_food_quantity("Aveia em flocos", 32)
+        assert result % 10 == 0
+
+    def test_alimento_desconhecido_pequeno(self):
+        # ≤50g: múltiplos de 5
+        result = _round_food_quantity("Kimchi", 23)
+        assert result % 5 == 0
+
+    def test_alimento_desconhecido_medio(self):
+        # ≤200g: múltiplos de 25
+        result = _round_food_quantity("Kimchi", 133)
+        assert result % 25 == 0
+
+    def test_alimento_desconhecido_grande(self):
+        # >200g: múltiplos de 50
+        result = _round_food_quantity("Kimchi", 333)
+        assert result % 50 == 0
+
+    def test_castanha_multiplo_de_10(self):
+        result = _round_food_quantity("Castanha de caju", 23)
+        assert result % 10 == 0
+
+    def test_iogurte_minimo_100_adv(self):
+        result = _round_food_quantity("Iogurte natural", 50)
+        assert result >= 100
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +531,63 @@ class TestHouseholdMeasure:
     def test_alimento_desconhecido_retorna_string(self):
         assert isinstance(_household_measure('Kimchi', 100), str)
 
+    def test_arroz_colheres_adv(self):
+        result = _household_measure("Arroz cozido", 150)
+        assert 'col' in result
+
+    def test_frango_file_adv(self):
+        result = _household_measure("Frango grelhado", 130)
+        assert 'filé' in result or 'file' in result
+
+    def test_ovo_unidades_adv(self):
+        result = _household_measure("Ovo cozido", 100)
+        assert 'unidade' in result
+
+    def test_clara_claras(self):
+        result = _household_measure("Clara de ovo", 66)
+        assert 'clara' in result
+
+    def test_azeite_colher_adv(self):
+        result = _household_measure("Azeite de oliva", 10)
+        assert 'col' in result
+
+    def test_leite_copo_adv(self):
+        result = _household_measure("Leite desnatado", 200)
+        assert 'copo' in result
+
+    def test_iogurte_pote_adv(self):
+        result = _household_measure("Iogurte natural", 200)
+        assert 'pote' in result
+
+    def test_banana_unidade(self):
+        result = _household_measure("Banana prata", 100)
+        assert 'banana' in result
+
+    def test_tapioca_unidade_adv(self):
+        result = _household_measure("Tapioca", 80)
+        assert 'tapioca' in result
+
+    def test_feijao_concha_adv(self):
+        result = _household_measure("Feijão cozido", 80)
+        assert 'concha' in result
+
+    def test_atum_lata_adv(self):
+        result = _household_measure("Atum em água", 85)
+        assert 'lata' in result
+
+    def test_alimento_desconhecido_retorna_string_adv(self):
+        # Pode ser string vazia
+        result = _household_measure("Kimchi fermentado", 100)
+        assert isinstance(result, str)
+
+    def test_batata_doce_unidade(self):
+        result = _household_measure("Batata doce cozida", 150)
+        assert 'unid' in result
+
+    def test_pao_unidade(self):
+        result = _household_measure("Pão integral", 50)
+        assert 'unidade' in result
+
 
 # ---------------------------------------------------------------------------
 # _validate_macro_ratios
@@ -345,6 +621,47 @@ class TestValidateMacroRatios:
     def test_zero_calorias_nao_levanta(self, ai_service, anamnese):
         ai_service._validate_macro_ratios({'calories': 0, 'macros': {}}, anamnese, 1800)
 
+    def test_macros_validos_nao_levanta_adv(self, ai_service, anamnese):
+        # 150P / 200C / 60G para 75kg
+        diet = self._diet(150, 200, 60)
+        target = 1800
+        ai_service._validate_macro_ratios(diet, anamnese, target)  # não deve levantar
+
+    def test_carboidratos_excessivos_levanta_adv(self, ai_service, anamnese):
+        # 80% de carbs — deve levantar
+        diet = self._diet(50, 350, 30)
+        with pytest.raises(MacroImbalanceError, match='carboidrato'):
+            ai_service._validate_macro_ratios(diet, anamnese, 1800)
+
+    def test_proteina_insuficiente_pct_levanta(self, ai_service, anamnese):
+        # Proteína < 15% das calorias
+        diet = self._diet(20, 300, 80)
+        with pytest.raises(MacroImbalanceError, match='proteína'):
+            ai_service._validate_macro_ratios(diet, anamnese, 1800)
+
+    def test_gordura_insuficiente_pct_levanta(self, ai_service, anamnese):
+        # Gordura < 15% das calorias
+        diet = self._diet(150, 300, 10)
+        with pytest.raises(MacroImbalanceError, match='gordura'):
+            ai_service._validate_macro_ratios(diet, anamnese, 1800)
+
+    def test_gordura_excessiva_por_kg_levanta_adv(self, ai_service, anamnese):
+        # 75kg × 1.2 = 90g teto → fat_g = 120 excede
+        diet = self._diet(150, 150, 120)
+        with pytest.raises(MacroImbalanceError):
+            ai_service._validate_macro_ratios(diet, anamnese, 2000)
+
+    def test_proteina_abaixo_65pct_meta_levanta(self, ai_service, anamnese):
+        # Meta proteica para 75kg/lose = 150g; 60% é 90g
+        diet = self._diet(90, 250, 60)
+        with pytest.raises(MacroImbalanceError):
+            ai_service._validate_macro_ratios(diet, anamnese, 1800)
+
+    def test_zero_calorias_nao_levanta_adv(self, ai_service, anamnese):
+        # Se total=0, skip validação (plano inválido já foi tratado antes)
+        diet = {'calories': 0, 'macros': {'protein_g': 0, 'carbs_g': 0, 'fat_g': 0}}
+        ai_service._validate_macro_ratios(diet, anamnese, 1800)  # não deve levantar
+
 
 # ---------------------------------------------------------------------------
 # _check_db_coverage
@@ -377,6 +694,52 @@ class TestCheckDbCoverage:
     def test_mensagem_inclui_nomes(self, service, anamnese):
         with pytest.raises(NutritionDataGap, match='Coxinha'):
             service._check_db_coverage({'total': 4, 'exact': 2, 'generic': 2, 'generic_names': ['Coxinha', 'Pão de queijo']}, anamnese)
+
+    @pytest.fixture
+    def anamnese(self, create_user):
+        user = create_user()
+        return Anamnese.objects.create(
+            user=user, age=30, gender='M', weight_kg=80, height_cm=180,
+            activity_level='moderate', goal='maintain', meals_per_day=3,
+        )
+
+    def test_zero_generic_nao_levanta(self, service, anamnese):
+        stats = {'total': 10, 'exact': 8, 'fuzzy': 2, 'generic': 0, 'generic_names': []}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_um_generic_em_5_nao_levanta_crit(self, service, anamnese):
+        """1 alimento exótico em 5 (20%) — count < 2, não levanta."""
+        stats = {'total': 5, 'exact': 4, 'generic': 1, 'generic_names': ['exotic']}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_dois_generic_em_5_levanta_crit(self, service, anamnese):
+        """2/5 = 40% — count ≥ 2 e ratio ≥ 20%, deve levantar."""
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 5, 'exact': 3, 'generic': 2,
+                'generic_names': ['exotic1', 'exotic2']}
+        with pytest.raises(NutritionDataGap, match='Cobertura nutricional'):
+            service._check_db_coverage(stats, anamnese)
+
+    def test_dois_generic_em_15_nao_levanta_crit(self, service, anamnese):
+        """2/15 = 13% — ratio < 20%, não levanta."""
+        stats = {'total': 15, 'exact': 13, 'generic': 2,
+                'generic_names': ['exotic1', 'exotic2']}
+        service._check_db_coverage(stats, anamnese)  # não levanta
+
+    def test_tres_generic_em_15_levanta_crit(self, service, anamnese):
+        """3/15 = 20% — exatamente no limite, levanta."""
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 15, 'exact': 12, 'generic': 3,
+                'generic_names': ['e1', 'e2', 'e3']}
+        with pytest.raises(NutritionDataGap):
+            service._check_db_coverage(stats, anamnese)
+
+    def test_mensagem_inclui_nomes_crit(self, service, anamnese):
+        from nutrition.services import NutritionDataGap
+        stats = {'total': 4, 'exact': 2, 'generic': 2,
+                'generic_names': ['Coxinha', 'Pão de queijo']}
+        with pytest.raises(NutritionDataGap, match='Coxinha'):
+            service._check_db_coverage(stats, anamnese)
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +781,54 @@ class TestEnforceAllergies:
             ]}]}, ana)
         msg = str(exc.value)
         assert 'atum' in msg and 'camarao' in msg
+
+    def test_sem_alergias_passa_adv(self, ai_service, anamnese):
+        diet_data = {"meals": [{"name": "Almoço", "foods": [
+            {"name": "Frango grelhado"}
+        ]}]}
+        ai_service._enforce_allergies(diet_data, anamnese)  # sem exceção
+
+    def test_alergia_detectada_levanta_adv(self, db, create_user, ai_service):
+        user = create_user('allergy2@teste.com')
+        ana = Anamnese.objects.create(
+            user=user, age=25, gender='M', weight_kg=75, height_cm=175,
+            activity_level='moderate', goal='lose', meals_per_day=3,
+            allergies='amendoim'
+        )
+        diet_data = {"meals": [{"name": "Lanche", "foods": [
+            {"name": "Pasta de amendoim"}
+        ]}]}
+        with pytest.raises(AllergenViolation, match='amendoim'):
+            ai_service._enforce_allergies(diet_data, ana)
+
+    def test_alimento_similar_nao_dispara_word_boundary(self, db, create_user, ai_service):
+        # "ovo" não deve casar com "iogurte" (sem word boundary)
+        user = create_user('boundary@teste.com')
+        ana = Anamnese.objects.create(
+            user=user, age=25, gender='M', weight_kg=75, height_cm=175,
+            activity_level='moderate', goal='lose', meals_per_day=3,
+            allergies='ovo'
+        )
+        diet_data = {"meals": [{"name": "Café", "foods": [
+            {"name": "Iogurte natural"}
+        ]}]}
+        ai_service._enforce_allergies(diet_data, ana)  # não deve levantar
+
+    def test_multiplas_violacoes_todas_listadas(self, db, create_user, ai_service):
+        user = create_user('multi_allergy@teste.com')
+        ana = Anamnese.objects.create(
+            user=user, age=25, gender='M', weight_kg=75, height_cm=175,
+            activity_level='moderate', goal='lose', meals_per_day=3,
+            allergies='atum, camarão'
+        )
+        diet_data = {"meals": [
+            {"name": "Almoço", "foods": [{"name": "Atum em lata"}, {"name": "Camarão grelhado"}]}
+        ]}
+        with pytest.raises(AllergenViolation) as exc_info:
+            ai_service._enforce_allergies(diet_data, ana)
+        msg = str(exc_info.value)
+        assert 'atum' in msg
+        assert 'camarao' in msg
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +883,93 @@ class TestGenerateNotesMealNotesMapping:
             r = ai_service._generate_notes({'meals': self._meals(), 'calories': 2000}, anamnese, 2000)
         assert 0 not in r['meal_notes']
         assert r['meal_notes'].get(1) == 'Nota válida'
+
+    def _make_diet_data(self, meals=None):
+        if meals is None:
+            meals = [
+                {"name": "Café da manhã", "foods": []},
+                {"name": "Almoço", "foods": []},
+                {"name": "Jantar", "foods": []},
+            ]
+        return {"meals": meals, "calories": 2000}
+
+    def test_chave_nome_mapeia_corretamente_adv(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        api_resp = _wrap_api({
+            "tips": ["Dica 1"],
+            "meal_notes": {
+                "Café da manhã": "Nota do café",
+                "Almoço": "Nota do almoço",
+            }
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert result['meal_notes'][0] == "Nota do café"
+        assert result['meal_notes'][1] == "Nota do almoço"
+
+    def test_chave_numerica_0_based_adv(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        api_resp = _wrap_api({
+            "tips": [],
+            "meal_notes": {"0": "Nota índice 0", "2": "Nota índice 2"}
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert result['meal_notes'].get(0) == "Nota índice 0"
+        assert result['meal_notes'].get(2) == "Nota índice 2"
+
+    def test_chave_numerica_1_based(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        # "3" excede len(meals)=3 como 0-based (inválido), mas 1-based → índice 2 (válido).
+        # "1" é válido 0-based → índice 1 (testa o caso ambíguo que cai em 0-based primeiro).
+        api_resp = _wrap_api({
+            "tips": [],
+            "meal_notes": {"3": "Nota refeição 3"}
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        # "3" não é válido 0-based (len=3, idx=3 fora), mas é válido 1-based → índice 2
+        assert result['meal_notes'].get(2) == "Nota refeição 3"
+
+    def test_tips_viram_notes_formatadas_adv(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        api_resp = _wrap_api({
+            "tips": ["Dica A", "Dica B"],
+            "meal_notes": {}
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert result['notes'] is not None
+        assert '• Dica A' in result['notes']
+        assert '• Dica B' in result['notes']
+
+    def test_api_falha_retorna_silenciosamente_adv(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        with patch.object(ai_service, '_call_api', side_effect=Exception("API Error")):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert result['notes'] is None
+        assert result['meal_notes'] == {}
+
+    def test_nota_vazia_ignorada_adv(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        api_resp = _wrap_api({
+            "tips": [],
+            "meal_notes": {"Café da manhã": "", "Almoço": "Nota válida"}
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert 0 not in result['meal_notes']  # string vazia ignorada
+        assert result['meal_notes'].get(1) == "Nota válida"
+
+    def test_nota_nao_string_ignorada(self, ai_service, anamnese):
+        diet_data = self._make_diet_data()
+        api_resp = _wrap_api({
+            "tips": [],
+            "meal_notes": {"Café da manhã": 42, "Almoço": "Nota válida"}
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service._generate_notes(diet_data, anamnese, 2000)
+        assert 0 not in result['meal_notes']  # int ignorado
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +1045,112 @@ class TestRegenerateMeal:
         })):
             with pytest.raises(AllergenViolation):
                 ai_service.regenerate_meal(plan, meal_index=0)
+
+    def _new_meal_response(self):
+        return {
+            "name": "Almoço",
+            "time_suggestion": "12:00",
+            "foods": [
+                {"name": "Tilápia grelhada", "quantity_g": 130, "quantity_text": "130g"},
+                {"name": "Batata doce cozida", "quantity_g": 150, "quantity_text": "150g"},
+            ],
+            "meal_notes": "Dica sobre a refeição."
+        }
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_retorna_dict_com_chaves_corretas(self, mock_lookup, ai_service, diet_plan):
+        mock_lookup.return_value = {
+            'calories': 180, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 5, '_source': 'exact'
+        }
+        api_resp = _wrap_api(self._new_meal_response())
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service.regenerate_meal(diet_plan, meal_index=1)
+
+        assert 'new_raw_meal' in result
+        assert 'new_description' in result
+        assert 'new_calories' in result
+        assert 'new_meal_name' in result
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_new_meal_name_inclui_horario(self, mock_lookup, ai_service, diet_plan):
+        mock_lookup.return_value = {
+            'calories': 180, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 5, '_source': 'exact'
+        }
+        api_resp = _wrap_api(self._new_meal_response())
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service.regenerate_meal(diet_plan, meal_index=1)
+
+        assert '12:00' in result['new_meal_name']
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_description_contem_bullet_points(self, mock_lookup, ai_service, diet_plan):
+        mock_lookup.return_value = {
+            'calories': 180, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 5, '_source': 'exact'
+        }
+        api_resp = _wrap_api(self._new_meal_response())
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service.regenerate_meal(diet_plan, meal_index=1)
+
+        assert '•' in result['new_description']
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_alimentos_sem_foods_levanta(self, mock_lookup, ai_service, diet_plan):
+        api_resp = _wrap_api({"name": "Almoço", "foods": []})
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            with pytest.raises(TransientAIError):
+                ai_service.regenerate_meal(diet_plan, meal_index=1)
+
+    @patch('nutrition.services.lookup_food_nutrition')
+    def test_preserve_nome_se_ia_omite(self, mock_lookup, ai_service, diet_plan):
+        mock_lookup.return_value = {
+            'calories': 180, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 5, '_source': 'exact'
+        }
+        # IA não retorna 'name'
+        api_resp = _wrap_api({
+            "time_suggestion": "12:00",
+            "foods": [{"name": "Tilápia", "quantity_g": 130, "quantity_text": "130g"}]
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            result = ai_service.regenerate_meal(diet_plan, meal_index=1)
+        # Nome deve vir do plano original
+        assert 'Almoço' in result['new_meal_name']
+
+    def test_alergia_em_nova_refeicao_levanta_adv(self, db, create_user, ai_service):
+        user = create_user('alergia@teste.com')
+        ana = Anamnese.objects.create(
+            user=user, age=25, gender='M', weight_kg=75, height_cm=175,
+            activity_level='moderate', goal='lose', meals_per_day=3,
+            allergies='camarão',
+        )
+        plan = DietPlan.objects.create(
+            user=user, anamnese=ana,
+            raw_response={"meals": [
+                {"name": "Jantar", "time_suggestion": "19:00", "foods": [
+                    {"name": "Frango", "quantity_g": 130}
+                ]}
+            ]},
+            total_calories=400
+        )
+        Meal.objects.create(diet_plan=plan, meal_name="Jantar", description="...", calories=400, order=0)
+
+        api_resp = _wrap_api({
+            "name": "Jantar",
+            "time_suggestion": "19:00",
+            "foods": [{"name": "Camarão grelhado", "quantity_g": 130, "quantity_text": "130g"}]
+        })
+        with patch.object(ai_service, '_call_api', return_value=api_resp):
+            with pytest.raises(AllergenViolation):
+                ai_service.regenerate_meal(plan, meal_index=0)
+
+    def test_sem_anamnese_levanta_adv(self, db, create_user, ai_service):
+        user = create_user('sem_ana@teste.com')
+        plan = DietPlan.objects.create(
+            user=user, anamnese=None,
+            raw_response={"meals": [{"name": "Almoço", "foods": [{"name": "Frango", "quantity_g": 130}]}]},
+            total_calories=400
+        )
+        with pytest.raises(ValueError, match='anamnese'):
+            ai_service.regenerate_meal(plan, meal_index=0)
 
 
 # ---------------------------------------------------------------------------

@@ -7,15 +7,23 @@ Cobre: calculate_calories (Mifflin-St Jeor), calculate_macros (3 passos),
 Testes puramente unitários — sem banco de dados (exceto TestNutritionDB que usa o arquivo TACO).
 """
 
+import itertools
+
 import pytest
 from unittest.mock import MagicMock, patch
 
 from nutrition.prompts import calculate_calories, calculate_macros, build_meal_distribution_hint
+from nutrition.prompts._calculations import calculate_energy_plan, reference_weight
 from nutrition.prompts._constants import (
     ACTIVITY_FACTORS,
-    GOAL_ADJUSTMENTS,
+    DEFICIT_MAX_KCAL,
+    DEFICIT_PCT,
+    MAX_CALORIES,
     MEAL_PLANS,
     MIN_CALORIES,
+    SURPLUS_MAX_KCAL,
+    SURPLUS_MIN_KCAL,
+    SURPLUS_PCT,
     PROTEIN_MIN_PER_KG,
     PROTEIN_MAX_PER_KG,
     FAT_MIN_PER_KG,
@@ -86,9 +94,18 @@ class TestCalculateCalories:
         tmb, tdee, _ = calculate_calories(_anamnese(activity='athlete', goal='maintain'))
         assert abs(tdee - tmb * 1.9) <= 2
 
-    def test_objetivo_emagrecer_aplica_deficit(self):
+    def test_objetivo_emagrecer_aplica_deficit_percentual(self):
         _, tdee, target = calculate_calories(_anamnese(activity='moderate', goal='lose'))
-        assert target == max(round(tdee - 450), 1500)
+        deficit = min(tdee * DEFICIT_PCT, max(DEFICIT_MAX_KCAL, tdee * 0.15))
+        assert abs(target - max(round(tdee - deficit), 1500)) <= 1
+
+    def test_deficit_fica_entre_15_e_20_pct_do_get(self):
+        for weight, activity in [(60, 'sedentary'), (80, 'moderate'), (110, 'athlete')]:
+            plan = calculate_energy_plan(_anamnese(weight, 180, 30, 'M', activity, 'lose'))
+            if plan['warnings']:
+                continue  # piso mínimo limitou o déficit
+            pct = (plan['tdee'] - plan['target_calories']) / plan['tdee']
+            assert 0.12 <= pct <= 0.201, (weight, activity, pct)
 
     def test_objetivo_manutencao_sem_ajuste(self):
         _, tdee, target = calculate_calories(_anamnese(activity='moderate', goal='maintain'))
@@ -96,7 +113,8 @@ class TestCalculateCalories:
 
     def test_objetivo_ganho_aplica_superavit(self):
         _, tdee, target = calculate_calories(_anamnese(activity='moderate', goal='gain'))
-        assert target == round(tdee + 350)
+        surplus = max(SURPLUS_MIN_KCAL, min(SURPLUS_MAX_KCAL, tdee * SURPLUS_PCT))
+        assert abs(target - round(tdee + surplus)) <= 1
 
     def test_piso_seguranca_masculino_1500_kcal(self):
         _, _, target = calculate_calories(_anamnese(40, 150, 60, 'M', 'sedentary', 'lose'))
@@ -145,8 +163,106 @@ class TestCalculateCalories:
 
 
 # ---------------------------------------------------------------------------
-# calculate_macros — 3 passos: proteína, gordura, carboidrato
+# calculate_energy_plan — déficit limitado, piso e teto
 # ---------------------------------------------------------------------------
+
+class TestEnergyPlan:
+
+    def test_piso_maior_que_get_nao_rotula_como_deficit(self):
+        # Mulher 45kg, 150cm, 70 anos, sedentária: GET ≈ 1060 < piso de 1200
+        plan = calculate_energy_plan(_anamnese(45, 150, 70, 'F', 'sedentary', 'lose'))
+        assert plan['tdee'] <= MIN_CALORIES['F']
+        assert plan['effective_goal'] == 'maintain'
+        # Meta de manutenção, respeitando o piso mínimo de segurança (nunca déficit)
+        assert plan['adjustment_kcal'] >= 0
+        assert plan['target_calories'] == max(plan['tdee'], MIN_CALORIES['F'])
+        assert 'déficit' not in plan['adjustment_label'].lower()
+        assert plan['warnings']
+
+    def test_piso_limita_deficit_e_sinaliza(self):
+        # GET ligeiramente acima do piso: o déficit é reduzido, não anulado
+        plan = calculate_energy_plan(_anamnese(55, 160, 60, 'F', 'sedentary', 'lose'))
+        assert plan['tdee'] > MIN_CALORIES['F']
+        assert plan['target_calories'] >= MIN_CALORIES['F']
+        if plan['tdee'] * (1 - DEFICIT_PCT) < MIN_CALORIES['F']:
+            assert plan['warnings']
+            assert plan['effective_goal'] == 'lose'
+
+    def test_teto_absoluto_de_calorias(self):
+        plan = calculate_energy_plan(_anamnese(200, 210, 18, 'M', 'athlete', 'gain'))
+        assert plan['target_calories'] <= MAX_CALORIES
+        assert plan['warnings']
+
+    def test_calculate_calories_coerente_com_energy_plan(self):
+        a = _anamnese()
+        plan = calculate_energy_plan(a)
+        assert calculate_calories(a) == (plan['tmb'], plan['tdee'], plan['target_calories'])
+
+    def test_label_reflete_deficit_calculado(self):
+        plan = calculate_energy_plan(_anamnese(goal='lose'))
+        assert str(-plan['adjustment_kcal']) in plan['adjustment_label']
+
+
+class TestReferenceWeight:
+
+    def test_imc_normal_usa_peso_real(self):
+        assert reference_weight(_anamnese(75, 175)) == 75
+
+    def test_imc_acima_de_30_usa_peso_ajustado(self):
+        # 130kg, 175cm → IMC 42; ideal(IMC 25) = 76.6; ajustado = 76.6 + 0.25×53.4
+        ref = reference_weight(_anamnese(130, 175))
+        assert 88 < ref < 91
+
+    def test_proteina_obeso_usa_peso_ajustado(self):
+        a = _anamnese(130, 175, 40, 'M', 'sedentary', 'lose')
+        _, _, t = calculate_calories(a)
+        m = calculate_macros(a, t)
+        # 2.0 g/kg × 130kg seriam 260g; com peso ajustado fica bem abaixo
+        assert m['protein_g'] < 200
+
+
+# ---------------------------------------------------------------------------
+# Propriedade: as metas do backend SEMPRE passam no validador de macros
+# ---------------------------------------------------------------------------
+
+def _grid():
+    ages = (18, 30, 50, 80)
+    weights = (40, 55, 70, 90, 120, 160, 200)
+    heights = (150, 165, 180, 200)
+    for age, w, h, sex, act, goal in itertools.product(
+        ages, weights, heights, ('M', 'F', 'O'), tuple(ACTIVITY_FACTORS), ('lose', 'maintain', 'gain'),
+    ):
+        bmi = w / (h / 100) ** 2
+        if bmi < 16 or bmi > 70:
+            continue  # rejeitado pelo serializer
+        if goal == 'lose' and bmi < 18.5:
+            continue  # rejeitado pelo serializer
+        yield age, w, h, sex, act, goal
+
+
+class TestMacroTargetsPassValidator:
+
+    def test_grade_completa(self):
+        service = AIService()
+        checked = 0
+        for age, w, h, sex, act, goal in _grid():
+            a = _anamnese(w, h, age, sex, act, goal)
+            a.user_id = 1
+            _, _, target = calculate_calories(a)
+            m = calculate_macros(a, target)
+            total = m['protein_g'] * 4 + m['carbs_g'] * 4 + m['fat_g'] * 9
+            plan = {
+                'calories': total,
+                'macros': {'protein_g': m['protein_g'], 'carbs_g': m['carbs_g'], 'fat_g': m['fat_g']},
+            }
+            ctx = (age, w, h, sex, act, goal, m, target)
+            assert abs(total - target) <= 10, ctx
+            assert m['carbs_g'] * 4 / total <= 0.605, ctx
+            assert 0.199 <= m['fat_g'] * 9 / total <= 0.355, ctx
+            assert m['protein_g'] * 4 / total >= 0.15, ctx
+            service._validate_macro_ratios(plan, a, target)  # não pode levantar
+            checked += 1
+        assert checked > 500
 
 class TestCalculateMacros:
 

@@ -1,362 +1,67 @@
 """
-Arquitetura de dois passos para geração de dietas:
+Arquitetura de geração de dietas em passos:
 
-  Passo 1 — LLM (temp=0.3): seleciona alimentos e quantidades (sem macros)
-  Backend:  consulta nutrition_db.py e calcula macros deterministicamente
-  Passo 2 — LLM (temp=0.7): escreve explicação usando os valores calculados
+  Passo 1 — LLM (temp=0.55): seleciona alimentos e quantidades (sem macros)
+  Backend:  consulta nutrition_db.py e calcula macros deterministicamente;
+            aplica alergias/restrições, ajusta porções e valida macros
+  Passos 2+3 — LLM (temp=0.7, em paralelo): dicas e explicação usando os
+            valores calculados
 
 Isso elimina a variabilidade de macros causada por delegar aritmética ao modelo.
 """
 
-import json
 import logging
-import os
-import re
-import time
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .models import Anamnese, DietPlan, Meal
-import unicodedata
 
+# ── Módulos extraídos de services.py ─────────────────────────────────────────
+#   ai_client.py  — HTTP da API de IA (retry, parse da resposta)
+#   errors.py     — hierarquia de exceções
+#   allergens.py  — alergias e restrições alimentares
+#   portions.py   — palavras-chave, arredondamento e medidas caseiras
+#   validators.py — estrutura do JSON do LLM e proporções de macros
+# Os nomes abaixo são re-exportados para manter os imports existentes
+# (views, tasks, testes e patches com caminho 'nutrition.services.X').
+from .ai_client import AIClient
+from .allergens import (  # noqa: F401
+    declared_allergens as _declared_allergens,
+    declared_restrictions as _declared_restrictions,
+    food_contains_allergen,
+    food_violates_restriction,
+    parse_allergens,
+    parse_restrictions,
+)
+from .errors import (  # noqa: F401
+    AllergenViolation,
+    DietGenerationError,
+    MacroImbalanceError,
+    NutritionDataGap,
+    PermanentAIError,
+    RestrictionViolation,
+    TransientAIError,
+)
 from .nutrition_db import lookup_food_nutrition
-
-# Palavras-chave que identificam fontes proteicas primárias.
-# Usadas em _adjust_to_calorie_target para preservar porções de proteína.
-_PROTEIN_KEYWORDS = frozenset([
-    'frango', 'carne', 'peixe', 'atum', 'salmao', 'tilapia', 'merluza',
-    'bacalhau', 'sardinha', 'camarao', 'robalo', 'ovo', 'ovos', 'clara',
-    'whey', 'proteina', 'feijao', 'lentilha', 'tofu', 'soja',
-    'patinho', 'alcatra', 'picanha', 'file', 'musculo', 'contrafile',
-    'acem', 'lagarto', 'peru', 'presunto', 'queijo', 'iogurte', 'cottage',
-])
-
-# Palavras-chave que identificam alimentos densos em gordura.
-# Usadas em _adjust_to_calorie_target para evitar que escalas grandes
-# multipliquem óleos/castanhas/manteiga a porções absurdas.
-_FAT_KEYWORDS = frozenset([
-    'azeite', 'oleo', 'manteiga', 'margarina', 'creme',
-    'castanha', 'nozes', 'amendoim', 'amendoa', 'pasta amendoim',
-    'abacate', 'coco', 'bacon', 'banha', 'toucinho',
-])
-
-# Bebidas de calorias zero ou negligenciáveis — nunca devem ser escaladas
-# para compensar déficit calórico de outros alimentos.
-_ZERO_CALORIE_KEYWORDS = frozenset([
-    'refrigerante zero', 'refrigerante diet', 'refrigerante light',
-    'coca zero', 'coca cola zero', 'pepsi zero', 'guarana zero',
-    'bebida zero', 'agua', 'cha verde', 'cha', 'cafe preto', 'cafe',
-])
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  ARREDONDAMENTO DE PORÇÕES — medidas práticas de consumo
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# Regras: (frozenset de palavras-chave, múltiplo de arredondamento, mínimo)
-#
-# A ordem importa: a primeira regra que casar é usada.
-# Palavras-chave são testadas como substring no nome normalizado (sem acentos).
-
-_ROUNDING_RULES: list[tuple[frozenset, int, int]] = [
-    # Óleos e gorduras puras: colher de chá = 5g
-    (frozenset(['azeite', 'oleo', 'manteiga', 'margarina', 'banha']),        5,   5),
-    # Proteína em pó, aveia, farinha, granola: colher de sopa ≈ 10g
-    (frozenset(['aveia', 'whey', 'farinha', 'granola', 'cereal']),          10,  10),
-    # Castanhas e oleaginosas: porção = 10g
-    (frozenset(['castanha', 'amendoa', 'noze', 'pasta amendoim']),          10,  10),
-    # Amendoim (inteiro): punhado ≈ 15g
-    (frozenset(['amendoim torrado', 'amendoim']),                            15,  15),
-    # Tapioca: meia tapioca ≈ 40g, inteira ≈ 80g → múltiplo de 20
-    (frozenset(['tapioca']),                                                 20,  20),
-    # Queijo e laticínios sólidos: fatia ≈ 30g
-    (frozenset(['queijo', 'requeijao', 'cottage']),                         30,  30),
-    # Ovos: 1 ovo médio ≈ 50g (para arredondar 1, 2, 3 ovos)
-    (frozenset(['ovo', 'ovos', 'clara', 'omelete']),                        50,  50),
-    # Embutidos e pão: fatia/unidade ≈ 25g
-    (frozenset(['pao', 'presunto', 'peito peru', 'salsicha', 'linguica']),  25,  25),
-    # Carnes, aves e peixes: filé/bife ≈ 25g de precisão, mínimo 50g
-    (frozenset(['frango', 'carne', 'peixe', 'tilapia', 'salmao', 'atum',
-                'sardinha', 'camarao', 'file', 'patinho', 'alcatra',
-                'picanha', 'musculo', 'contrafile', 'acem', 'lagarto',
-                'bacalhau', 'merluza', 'robalo', 'peru', 'carne moida',
-                'carne seca', 'paio']),                                     25,  50),
-    # Arroz, massas, tubérculos, leguminosas: medida de colher/concha ≈ 50g
-    (frozenset(['arroz', 'macarrao', 'esparguete', 'massa', 'batata',
-                'mandioca', 'aipim', 'macaxeira', 'cuscuz', 'feijao',
-                'lentilha', 'grao', 'ervilha', 'milho', 'soja']),           50,  50),
-    # Leite e iogurte: copo/pote ≈ 50g de precisão, mínimo 100g
-    (frozenset(['leite', 'iogurte']),                                        50, 100),
-    # Frutas: unidade ≈ 50g de precisão, mínimo 50g
-    (frozenset(['banana', 'maca', 'laranja', 'mamao', 'manga', 'uva',
-                'morango', 'melancia', 'kiwi', 'pera', 'abacaxi', 'caju',
-                'tangerina', 'mexerica', 'pessego', 'goiaba']),              50,  50),
-]
+from .portions import (  # noqa: F401
+    MAX_QUANTITY_G,
+    MIN_QUANTITY_G,
+    _FAT_KEYWORDS,
+    _PROTEIN_KEYWORDS,
+    _ZERO_CALORIE_KEYWORDS,
+    _coerce_quantity_g,
+    _has,
+    _household_measure,
+    _round_food_quantity,
+)
+from .textnorm import canonical
+from .validators import _validate_plan_structure, macro_ratio_violations
 
 
-def _round_food_quantity(food_name: str, qty_g: float) -> int:
-    """
-    Arredonda a quantidade de um alimento para o múltiplo prático mais próximo.
-
-    Usa as regras de _ROUNDING_RULES por categoria; para alimentos sem
-    categoria específica aplica arredondamento graduado:
-      ≤ 50g  → múltiplos de 5g
-      ≤ 200g → múltiplos de 25g
-       > 200g → múltiplos de 50g
-    """
-    normalized = _strip_accents(food_name.lower())
-
-    for keywords, multiple, minimum in _ROUNDING_RULES:
-        if any(kw in normalized for kw in keywords):
-            rounded = round(qty_g / multiple) * multiple
-            return int(max(minimum, rounded))
-
-    # Arredondamento graduado para alimentos sem categoria específica
-    if qty_g <= 50:
-        return int(max(5, round(qty_g / 5) * 5))
-    elif qty_g <= 200:
-        return int(round(qty_g / 25) * 25)
-    else:
-        return int(round(qty_g / 50) * 50)
-
-
-def _household_measure(food_name: str, qty_g: int) -> str:
-    """
-    Retorna a medida caseira aproximada para exibição ao usuário.
-
-    Exemplos: '300g' → '≈ 8 col. de sopa' (arroz), '150g' → '≈ 1 filé médio' (frango).
-    Retorna string vazia se não houver medida conhecida para o alimento.
-    """
-    n = _strip_accents(food_name.lower())
-    q = qty_g
-
-    # ── Ovos ─────────────────────────────────────────────────────────────────
-    if 'clara' in n:
-        count = max(1, round(q / 33))
-        return f'{count} {"clara" if count == 1 else "claras"}'
-    if any(k in n for k in ('ovo', 'ovos', 'omelete')):
-        count = max(1, round(q / 50))
-        return f'{count} {"unidade" if count == 1 else "unidades"}'
-
-    # ── Óleos e gorduras ─────────────────────────────────────────────────────
-    if any(k in n for k in ('azeite', 'oleo', 'manteiga', 'margarina')):
-        if q <= 5:   return '1 col. de chá'
-        if q <= 10:  return '1 col. de sopa'
-        if q <= 15:  return '1 col. de sopa cheia'
-        return f'{round(q / 15)} col. de sopa'
-
-    # ── Cereais e tubérculos ─────────────────────────────────────────────────
-    if 'arroz' in n:
-        col = max(1, round(q / 35))
-        return f'{col} col. de sopa'
-    if any(k in n for k in ('macarrao', 'esparguete', 'massa', 'penne')):
-        xic = round(q / 100)
-        return f'{max(1, xic)} {"xícara" if xic <= 1 else "xícaras"}'
-    if 'batata doce' in n or 'batata-doce' in n:
-        if q <= 100: return '½ unid. média'
-        if q <= 180: return '1 unid. média'
-        return '1 unid. grande'
-    if 'batata' in n:
-        if q <= 100: return '1 batata pequena'
-        if q <= 180: return '1 batata média'
-        return '1 batata grande'
-    if 'mandioca' in n or 'aipim' in n or 'macaxeira' in n:
-        if q <= 100: return '1 pedaço pequeno'
-        return f'{round(q / 100)} pedaços'
-    if 'cuscuz' in n:
-        col = max(1, round(q / 40))
-        return f'{col} col. de sopa'
-
-    # ── Leguminosas ───────────────────────────────────────────────────────────
-    if any(k in n for k in ('feijao', 'lentilha', 'grao', 'ervilha')):
-        conchas = max(1, round(q / 80))
-        return f'{conchas} {"concha" if conchas == 1 else "conchas"}'
-
-    # ── Pão e tapioca ─────────────────────────────────────────────────────────
-    if 'tapioca' in n:
-        if q <= 45:  return '½ tapioca'
-        if q <= 90:  return '1 tapioca'
-        if q <= 130: return '1½ tapioca'
-        return f'{round(q / 80)} tapiocas'
-    if 'pao' in n:
-        if q <= 35:  return '½ unidade'
-        if q <= 65:  return '1 unidade'
-        return f'{round(q / 50)} unidades'
-
-    # ── Cereais e sementes ────────────────────────────────────────────────────
-    if any(k in n for k in ('aveia', 'granola')):
-        col = max(1, round(q / 10))
-        return f'{col} col. de sopa'
-    if any(k in n for k in ('whey', 'farinha')):
-        col = max(1, round(q / 10))
-        return f'{col} col. de sopa'
-
-    # ── Laticínios ────────────────────────────────────────────────────────────
-    if 'leite' in n:
-        if q <= 100: return '½ copo'
-        if q <= 200: return '1 copo'
-        return f'{round(q / 200)} copos'
-    if 'iogurte' in n:
-        if q <= 120: return '½ pote'
-        if q <= 220: return '1 pote'
-        return f'{round(q / 180)} potes'
-    if any(k in n for k in ('queijo', 'requeijao')):
-        fatias = max(1, round(q / 25))
-        return f'{fatias} {"fatia" if fatias == 1 else "fatias"}'
-
-    # ── Oleaginosas ───────────────────────────────────────────────────────────
-    if any(k in n for k in ('castanha', 'amendoa', 'noze')):
-        unid = max(1, round(q / 5))
-        return f'{unid} unidades'
-    if 'amendoim' in n and 'pasta' not in n:
-        if q <= 15: return '1 punhado'
-        return f'{round(q / 15)} punhados'
-    if 'pasta' in n and 'amendoim' in n:
-        col = max(1, round(q / 15))
-        return f'{col} col. de sopa'
-
-    # ── Carnes, aves e peixes ─────────────────────────────────────────────────
-    if any(k in n for k in ('frango', 'tilapia', 'salmao', 'peixe',
-                             'file', 'merluza', 'bacalhau', 'robalo')):
-        if q <= 100: return '1 filé pequeno'
-        if q <= 160: return '1 filé médio'
-        if q <= 220: return '1 filé grande'
-        return f'{round(q / 150)} filés'
-    if any(k in n for k in ('patinho', 'alcatra', 'picanha', 'contrafile',
-                             'carne bovina', 'carne moida', 'musculo', 'acem')):
-        if q <= 120: return '1 bife pequeno'
-        if q <= 180: return '1 bife médio'
-        return '1 bife grande'
-    if 'atum' in n:
-        latas = max(1, round(q / 85))
-        return f'{latas} {"lata" if latas == 1 else "latas"}'
-    if 'sardinha' in n:
-        return '1 lata' if q <= 100 else '2 latas'
-
-    # ── Frutas ────────────────────────────────────────────────────────────────
-    if any(k in n for k in ('banana',)):
-        if q <= 80: return '½ banana'
-        if q <= 130: return '1 banana'
-        return '1 banana grande'
-    if any(k in n for k in ('maca', 'pera', 'pessego')):
-        if q <= 100: return '½ unidade'
-        return '1 unidade'
-    if any(k in n for k in ('laranja', 'tangerina', 'mexerica')):
-        if q <= 80: return '½ unidade'
-        return '1 unidade'
-    if any(k in n for k in ('mamao', 'manga')):
-        if q <= 100: return '1 fatia'
-        if q <= 200: return '2 fatias'
-        return '3 fatias'
-
-    # ── Legumes e folhas ──────────────────────────────────────────────────────
-    if any(k in n for k in ('alface', 'rucula', 'espinafre', 'acelga', 'salada')):
-        if q <= 40: return '½ prato'
-        return '1 prato'
-    if any(k in n for k in ('brocolis', 'couve', 'cenoura', 'abobrinha', 'chuchu')):
-        if q <= 80: return '½ xícara'
-        return '1 xícara'
-
-    return ''
-
-
-def _strip_accents(text: str) -> str:
-    text = unicodedata.normalize('NFD', text)
-    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-
-
-class DietGenerationError(Exception):
-    """Base para todos os erros de geração de dieta."""
-    pass
-
-
-class TransientAIError(DietGenerationError):
-    """
-    Erro transitório — a task Celery deve fazer retry.
-
-    Indica que a falha pode ser resolvida tentando novamente:
-    resposta mal formatada da IA, cobertura nutricional insuficiente,
-    alérgeno detectado (a IA pode escolher outros alimentos), ou
-    desequilíbrio de macros (a IA pode montar um plano melhor).
-    """
-    pass
-
-
-class PermanentAIError(DietGenerationError):
-    """
-    Erro permanente — retry não resolve, falha deve ser reportada ao usuário.
-
-    Indica problema de configuração ou dado inválido:
-    chave de API ausente, anamnese corrompida, etc.
-    """
-    pass
-
-
-class AllergenViolation(TransientAIError):
-    """Plano gerado contém alimento que viola alergias declaradas."""
-    pass
-
-
-class NutritionDataGap(TransientAIError):
-    """
-    Muitos alimentos do plano caem no fallback genérico do nutrition_db
-    (150 kcal/100g) — o cálculo calórico fica pouco confiável.
-    """
-    pass
-
-
-class MacroImbalanceError(TransientAIError):
-    """
-    Proporções de macronutrientes fora dos limites fisiologicamente razoáveis.
-
-    Exemplos: carboidratos > 65% das calorias, proteína < 65% da meta,
-    gordura < 15% das calorias.
-    """
-    pass
-
-
-def _parse_allergens(allergies_text: str) -> list[str]:
-    """
-    Parseia o campo de alergias (texto livre) em lista de alergenos normalizados.
-
-    Aceita separadores: vírgula, ponto-e-vírgula, ponto, quebra de linha, " e ".
-    Normaliza para minúsculas sem acentos. Descarta entradas com < 3 caracteres.
-    """
-    if not allergies_text or not allergies_text.strip():
-        return []
-    parts = re.split(r'[,;.\n]|\s+e\s+', allergies_text)
-    seen: set[str] = set()
-    out: list[str] = []
-    for p in parts:
-        normalized = _strip_accents(p.strip().lower())
-        normalized = re.sub(r'^[^\w\s]+|[^\w\s]+$', '', normalized).strip()
-        if len(normalized) >= 3 and normalized not in seen:
-            seen.add(normalized)
-            out.append(normalized)
-    return out
-
-
-def _food_contains_allergen(food_name: str, allergens: list[str]) -> str | None:
-    """
-    Retorna o alergeno detectado no nome do alimento, ou None.
-
-    Estratégia:
-      - Alergeno de uma palavra (ex: "amendoim"): word boundary, evita falso
-        positivo em "novo" → "ovo".
-      - Alergeno multi-palavra (ex: "frutos do mar"): substring, garante que
-        a frase inteira esteja presente.
-    """
-    if not food_name or not allergens:
-        return None
-    normalized = _strip_accents(food_name.lower())
-    for allergen in allergens:
-        if ' ' in allergen:
-            if allergen in normalized:
-                return allergen
-        else:
-            if re.search(rf'\b{re.escape(allergen)}\b', normalized):
-                return allergen
-    return None
+# Parsing e matching de alergias/restrições vivem em allergens.py; os nomes
+# com prefixo "_" são mantidos por compatibilidade (views e testes os importam).
+_parse_allergens = parse_allergens
+_food_contains_allergen = food_contains_allergen
+_parse_restrictions = parse_restrictions
 
 
 from .prompts import (
@@ -369,6 +74,7 @@ from .prompts import (
     build_meal_regen_prompt,
     build_notes_prompt,
     calculate_calories,
+    calculate_energy_plan,
     calculate_macros,
 )
 from .substitutions import generate_meal_substitutions
@@ -376,106 +82,25 @@ from .substitutions import generate_meal_substitutions
 logger = logging.getLogger(__name__)
 
 
-class AIService:
+def substitutions_for_plan(meals: list[dict], anamnese) -> list[dict]:
     """
-    Orquestra a geração de dieta em dois passos via API compatível com OpenAI.
-
-    Variáveis de ambiente:
-        AI_API_KEY  → chave de autenticação
-        AI_API_URL  → endpoint (ex: https://api.openai.com/v1/chat/completions)
-        AI_MODEL    → modelo (padrão: gpt-4o-mini)
+    Gera substituições respeitando alergias E restrições do usuário.
+    Ponto único para views/tasks gerarem substituições de um plano.
     """
+    if anamnese is None:
+        return generate_meal_substitutions(meals, [])
+    return generate_meal_substitutions(
+        meals,
+        _declared_allergens(anamnese),
+        restrictions=_declared_restrictions(anamnese),
+    )
 
-    def __init__(self):
-        self.api_key = os.getenv('AI_API_KEY', '')
-        self.api_url = os.getenv('AI_API_URL', '')
-        self.model   = os.getenv('AI_MODEL', 'gpt-4o-mini')
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #  HTTP
-    # ──────────────────────────────────────────────────────────────────────────
-
-    def _call_api(
-        self,
-        user_prompt: str,
-        system_prompt: str,
-        temperature: float = 0.3,
-        json_mode: bool = True,
-        max_retries: int = 3,
-        max_tokens: int | None = None,
-    ) -> dict:
-        """Realiza chamada à API de IA com retry exponencial em erros transitórios."""
-        if not self.api_key or not self.api_url:
-            raise PermanentAIError('AI_API_KEY e AI_API_URL devem estar configurados no .env')
-
-        body: dict = {
-            'model':       self.model,
-            'messages':    [
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user',   'content': user_prompt},
-            ],
-            'temperature': temperature,
-        }
-        if max_tokens is not None:
-            body['max_tokens'] = max_tokens
-        if json_mode:
-            body['response_format'] = {'type': 'json_object'}
-
-        payload = json.dumps(body).encode('utf-8')
-        req = urllib.request.Request(
-            self.api_url,
-            data=payload,
-            headers={
-                'Content-Type':  'application/json',
-                'Authorization': f'Bearer {self.api_key}',
-            },
-            method='POST',
-        )
-
-        last_exc: Exception | None = None
-        for attempt in range(max_retries):
-            try:
-                with urllib.request.urlopen(req, timeout=120) as response:
-                    return json.loads(response.read().decode('utf-8'))
-            except urllib.error.HTTPError as e:
-                # 429 Too Many Requests e 5xx são transitórios; 4xx são permanentes
-                if e.code == 429 or e.code >= 500:
-                    last_exc = e
-                    wait = 2 ** attempt
-                    logger.warning('API HTTP %s na tentativa %d/%d — aguardando %ds', e.code, attempt + 1, max_retries, wait)
-                    time.sleep(wait)
-                else:
-                    raise
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
-                last_exc = e
-                wait = 2 ** attempt
-                logger.warning('Erro de rede na tentativa %d/%d — aguardando %ds: %s', attempt + 1, max_retries, wait, e)
-                time.sleep(wait)
-
-        raise TransientAIError(f'API da IA indisponível após {max_retries} tentativas: {last_exc}')
-
-    def _parse_response(self, api_response: dict) -> dict:
-        """Extrai e parseia o JSON gerado pela IA."""
-        try:
-            content = api_response['choices'][0]['message']['content']
-        except (KeyError, IndexError) as e:
-            logger.error('Formato inesperado da API: %s | resposta: %s', e, api_response)
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
-
-        stripped = content.strip()
-        # Remove markdown code fences caso a API não suporte json_mode
-        if stripped.startswith('```'):
-            lines = stripped.split('\n')
-            inner = lines[1:]
-            if inner and inner[-1].strip() == '```':
-                inner = inner[:-1]
-            stripped = '\n'.join(inner)
-
-        try:
-            return json.loads(stripped)
-        except json.JSONDecodeError as e:
-            logger.error('JSON inválido da IA: %s | conteúdo: %.200s', e, content)
-            raise TransientAIError('A IA retornou um formato inesperado. Tente novamente.')
+class AIService(AIClient):
+    """
+    Orquestra a geração de dieta via API compatível com OpenAI.
+    A comunicação HTTP (_call_api, _parse_response) vem de ai_client.AIClient.
+    """
 
     # ──────────────────────────────────────────────────────────────────────────
     #  ENRIQUECIMENTO NUTRICIONAL (backend — determinístico)
@@ -486,18 +111,29 @@ class AIService:
         Consulta o nutrition_db para cada alimento e atribui calorias e macros.
         Também padroniza o campo 'quantity' para exibição no frontend.
 
+        quantity_g do LLM é limitada a [5, 1000] g. Quantidade ausente, ≤ 0
+        ou NaN conta como 'invalid' (lacuna de cobertura) e usa 100 g.
+
         Retorna (diet_data, stats), onde stats agrega contagem por camada de
         match do nutrition_db. Usado por _check_db_coverage para rejeitar planos
-        com muitos alimentos no fallback genérico (150 kcal/100g).
+        com muitos alimentos sem cobertura confiável.
         """
         stats = {
-            'total': 0, 'exact': 0, 'fuzzy': 0, 'category': 0,
+            'total': 0, 'exact': 0, 'fuzzy': 0, 'fuzzy_weak': 0, 'category': 0,
             'generic': 0, 'invalid': 0, 'generic_names': [],
         }
         for meal in diet_data.get('meals', []):
             for food in meal.get('foods', []):
-                qty_g    = float(food.get('quantity_g') or 100)
-                qty_text = food.get('quantity_text', f'{qty_g:.0f}g')
+                raw_qty = food.get('quantity_g')
+                coerced = _coerce_quantity_g(raw_qty)
+                quantity_invalid = coerced is None
+                qty_g = 100.0 if quantity_invalid else coerced
+                food['quantity_g'] = round(qty_g)
+                qty_text = food.get('quantity_text') or f'{qty_g:.0f}g'
+                if not isinstance(raw_qty, (int, float)) or isinstance(raw_qty, bool) or float(raw_qty) != qty_g:
+                    # Quantidade corrigida/limitada: o texto do LLM não vale mais
+                    qty_text = f'{qty_g:.0f}g'
+                food['quantity_text'] = qty_text
 
                 nutrition = lookup_food_nutrition(food.get('name', ''), qty_g)
                 food['calories']  = nutrition['calories']
@@ -505,10 +141,10 @@ class AIService:
                 food['carbs_g']   = nutrition['carbs_g']
                 food['fat_g']     = nutrition['fat_g']
 
-                source = nutrition.get('_source', 'unknown')
+                source = 'invalid' if quantity_invalid else nutrition.get('_source', 'unknown')
                 stats['total'] += 1
                 stats[source] = stats.get(source, 0) + 1
-                if source == 'generic':
+                if source in self.DB_GAP_SOURCES:
                     stats['generic_names'].append(food.get('name', '?'))
 
                 # Campo 'quantity' usado pelo frontend (combina texto + gramas)
@@ -545,8 +181,7 @@ class AIService:
     @staticmethod
     def _is_protein_food(food_name: str) -> bool:
         """Retorna True se o alimento é fonte proteica primária."""
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _PROTEIN_KEYWORDS)
+        return _has(canonical(food_name), *_PROTEIN_KEYWORDS)
 
     @staticmethod
     def _is_fat_food(food_name: str) -> bool:
@@ -555,74 +190,122 @@ class AIService:
         Usado em _adjust_to_calorie_target para evitar que escalas grandes
         multipliquem porções a valores absurdos (ex: azeite 10g → 60g).
         """
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _FAT_KEYWORDS)
+        return _has(canonical(food_name), *_FAT_KEYWORDS)
 
     @staticmethod
     def _is_zero_calorie_drink(food_name: str) -> bool:
-        """Retorna True para bebidas zero/diet que não devem ser escaladas."""
-        normalized = _strip_accents(food_name.lower())
-        return any(kw in normalized for kw in _ZERO_CALORIE_KEYWORDS)
+        """
+        Retorna True para bebidas zero/diet que não devem ser escaladas.
+        Além da palavra-chave, exige densidade calórica desprezível no banco
+        (≤ 10 kcal/100g) — "Água de coco" e "Bolacha de água e sal" não são zero.
+        """
+        if not _has(canonical(food_name), *_ZERO_CALORIE_KEYWORDS):
+            return False
+        return lookup_food_nutrition(food_name, 100)['calories'] <= 10
+
+    # Ajuste de porções: tolerância, iterações e limites por categoria
+    # (fator mínimo, fator máximo) relativos à quantidade ORIGINAL do LLM
+    CALORIE_TOLERANCE    = 0.10
+    ADJUST_MAX_ITERATIONS = 8
+    _ADJUST_BOUNDS = {
+        'zero':    (1.00, 1.00),   # bebidas zero: porção não afeta calorias
+        'protein': (0.85, 1.15),   # preserva adequação proteica
+        'fat':     (0.80, 1.20),   # evita explosão calórica de óleo/castanha
+        'other':   (0.30, 3.00),   # carboidratos/vegetais absorvem o ajuste
+    }
+
+    def _food_adjust_category(self, name: str) -> str:
+        if self._is_zero_calorie_drink(name):
+            return 'zero'
+        if self._is_protein_food(name):
+            return 'protein'
+        if self._is_fat_food(name):
+            return 'fat'
+        return 'other'
+
+    @staticmethod
+    def _set_food_quantity(food: dict, qty: int) -> None:
+        """Atualiza quantidade, macros (via nutrition_db) e texto de exibição."""
+        name = food.get('name', '')
+        food['quantity_g'] = qty
+        nutrition = lookup_food_nutrition(name, qty)
+        food['calories']  = nutrition['calories']
+        food['protein_g'] = nutrition['protein_g']
+        food['carbs_g']   = nutrition['carbs_g']
+        food['fat_g']     = nutrition['fat_g']
+        measure = _household_measure(name, qty)
+        food['quantity_text'] = f'{qty}g'
+        food['quantity']      = f'{qty}g ({measure})' if measure else f'{qty}g'
 
     def _adjust_to_calorie_target(self, diet_data: dict, target_calories: int) -> dict:
         """
         Se o total calculado divergir mais de 10% do alvo, ajusta quantity_g
-        com escala seletiva por categoria:
+        iterativamente (até ADJUST_MAX_ITERATIONS passadas) com escala seletiva
+        por categoria e teto por alimento relativo à quantidade original:
 
-          - Proteínas (frango, peixe, ovo…):         cap ±15% — preserva adequação proteica
-          - Gorduras densas (azeite, castanhas…):     cap ±20% — evita explosão calórica de óleo
-          - Demais (arroz, batata, pão, vegetais…):   escala livre — absorvem o ajuste principal
+          - Proteínas (frango, peixe, ovo…):       0.85–1.15× — preserva adequação proteica
+          - Gorduras densas (azeite, castanhas…):  0.80–1.20× — evita explosão calórica de óleo
+          - Demais (arroz, batata, pão, vegetais…): 0.30–3.00× — absorvem o ajuste principal
+          - Bebidas zero: inalteradas
+        Toda quantidade fica em [5, 1000] g.
 
-        A hierarquia evita que correções calóricas produzam porções absurdas
-        de alimentos calórico-densos enquanto os carboidratos ficam em 30g.
+        Uma passada só não basta: os caps de proteína/gordura fazem o total
+        ficar aquém do alvo; as passadas seguintes redistribuem o restante
+        para os alimentos que ainda têm folga. Para quando entra na tolerância
+        ou quando nenhum alimento pode mais ser ajustado.
         """
         actual = diet_data.get('calories', 0)
         if not actual or not target_calories:
             return diet_data
 
         divergence = abs(actual - target_calories) / target_calories
-        if divergence <= 0.10:
+        if divergence <= self.CALORIE_TOLERANCE:
             return diet_data
 
-        scale = target_calories / actual
         logger.warning(
-            'Total calculado (%d kcal) diverge %.1f%% do alvo (%d kcal). '
-            'Ajustando porções (escala=%.4f; proteínas ±15%%, gorduras ±20%%).',
-            actual, divergence * 100, target_calories, scale,
+            'Total calculado (%d kcal) diverge %.1f%% do alvo (%d kcal). Ajustando porções.',
+            actual, divergence * 100, target_calories,
         )
 
-        for meal in diet_data.get('meals', []):
-            for food in meal.get('foods', []):
-                old_qty = float(food.get('quantity_g') or 100)
-                name    = food.get('name', '')
+        foods = [f for meal in diet_data.get('meals', []) for f in meal.get('foods', [])]
+        originals = [float(f.get('quantity_g') or 100) for f in foods]
+        categories = [self._food_adjust_category(f.get('name', '')) for f in foods]
 
-                if self._is_zero_calorie_drink(name):
-                    # Bebidas zero/diet: sem escalonamento — porção não afeta calorias
-                    applied_scale = 1.0
-                elif self._is_protein_food(name):
-                    # Proteínas: cap ±15% para preservar adequação proteica
-                    applied_scale = max(0.85, min(1.15, scale))
-                elif self._is_fat_food(name):
-                    # Gorduras densas: cap ±20% para evitar porções absurdas de óleo
-                    applied_scale = max(0.80, min(1.20, scale))
-                else:
-                    # Carboidratos e vegetais: escala livre — absorvem o ajuste
-                    applied_scale = scale
+        for _ in range(self.ADJUST_MAX_ITERATIONS):
+            actual = diet_data.get('calories', 0)
+            if not actual or abs(actual - target_calories) / target_calories <= self.CALORIE_TOLERANCE:
+                break
 
-                new_qty = max(10, round(old_qty * applied_scale))
-                food['quantity_g'] = new_qty
+            # Escala apenas a parcela ajustável: calorias dos alimentos travados
+            # (no limite na direção desejada) não respondem à escala.
+            growing = target_calories > actual
+            adjustable_kcal = 0.0
+            for food, orig, cat in zip(foods, originals, categories):
+                lo, hi = self._ADJUST_BOUNDS[cat]
+                qty = float(food.get('quantity_g') or 0)
+                limit = min(MAX_QUANTITY_G, orig * hi) if growing else max(MIN_QUANTITY_G, orig * lo)
+                if (growing and qty < limit) or (not growing and qty > limit):
+                    adjustable_kcal += food.get('calories', 0) or 0
+            if adjustable_kcal <= 0:
+                break
+            scale = max(0.0, 1 + (target_calories - actual) / adjustable_kcal)
 
-                nutrition = lookup_food_nutrition(name, new_qty)
-                food['calories']  = nutrition['calories']
-                food['protein_g'] = nutrition['protein_g']
-                food['carbs_g']   = nutrition['carbs_g']
-                food['fat_g']     = nutrition['fat_g']
+            changed = False
+            for food, orig, cat in zip(foods, originals, categories):
+                lo, hi = self._ADJUST_BOUNDS[cat]
+                qty = float(food.get('quantity_g') or 0)
+                new_qty = qty * scale
+                new_qty = min(orig * hi, max(orig * lo, new_qty))
+                new_qty = round(min(MAX_QUANTITY_G, max(MIN_QUANTITY_G, new_qty)))
+                if new_qty != round(qty):
+                    changed = True
+                self._set_food_quantity(food, new_qty)
 
-                measure = _household_measure(name, new_qty)
-                food['quantity_text'] = f'{new_qty}g'
-                food['quantity']      = f'{new_qty}g ({measure})' if measure else f'{new_qty}g'
+            diet_data = self._recalculate_totals(diet_data)
+            if not changed:
+                break
 
-        return self._recalculate_totals(diet_data)
+        return diet_data
 
     def _round_portions(self, diet_data: dict, target_calories: int | None = None) -> dict:
         """
@@ -651,8 +334,8 @@ class AIService:
                 food['quantity_text'] = f'{qty}g'
                 food['quantity'] = f'{qty}g ({measure})' if measure else f'{qty}g'
 
+        diet_data = self._recalculate_totals(diet_data)
         if changed:
-            diet_data = self._recalculate_totals(diet_data)
             if target_calories:
                 total = diet_data.get('calories', 0)
                 dev = abs(total - target_calories) / target_calories * 100
@@ -661,6 +344,31 @@ class AIService:
                     changed, total, dev, target_calories,
                 )
         return diet_data
+
+    def _fit_portions(self, diet_data: dict, target_calories: int) -> dict:
+        """
+        Ajusta porções ao alvo e arredonda para medidas práticas. O
+        arredondamento pode tirar o total da tolerância — nesse caso ajusta
+        e arredonda de novo (uma vez) e registra se ainda ficou fora.
+        """
+        diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
+        diet_data = self._round_portions(diet_data, target_calories)
+        if self._calorie_divergence(diet_data, target_calories) > self.CALORIE_TOLERANCE:
+            diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
+            diet_data = self._round_portions(diet_data, target_calories)
+            divergence = self._calorie_divergence(diet_data, target_calories)
+            if divergence > self.CALORIE_TOLERANCE:
+                logger.warning(
+                    '[PORTIONS] Total %d kcal ainda diverge %.1f%% do alvo %d kcal após arredondamento.',
+                    diet_data.get('calories', 0), divergence * 100, target_calories,
+                )
+        return diet_data
+
+    @staticmethod
+    def _calorie_divergence(diet_data: dict, target_calories: int) -> float:
+        if not target_calories:
+            return 0.0
+        return abs((diet_data.get('calories') or 0) - target_calories) / target_calories
 
     def _check_protein_adequacy(
         self,
@@ -691,6 +399,15 @@ class AIService:
                 actual, target, ratio * 100, anamnese.user_id,
             )
 
+    def _macro_ratio_violations(
+        self,
+        diet_data: dict,
+        anamnese: Anamnese,
+        target_calories: int,
+    ) -> list[str]:
+        """Lista de violações de proporção de macros (ver validators.macro_ratio_violations)."""
+        return macro_ratio_violations(diet_data, anamnese, target_calories)
+
     def _validate_macro_ratios(
         self,
         diet_data: dict,
@@ -699,73 +416,10 @@ class AIService:
     ) -> None:
         """
         Valida que as proporções de macronutrientes do plano estão dentro de
-        limites fisiologicamente razoáveis. Levanta MacroImbalanceError
-        (retryable) se algum limite for violado.
-
-        Limites absolutos por % de calorias:
-          - Carboidratos: máximo 65% das calorias
-          - Proteína:     mínimo 15% das calorias
-          - Gordura:      mínimo 15% das calorias
-
-        Limites por g/kg de peso corporal:
-          - Gordura: máximo 1.2g/kg (20% acima do teto recomendado de 1.0g/kg)
-            → detecta excesso de óleos, castanhas, queijo mesmo dentro do % de calorias
-
-        Aderência à meta calculada:
-          - Proteína: mínimo 65% da meta calculada pelo backend
+        limites fisiologicamente razoáveis (ver _macro_ratio_violations).
+        Levanta MacroImbalanceError (retryable) se algum limite for violado.
         """
-        macros    = diet_data.get('macros', {})
-        total_cal = diet_data.get('calories', 0)
-        if not total_cal:
-            return
-
-        protein_g = macros.get('protein_g', 0)
-        carbs_g   = macros.get('carbs_g', 0)
-        fat_g     = macros.get('fat_g', 0)
-        w         = float(anamnese.weight_kg) if anamnese.weight_kg else 1.0
-
-        protein_pct = (protein_g * 4) / total_cal
-        carbs_pct   = (carbs_g   * 4) / total_cal
-        fat_pct     = (fat_g     * 9) / total_cal
-        fat_per_kg  = fat_g / w
-
-        violations = []
-
-        if carbs_pct > 0.65:
-            violations.append(
-                f'carboidratos em {carbs_pct * 100:.0f}% das calorias (teto: 65%) — '
-                f'excesso de alimentos ricos em amido/açúcar'
-            )
-        if protein_pct < 0.15:
-            violations.append(
-                f'proteína em {protein_pct * 100:.0f}% das calorias (mínimo: 15%) — '
-                f'fontes proteicas insuficientes no plano'
-            )
-        if fat_pct < 0.15:
-            violations.append(
-                f'gordura em {fat_pct * 100:.0f}% das calorias (mínimo: 15%) — '
-                f'risco de deficiência de vitaminas lipossolúveis'
-            )
-        # Teto de gordura por kg — detecta excesso de óleos/castanhas mesmo em %
-        # aceitável (ex: 37% numa dieta de 3000 kcal parece ok em %, mas 126g para
-        # 95kg = 1.33g/kg excede claramente o limite fisiológico de 1.0g/kg)
-        if fat_per_kg > 1.2:
-            violations.append(
-                f'gordura {fat_g}g ({fat_per_kg:.1f}g/kg) excede 1.2g/kg para '
-                f'{w:.0f}kg — desbalanceamento por excesso de alimentos gordurosos '
-                f'(óleos, castanhas, queijo, manteiga)'
-            )
-
-        # Aderência à meta de proteína calculada
-        protein_target = calculate_macros(anamnese, target_calories)['protein_g']
-        if protein_target > 0:
-            protein_ratio = protein_g / protein_target
-            if protein_ratio < 0.65:
-                violations.append(
-                    f'proteína {protein_g}g é apenas {protein_ratio * 100:.0f}% da meta '
-                    f'({protein_target}g) — desbalanceamento de macros proteicos'
-                )
-
+        violations = self._macro_ratio_violations(diet_data, anamnese, target_calories)
         if violations:
             detail = '; '.join(violations)
             logger.error(
@@ -777,13 +431,12 @@ class AIService:
                 f'Tente gerar novamente.'
             )
 
+        macros = diet_data.get('macros', {})
         logger.info(
-            '[MACRO_VALID] Macros dentro dos limites — usuário %s: '
-            'P=%dg (%.0f%%) C=%dg (%.0f%%) G=%dg (%.0f%%, %.1fg/kg)',
+            '[MACRO_VALID] Macros dentro dos limites — usuário %s: P=%sg C=%sg G=%sg (%s kcal)',
             anamnese.user_id,
-            protein_g, protein_pct * 100,
-            carbs_g,   carbs_pct   * 100,
-            fat_g,     fat_pct     * 100, fat_per_kg,
+            macros.get('protein_g', 0), macros.get('carbs_g', 0), macros.get('fat_g', 0),
+            diet_data.get('calories', 0),
         )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -796,6 +449,8 @@ class AIService:
     # pode legitimamente estar fora do TACO.
     DB_COVERAGE_MIN_GENERIC_COUNT = 2
     DB_COVERAGE_MAX_GENERIC_RATIO = 0.20
+    # Camadas do nutrition_db que contam como lacuna de cobertura
+    DB_GAP_SOURCES = ('generic', 'fuzzy_weak', 'invalid')
 
     def _check_db_coverage(self, stats: dict, anamnese: Anamnese) -> None:
         """
@@ -804,16 +459,16 @@ class AIService:
 
         O fallback genérico atribui 150 kcal/100g a qualquer alimento desconhecido,
         o que mascara erros graves: pão de queijo (~330), hambúrguer (~280),
-        coxinha (~280) — todos seriam subestimados em ~50%.
+        coxinha (~280) — todos seriam subestimados em ~50%. Matches fuzzy fracos
+        ('fuzzy_weak') e quantidades inválidas ('invalid') contam como lacuna.
 
-        Trigger de retry: a exception é ValueError com 'cobertura nutricional'
-        na mensagem, capturada por _RETRYABLE_PHRASES em tasks.py.
+        NutritionDataGap é TransientAIError — a task do Celery faz retry.
         """
         total = stats.get('total', 0)
         if total == 0:
             return
 
-        generic = stats.get('generic', 0)
+        generic = sum(stats.get(src, 0) for src in self.DB_GAP_SOURCES)
         ratio = generic / total
 
         if generic >= self.DB_COVERAGE_MIN_GENERIC_COUNT and ratio >= self.DB_COVERAGE_MAX_GENERIC_RATIO:
@@ -826,7 +481,7 @@ class AIService:
             )
             raise NutritionDataGap(
                 f'Cobertura nutricional insuficiente: {generic} de {total} alimentos '
-                f'({ratio * 100:.0f}%) caíram no fallback genérico ({preview}). '
+                f'({ratio * 100:.0f}%) sem dados nutricionais confiáveis ({preview}). '
                 f'Tente gerar novamente.'
             )
 
@@ -846,39 +501,72 @@ class AIService:
 
         O LLM pode ignorar a instrução "evite completamente" no prompt. Esta
         camada determinística é a última linha de defesa antes de servir um
-        plano potencialmente perigoso.
+        plano potencialmente perigoso. Cada alérgeno é expandido para a sua
+        família de alimentos (ex: 'leite' → queijo, iogurte, whey...).
 
-        Levanta AllergenViolation com a lista de violações encontradas.
-        Como AllergenViolation é ValueError com "alergia" na mensagem, a task
-        do Celery faz retry automático (até 2x) — geração não-determinística
-        pode produzir um plano válido na próxima tentativa.
+        Levanta AllergenViolation (TransientAIError): a task do Celery faz
+        retry automático — geração não-determinística pode produzir um plano
+        válido na próxima tentativa.
         """
-        allergens = _parse_allergens(anamnese.allergies or '')
+        allergens = _declared_allergens(anamnese)
         if not allergens:
             return
 
+        violations = self._find_violations(
+            diet_data, lambda name: food_contains_allergen(name, allergens),
+        )
+        if violations:
+            logger.error(
+                '[ALLERGY_VIOLATION] Plano para usuário %s viola alergias declaradas: %s',
+                anamnese.user_id, self._format_violations(violations),
+            )
+            raise AllergenViolation(
+                'O plano gerado contém alimentos incompatíveis com as alergias '
+                f'declaradas ({self._format_violations(violations)}). Tente gerar novamente.'
+            )
+
+    def _enforce_restrictions(self, diet_data: dict, anamnese: Anamnese) -> None:
+        """
+        Verifica se algum alimento do plano viola as restrições de dieta
+        declaradas (vegetariano, vegano, sem lactose, sem glúten...).
+        Levanta RestrictionViolation (retryable), como _enforce_allergies.
+        """
+        restrictions = _declared_restrictions(anamnese)
+        if not restrictions:
+            return
+
+        violations = self._find_violations(
+            diet_data, lambda name: food_violates_restriction(name, restrictions),
+        )
+        if violations:
+            logger.error(
+                '[RESTRICTION_VIOLATION] Plano para usuário %s viola restrições declaradas: %s',
+                anamnese.user_id, self._format_violations(violations),
+            )
+            raise RestrictionViolation(
+                'O plano gerado contém alimentos incompatíveis com as restrições '
+                f'alimentares declaradas ({self._format_violations(violations)}). '
+                'Tente gerar novamente.'
+            )
+
+    @staticmethod
+    def _find_violations(diet_data: dict, matcher) -> list[tuple[str, str, str]]:
+        """Lista (refeição, alimento, termo violado) para cada alimento bloqueado."""
         violations: list[tuple[str, str, str]] = []
         for meal in diet_data.get('meals', []):
             meal_name = meal.get('name', '?')
             for food in meal.get('foods', []):
                 food_name = food.get('name', '')
-                matched = _food_contains_allergen(food_name, allergens)
+                matched = matcher(food_name)
                 if matched:
                     violations.append((meal_name, food_name, matched))
+        return violations
 
-        if violations:
-            details = '; '.join(
-                f'"{food}" em "{meal}" (alergeno: {a})'
-                for meal, food, a in violations
-            )
-            logger.error(
-                '[ALLERGY_VIOLATION] Plano para usuário %s viola alergias declaradas: %s',
-                anamnese.user_id, details,
-            )
-            raise AllergenViolation(
-                f'O plano gerado contém alimentos que violam alergias declaradas: '
-                f'{details}. Tente gerar novamente.'
-            )
+    @staticmethod
+    def _format_violations(violations: list[tuple[str, str, str]]) -> str:
+        return '; '.join(
+            f'"{food}" em "{meal}" ({term})' for meal, food, term in violations[:5]
+        )
 
     # ──────────────────────────────────────────────────────────────────────────
     #  DICAS PERSONALIZADAS (chamada separada, falha silenciosamente)
@@ -987,6 +675,18 @@ class AIService:
     #  MÉTODO PRINCIPAL
     # ──────────────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _food_selection_max_tokens(meals_per_day) -> int:
+        """
+        max_tokens do Passo 1 proporcional ao número de refeições:
+        ~5 alimentos × ~80 tokens por refeição + overhead do JSON.
+        """
+        try:
+            meals = int(meals_per_day or 3)
+        except (TypeError, ValueError):
+            meals = 3
+        return max(1500, min(6000, 450 * meals + 500))
+
     def generate_diet(self, anamnese: Anamnese) -> DietPlan:
         """
         Gera e persiste um DietPlan completo.
@@ -999,38 +699,33 @@ class AIService:
           5. LLM Passos 2+3 (temp=0.7) em paralelo: notas e explicação — simultâneos
           6. Persiste DietPlan + Meals no banco
         """
-        tmb, tdee, target_calories = calculate_calories(anamnese)
+        energy = calculate_energy_plan(anamnese)
+        tmb, tdee, target_calories = energy['tmb'], energy['tdee'], energy['target_calories']
         logger.info(
-            'Alvo calórico para usuário %s: TMB=%d, TDEE=%d, meta=%d kcal (objetivo: %s)',
-            anamnese.user_id, tmb, tdee, target_calories, anamnese.goal,
+            'Alvo calórico para usuário %s: TMB=%d, TDEE=%d, meta=%d kcal (objetivo: %s, efetivo: %s)',
+            anamnese.user_id, tmb, tdee, target_calories, anamnese.goal, energy['effective_goal'],
         )
 
         # ── Passo 1: seleção de alimentos ────────────────────────────────────
         prompt = build_food_selection_prompt(anamnese)
         logger.info('Passo 1 — chamando IA para seleção de alimentos (usuário %s)...', anamnese.user_id)
 
-        try:
-            raw_response = self._call_api(
-                prompt,
-                system_prompt=SYSTEM_PROMPT_FOODS,
-                temperature=0.55,
-                json_mode=True,
-                max_tokens=2500,  # ~6 refeições × ~5 alimentos × ~80 tokens cada + overhead JSON
-            )
-        except urllib.error.HTTPError as e:
-            logger.error('Erro HTTP na chamada à IA (Passo 1): %s', e)
-            raise Exception(f'Falha ao contatar a API da IA: HTTP {e.code}')
-        except Exception as e:
-            logger.error('Erro na chamada à IA (Passo 1): %s', e)
-            raise Exception('Falha ao gerar o plano alimentar. Tente novamente.')
+        # Erros da API já chegam tipados (TransientAIError/PermanentAIError) —
+        # propagam sem embrulho para a task decidir sobre retry.
+        raw_response = self._call_api(
+            prompt,
+            system_prompt=SYSTEM_PROMPT_FOODS,
+            temperature=0.55,
+            json_mode=True,
+            max_tokens=self._food_selection_max_tokens(anamnese.meals_per_day),
+        )
 
         diet_data = self._parse_response(raw_response)
+        _validate_plan_structure(diet_data)
 
-        if 'meals' not in diet_data or not diet_data['meals']:
-            raise TransientAIError('A IA não retornou refeições válidas. Tente novamente.')
-
-        # ── Enforcement de alergias (fail-fast antes do trabalho caro) ────────
+        # ── Enforcement de alergias e restrições (fail-fast) ──────────────────
         self._enforce_allergies(diet_data, anamnese)
+        self._enforce_restrictions(diet_data, anamnese)
 
         # ── Backend: enriquece com macros do banco nutricional ────────────────
         logger.info('Calculando macros via banco nutricional para usuário %s...', anamnese.user_id)
@@ -1038,8 +733,7 @@ class AIService:
         # Rejeita planos com cobertura insuficiente — força retry da task
         self._check_db_coverage(db_stats, anamnese)
         diet_data = self._recalculate_totals(diet_data)
-        diet_data = self._adjust_to_calorie_target(diet_data, target_calories)
-        diet_data = self._round_portions(diet_data, target_calories)
+        diet_data = self._fit_portions(diet_data, target_calories)
 
         logger.info(
             'Macros calculados: %d kcal | P=%dg | C=%dg | G=%dg (alvo: %d kcal)',
@@ -1053,9 +747,8 @@ class AIService:
         self._validate_macro_ratios(diet_data, anamnese, target_calories)
 
         # ── Substituições inteligentes (determinístico — backend, sem IA) ──────
-        allergens_list = _parse_allergens(anamnese.allergies or '')
-        diet_data['substitutions'] = generate_meal_substitutions(
-            diet_data.get('meals', []), allergens_list
+        diet_data['substitutions'] = substitutions_for_plan(
+            diet_data.get('meals', []), anamnese
         )
         logger.info(
             '[SUBSTITUTIONS] %d substituições geradas para usuário %s.',
@@ -1095,6 +788,16 @@ class AIService:
                 if note:
                     meal['meal_notes'] = note
         diet_data['explanation'] = explanation
+
+        # Sinaliza ajustes de segurança na meta (piso mínimo, teto, déficit anulado)
+        diet_data['energy_plan'] = {
+            'target_calories':  target_calories,
+            'tdee':             tdee,
+            'effective_goal':   energy['effective_goal'],
+            'adjustment_kcal':  energy['adjustment_kcal'],
+            'adjustment_label': energy['adjustment_label'],
+        }
+        diet_data['calorie_warnings'] = energy['warnings']
 
         # ── Persiste DietPlan ─────────────────────────────────────────────────
         diet_plan = DietPlan.objects.create(
@@ -1145,6 +848,19 @@ class AIService:
     #  REGENERAÇÃO PONTUAL DE REFEIÇÃO
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _check_regenerated_plan_ratios(self, diet_plan: DietPlan, meal_index: int, new_meal: dict) -> None:
+        anamnese = diet_plan.anamnese
+        meals = (diet_plan.raw_response or {}).get('meals', [])
+        _, _, target_calories = calculate_calories(anamnese)
+
+        old_plan = self._recalculate_totals({'meals': list(meals)})
+        if self._macro_ratio_violations(old_plan, anamnese, target_calories):
+            return
+        new_meals = list(meals)
+        new_meals[meal_index] = new_meal
+        new_plan = self._recalculate_totals({'meals': new_meals})
+        self._validate_macro_ratios(new_plan, anamnese, target_calories)
+
     def regenerate_meal(
         self,
         diet_plan: DietPlan,
@@ -1154,11 +870,14 @@ class AIService:
         """
         Regenera uma refeição específica sem alterar as demais do plano.
 
-        Fluxo:
+        Fluxo (mesmas salvaguardas da geração completa):
           1. Monta prompt com contexto do plano completo e perfil do usuário
-          2. Chama IA (temp=0.7 para variedade)
-          3. Enriquece os novos alimentos com macros do nutrition_db
-          4. Retorna dict com os dados da nova refeição (não persiste — a view persiste)
+          2. Chama IA (temp=0.7 para variedade, max_tokens=800)
+          3. Aplica alergias e restrições (fail-fast)
+          4. Enriquece com macros do nutrition_db e checa cobertura
+          5. Ajusta à meta calórica da refeição e DEPOIS arredonda
+          6. Valida proporções de macros do plano inteiro (quando aplicável)
+          7. Retorna dict com os dados da nova refeição (não persiste — a view persiste)
 
         Returns dict com:
           new_raw_meal     — meal dict enriquecido para raw_response['meals'][meal_index]
@@ -1186,48 +905,48 @@ class AIService:
             diet_plan.user_id,
         )
 
-        try:
-            raw_response = self._call_api(
-                prompt,
-                system_prompt=SYSTEM_PROMPT_MEAL_REGEN,
-                temperature=0.7,
-                json_mode=True,
-            )
-        except urllib.error.HTTPError as e:
-            logger.error('Erro HTTP na chamada à IA (regeneração): %s', e)
-            raise Exception(f'Falha ao contatar a API da IA: HTTP {e.code}')
-        except Exception as e:
-            logger.error('Erro na chamada à IA (regeneração): %s', e)
-            raise Exception('Falha ao regenerar a refeição. Tente novamente.')
+        raw_response = self._call_api(
+            prompt,
+            system_prompt=SYSTEM_PROMPT_MEAL_REGEN,
+            temperature=0.7,
+            json_mode=True,
+            max_tokens=800,  # JSON compacto de uma refeição + meal_notes
+        )
 
         new_meal_data = self._parse_response(raw_response)
 
         if not new_meal_data.get('foods'):
             raise TransientAIError('A IA não retornou alimentos válidos para a refeição.')
+        _validate_plan_structure(new_meal_data, single_meal=True)
 
         # Preserva nome e horário caso a IA omita ou altere
         new_meal_data.setdefault('name', current_meal.get('name', f'Refeição {meal_index + 1}'))
         new_meal_data.setdefault('time_suggestion', current_meal.get('time_suggestion', ''))
 
-        # Enforcement de alergias antes de enriquecer (fail-fast)
+        # Enforcement de alergias e restrições antes de enriquecer (fail-fast)
         self._enforce_allergies({'meals': [new_meal_data]}, diet_plan.anamnese)
+        self._enforce_restrictions({'meals': [new_meal_data]}, diet_plan.anamnese)
 
         # Enriquece com macros do banco nutricional (determinístico)
         enriched, db_stats = self._enrich_foods_with_macros({'meals': [new_meal_data]})
         # Rejeita refeição com cobertura insuficiente — usuário pode tentar de novo manualmente
         self._check_db_coverage(db_stats, diet_plan.anamnese)
-        enriched = self._round_portions(enriched)
+        enriched = self._recalculate_totals(enriched)
 
-        # Ajusta calorias da refeição para ficar dentro de ±10% do alvo original.
-        # Sem isso o arredondamento de porções pode tirar 150-200 kcal silenciosamente.
+        # Ajusta calorias da refeição ao alvo original (±10%) e SÓ DEPOIS
+        # arredonda — mesma ordem da geração completa (_fit_portions).
         meal_calorie_target = sum(
             f.get('calories', 0) for f in current_meal.get('foods', [])
         )
         if meal_calorie_target > 0:
-            meal_total = sum(f.get('calories', 0) for f in enriched['meals'][0].get('foods', []))
-            wrapper = {'calories': meal_total, 'meals': enriched['meals']}
-            wrapper = self._adjust_to_calorie_target(wrapper, meal_calorie_target)
-            enriched = {'meals': wrapper['meals']}
+            enriched = self._fit_portions(enriched, meal_calorie_target)
+        else:
+            enriched = self._round_portions(enriched)
+
+        # Proporções de macros do plano inteiro com a nova refeição. Só rejeita
+        # se o plano atual estava dentro dos limites ("quando aplicável") —
+        # planos antigos já fora dos limites não bloqueiam a regeneração.
+        self._check_regenerated_plan_ratios(diet_plan, meal_index, enriched['meals'][0])
 
         new_meal = enriched['meals'][0]
 
