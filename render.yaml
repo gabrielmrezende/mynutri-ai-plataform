@@ -6,7 +6,8 @@
 # Como usar:
 #   1. Faça push deste arquivo para o seu repositório GitHub
 #   2. No Render: New → Blueprint → conecte o repositório
-#   O Render criará automaticamente o Web Service e o PostgreSQL.
+#   O Render criará o Web Service, o Worker e o Redis.
+#   O PostgreSQL é o Supabase — preencha DATABASE_URL no painel.
 # =============================================================================
 
 services:
@@ -35,9 +36,7 @@ services:
         generateValue: true   # Render gera um valor aleatório seguro automaticamente
 
       - key: DATABASE_URL
-        fromDatabase:
-          name: mynutri-db
-          property: connectionString
+        sync: false           # Supabase → Connect → Session pooler (porta 5432)
 
       - key: ALLOWED_HOSTS
         sync: false           # preencha com seu domínio: mynutri-ai.onrender.com
@@ -92,9 +91,7 @@ services:
           envVarKey: SECRET_KEY
 
       - key: DATABASE_URL
-        fromDatabase:
-          name: mynutri-db
-          property: connectionString
+        sync: false           # Supabase → Connect → Session pooler (porta 5432)
 
       - key: AI_API_KEY
         sync: false
@@ -118,15 +115,10 @@ services:
           property: connectionString
 
   # ---------------------------------------------------------------------------
-  # PostgreSQL — banco de dados gerenciado pelo Render
+  # Banco de dados: PostgreSQL hospedado no Supabase (fora do Render).
+  # Configure DATABASE_URL manualmente nos dois serviços acima.
   # ---------------------------------------------------------------------------
 databases:
-  - name: mynutri-db
-    databaseName: mynutri
-    user: mynutri
-    region: ohio
-    plan: free              # free tier: 90 dias; troque por "starter" para produção
-
   # Redis — broker do Celery e cache da aplicação
   - name: mynutri-redis
     type: redis

@@ -4,8 +4,7 @@
 
 O banco de dados é responsável por armazenar todas as informações da aplicação, incluindo dados dos usuários, respostas da anamnese, planos alimentares gerados e logs de regeneração.
 
-- **Desenvolvimento:** SQLite (`db.sqlite3`)
-- **Produção:** PostgreSQL (configurar via `DATABASE_URL` no `.env`)
+- **Banco:** PostgreSQL no Supabase (dev e produção) — `DATABASE_URL` obrigatória (Session pooler, porta 5432)
 
 ### Diagrama de Entidade-Relacionamento (ERD)
 

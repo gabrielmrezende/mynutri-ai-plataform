@@ -34,7 +34,7 @@ O **MyNutri AI** permite que usuários respondam um questionário nutricional e,
 - **Django REST Framework** — API REST
 - **SimpleJWT** — autenticação via Bearer Token + cookies HttpOnly
 - **Celery** — geração assíncrona de dieta (fallback síncrono em dev)
-- **SQLite** (dev) / **PostgreSQL** (prod)
+- **PostgreSQL** no **Supabase** (dev e prod)
 - **django-cors-headers** — CORS configurado
 
 ### Frontend

@@ -171,7 +171,7 @@ chmod +x .git/hooks/pre-commit
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 AI_API_KEY=sk-proj-seu-dev-key
-DATABASE_URL=sqlite:///db.sqlite3
+DATABASE_URL=postgresql://postgres.<ref>:<senha>@aws-0-<regiao>.pooler.supabase.com:5432/postgres
 ```
 
 ### Produção (Exemplo com Heroku/Railway)

@@ -88,8 +88,7 @@ GET    /health/
 
 ### 3. Banco de Dados
 
-**Desenvolvimento:** SQLite (`db.sqlite3`)  
-**Produção:** PostgreSQL (configurar via `DATABASE_URL` no `.env`)
+**Banco:** PostgreSQL no Supabase em todos os ambientes (`DATABASE_URL` obrigatória, Session pooler)  
 
 **Modelos:**
 | Modelo | App | Descrição |
@@ -171,5 +170,5 @@ GET /api/v1/diet/status/<job_id>
 | `raw_response` JSONField | Preserva resposta completa da IA para reprocessamento futuro |
 | `DietJob` para geração assíncrona | Evita timeout HTTP em geração demorada; permite UX com loading progressivo |
 | `MealRegenerationLog` com `previous_raw_meal` | Permite undo completo sem precisar chamar a IA novamente |
-| SQLite em dev | Zero configuração; migration para PostgreSQL é transparente com Django |
+| Supabase (PostgreSQL) em todos os ambientes | Um único banco gerenciado; mesmo engine em dev e prod |
 | Celery com fallback síncrono | Ambiente local sem Redis funciona normalmente; produção escala com workers |

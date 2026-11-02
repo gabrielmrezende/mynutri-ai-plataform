@@ -88,8 +88,8 @@ Em testes, o throttle é desabilitado (`DEFAULT_THROTTLE_CLASSES: []`); o cache 
 
 ### Variáveis de ambiente obrigatórias
 
-`settings.py` valida `SECRET_KEY`, `AI_API_KEY` e `AI_API_URL` na inicialização e lança `ValueError` se ausentes. Para testes, usar `mynutri/test_settings.py` (não requer `.env`).
+`settings.py` valida `SECRET_KEY`, `AI_API_KEY`, `AI_API_URL` e `DATABASE_URL` na inicialização e lança `ValueError` se ausentes. Para testes, usar `mynutri/test_settings.py` (não requer `.env`).
 
 ### Deploy
 
-O arquivo `render.yaml` define a infraestrutura completa no Render (Web Service Python + PostgreSQL). O script `build.sh` executa `collectstatic` e `migrate` no build. Em dev, SQLite é usado automaticamente quando `DATABASE_URL` não está definido.
+O arquivo `render.yaml` define a infraestrutura no Render (Web Service + Celery Worker + Redis). O banco de dados é **exclusivamente o PostgreSQL do Supabase** (projeto `mynutri-ai-plataform`, ref `rmtipuzswcdcfothkxmr`), em dev e em produção: `DATABASE_URL` deve apontar para o Session pooler (porta 5432, IPv4); não há fallback para SQLite. O schema é gerenciado pelas migrations do Django (`python manage.py migrate`), não por migrations do Supabase. O script `build.sh` executa `collectstatic` e `migrate` no build.

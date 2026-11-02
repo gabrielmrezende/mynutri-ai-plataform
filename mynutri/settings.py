@@ -23,6 +23,7 @@ _REQUIRED_VARS = {
     'SECRET_KEY': 'Django secret key (gere com: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")',
     'AI_API_KEY': 'Chave da API de IA (OpenAI, Gemini, etc.)',
     'AI_API_URL': 'URL do endpoint da API de IA',
+    'DATABASE_URL': 'Connection string do Postgres do Supabase (Dashboard → Connect → Session pooler)',
 }
 
 for _var, _desc in _REQUIRED_VARS.items():
@@ -108,20 +109,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'mynutri.wsgi.application'
 
 # =============================================================================
-# Banco de Dados
-# Dev: SQLite (padrão se DATABASE_URL não estiver setado)
-# Prod: PostgreSQL via DATABASE_URL (Render injeta automaticamente)
+# Banco de Dados — Supabase (PostgreSQL)
+# DATABASE_URL obrigatória em todos os ambientes (sem fallback para SQLite).
+# Use a connection string do "Session pooler" (porta 5432): é IPv4 e mantém
+# conexões persistentes. A conexão direta (db.<ref>.supabase.co) é só IPv6.
+# O "Transaction pooler" (porta 6543) é detectado e ajustado automaticamente.
 # =============================================================================
-_db_url = os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR / "db.sqlite3"}')
+_db_url = os.getenv('DATABASE_URL')
+_transaction_pooler = ':6543/' in _db_url
 
-# dj-database-url 2.x: conn_max_age recomendado para produção
 DATABASES = {
     'default': dj_database_url.parse(
         _db_url,
-        conn_max_age=600,
+        conn_max_age=int(os.getenv('DB_CONN_MAX_AGE', '0' if _transaction_pooler else '600')),
         conn_health_checks=True,
+        ssl_require=True,
     )
 }
+# Transaction pooler (PgBouncer/Supavisor) não suporta server-side cursors
+DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = _transaction_pooler
 
 # =============================================================================
 # Autenticação
