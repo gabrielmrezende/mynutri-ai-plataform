@@ -265,13 +265,14 @@ class DietPlanSerializer(serializers.ModelSerializer):
     notes = serializers.SerializerMethodField()
     meals_raw = serializers.SerializerMethodField()
     explanation = serializers.SerializerMethodField()
+    calorie_warnings = serializers.SerializerMethodField()
 
     class Meta:
         model = DietPlan
         fields = (
             'id', 'calorias_totais', 'goal_description',
             'macros', 'substitutions', 'notes',
-            'meals_raw', 'refeicoes', 'explanation', 'created_at',
+            'meals_raw', 'refeicoes', 'explanation', 'calorie_warnings', 'created_at',
         )
         read_only_fields = fields
 
@@ -291,3 +292,7 @@ class DietPlanSerializer(serializers.ModelSerializer):
     def get_explanation(self, obj):
         """Retorna a explicação de transparência gerada pela IA."""
         return obj.raw_response.get('explanation') if obj.raw_response else None
+
+    def get_calorie_warnings(self, obj):
+        """Avisos de segurança da meta calórica (piso mínimo, teto, déficit anulado)."""
+        return obj.raw_response.get('calorie_warnings', []) if obj.raw_response else []
